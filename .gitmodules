@@ -1,0 +1,3 @@
+[submodule "subprojects/libai5"]
+	path = subprojects/libai5
+	url = git@github.com:nunuhara/libai5.git
