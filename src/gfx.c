@@ -139,4 +139,5 @@ void gfx_draw_cg(struct cg *cg)
 	if (SDL_MUSTLOCK(gfx.indexed))
 		SDL_UnlockSurface(gfx.indexed);
 
+	gfx.dirty = true;
 }

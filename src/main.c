@@ -28,6 +28,7 @@
 #include "nulib/string.h"
 
 #include "asset.h"
+#include "audio.h"
 #include "gfx.h"
 #include "ini.h"
 #include "memory.h"
@@ -255,6 +256,7 @@ int main(int argc, char *argv[])
 	asset_init();
 	memory_init();
 	gfx_init();
+	audio_init();
 	vm_init();
 
 	// execute start mes file

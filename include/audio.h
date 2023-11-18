@@ -14,30 +14,19 @@
  * along with this program; if not, see <http://gnu.org/licenses/>.
  */
 
-#ifndef AI5_ASSET_H
-#define AI5_ASSET_H
+#ifndef AI5_AUDIO_H
+#define AI5_AUDIO_H
 
-#include <stdbool.h>
+#include <stdint.h>
 
-struct cg;
-struct archive_data;
+void audio_init(void);
 
-enum asset_type {
-	ASSET_BG,
-	ASSET_MES,
-	ASSET_BGM,
-	ASSET_VOICE,
-	ASSET_EFFECT,
-	ASSET_DATA,
-	ASSET_PRIV,
-};
+void audio_bgm_play(const char *name);
+void audio_bgm_stop(void);
+void audio_bgm_set_volume(uint8_t vol);
+void audio_bgm_fade(uint32_t uk, uint8_t vol, bool stop, bool sync);
 
-void asset_init(void);
-void asset_fini(void);
+void audio_se_play(const char *name, uint32_t uk);
+void audio_se_stop(uint32_t uk);
 
-bool asset_mes_load(const char *name, uint8_t *dst);
-struct cg *asset_cg_load(const char *name);
-struct archive_data *asset_bgm_load(const char *name);
-struct archive_data *asset_effect_load(const char *name);
-
-#endif // AI5_ASSET_H
+#endif // AI5_AUDIO_H

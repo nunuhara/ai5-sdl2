@@ -26,6 +26,7 @@
 #include "ai5/mes.h"
 
 #include "asset.h"
+#include "audio.h"
 #include "gfx.h"
 #include "input.h"
 #include "memory.h"
@@ -287,12 +288,13 @@ void read_params(struct param_list *params)
 	params->nr_params = i;
 }
 
-static void check_string_param(struct param_list *params, int i)
+static char *check_string_param(struct param_list *params, int i)
 {
 	if (params->nr_params < i)
 		VM_ERROR("Too few parameters");
 	if (params->params[i].type != MES_PARAM_STRING)
 		VM_ERROR("Expected string parameter");
+	return params->params[i].str;
 }
 
 static uint32_t check_expr_param(struct param_list *params, int i)
@@ -483,6 +485,27 @@ static void stmt_sys_set_font_size(struct param_list *params)
 	gfx_text_set_size(sys_var16[MES_SYS_VAR_FONT_HEIGHT]);
 }
 
+static void stmt_sys_audio(struct param_list *params)
+{
+	switch (check_expr_param(params, 0)) {
+	case 0:  audio_bgm_play(check_string_param(params, 1)); break;
+	case 2:  audio_bgm_stop(); break;
+	case 3:  audio_se_play(check_string_param(params, 1), check_expr_param(params, 2)); break;
+	case 4:  audio_bgm_fade(check_expr_param(params, 1), check_expr_param(params, 2),
+				check_expr_param(params, 3), true); break;
+	case 5:  audio_bgm_set_volume(check_expr_param(params, 1)); break;
+	case 7:  audio_bgm_fade(check_expr_param(params, 1), check_expr_param(params, 2),
+				check_expr_param(params, 3), false); break;
+	case 9:  audio_bgm_fade(check_expr_param(params, 1), check_expr_param(params, 1),
+				true, true); break;
+	case 10: audio_bgm_fade(check_expr_param(params, 1), check_expr_param(params, 2),
+				true, false); break;
+	case 12: audio_se_stop(check_expr_param(params, 1)); break;
+	case 18: audio_bgm_stop(); break;
+	default: VM_ERROR("System.Audio.function[%d] not implemented", params->params[0].val);
+	}
+}
+
 static void stmt_sys_load_image(struct param_list *params)
 {
 	check_string_param(params, 0);
@@ -548,6 +571,7 @@ static void stmt_sys(void)
 
 	switch (no) {
 	case 0:  stmt_sys_set_font_size(&params); break;
+	case 5:  stmt_sys_audio(&params); break;
 	case 8:  stmt_sys_load_image(&params); break;
 	case 9:  stmt_sys_palette(&params); break;
 	case 10: stmt_sys_graphics(&params); break;

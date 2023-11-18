@@ -61,7 +61,8 @@ void asset_fini(void)
 
 bool asset_mes_load(const char *name, uint8_t *dst)
 {
-	assert(arc.mes);
+	if (!arc.mes)
+		return false;
 	struct archive_data *file = archive_get(arc.mes, name);
 	if (!file)
 		return false;
@@ -72,7 +73,8 @@ bool asset_mes_load(const char *name, uint8_t *dst)
 
 struct cg *asset_cg_load(const char *name)
 {
-	assert(arc.bg);
+	if (!arc.bg)
+		return NULL;
 	struct archive_data *file = archive_get(arc.bg, name);
 	if (!file)
 		return NULL;
@@ -80,4 +82,18 @@ struct cg *asset_cg_load(const char *name)
 	struct cg *cg = cg_load_arcdata(file);
 	archive_data_release(file);
 	return cg;
+}
+
+struct archive_data *asset_bgm_load(const char *name)
+{
+	if (!arc.bgm)
+		return NULL;
+	return archive_get(arc.bgm, name);
+}
+
+struct archive_data *asset_effect_load(const char *name)
+{
+	if (!arc.effect)
+		return NULL;
+	return archive_get(arc.effect, name);
 }
