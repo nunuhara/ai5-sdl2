@@ -20,6 +20,7 @@ incdirs = include_directories('include')
 sources = [
   'src/asset.c',
   'src/audio.c',
+  'src/cursor.c',
   'src/gfx.c',
   'src/ini.c',
   'src/input.c',

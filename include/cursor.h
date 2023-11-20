@@ -14,15 +14,17 @@
  * along with this program; if not, see <http://gnu.org/licenses/>.
  */
 
-#ifndef AI5_INPUT_H
-#define AI5_INPUT_H
+#ifndef AI5_CURSOR_H
+#define AI5_CURSOR_H
 
-#include <stdint.h>
+void cursor_init(const char *exe_path);
+void cursor_load(unsigned no);
+void cursor_unload(void);
+void cursor_reload(void);
+void cursor_show(void);
+void cursor_hide(void);
+void cursor_set_pos(unsigned x, unsigned y);
+void cursor_get_pos(unsigned *x, unsigned *y);
+void cursor_swap(void);
 
-void input_init(void);
-void handle_events(void);
-void input_keywait(void);
-
-extern uint32_t cursor_swap_event;
-
-#endif // AI5_INPUT_H
+#endif // AI5_CURSOR_H

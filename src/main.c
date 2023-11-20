@@ -29,8 +29,10 @@
 
 #include "asset.h"
 #include "audio.h"
+#include "cursor.h"
 #include "gfx.h"
 #include "ini.h"
+#include "input.h"
 #include "memory.h"
 #include "vm.h"
 
@@ -238,7 +240,6 @@ int main(int argc, char *argv[])
 	// parse ini file
 	if (ini_parse(ini_name, cfg_handler, &config) < 0)
 		sys_error("Failed to read INI file \"%s\"\n", ini_name);
-	free(ini_name);
 	if (!config.start_mes)
 		config.start_mes = string_new("MAIN.MES");
 #define DEFAULT_NAME(f, n) if (f.arc && !f.name) { f.name = string_new(n); }
@@ -251,13 +252,22 @@ int main(int argc, char *argv[])
 	DEFAULT_NAME(config.file.priv, "PRIV.ARC");
 #undef DEFAULT_NAME
 
+	string exe_name = file_replace_extension(ini_name, "EXE");
+	char *exe_path = path_get_icase(exe_name);
+	string_free(exe_name);
+
 	// intitialize subsystems
 	srand(time(NULL));
 	asset_init();
 	memory_init();
 	gfx_init();
+	input_init();
+	cursor_init(exe_path);
 	audio_init();
 	vm_init();
+
+	free(ini_name);
+	free(exe_path);
 
 	// execute start mes file
 	vm_load_mes(config.start_mes);

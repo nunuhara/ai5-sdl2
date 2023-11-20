@@ -71,7 +71,7 @@ static void gfx_fini(void)
 
 void gfx_init(void)
 {
-	SDL_CALL(SDL_Init, SDL_INIT_VIDEO);
+	SDL_CALL(SDL_Init, SDL_INIT_VIDEO | SDL_INIT_TIMER);
 	SDL_CTOR(SDL_CreateWindow, gfx.window, "ai5-sdl2",
 			SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, gfx_view.w, gfx_view.h,
 			SDL_WINDOW_RESIZABLE);

@@ -19,6 +19,7 @@
 #include "nulib.h"
 #include "nulib/queue.h"
 
+#include "cursor.h"
 #include "input.h"
 #include "gfx.h"
 
@@ -29,6 +30,15 @@ struct input_event {
 
 TAILQ_HEAD(event_list, input_event);
 struct event_list event_list = TAILQ_HEAD_INITIALIZER(event_list);
+
+uint32_t cursor_swap_event = 0;
+
+void input_init(void)
+{
+	cursor_swap_event = SDL_RegisterEvents(1);
+	if (cursor_swap_event == (uint32_t)-1)
+		WARNING("Failed to register custom event type");
+}
 
 void handle_events(void)
 {
@@ -52,6 +62,8 @@ void handle_events(void)
 			break;
 		}
 		default:
+			if (e.type == cursor_swap_event)
+				cursor_swap();
 			break;
 		}
 	}

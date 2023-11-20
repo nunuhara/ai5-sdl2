@@ -27,6 +27,7 @@
 
 #include "asset.h"
 #include "audio.h"
+#include "cursor.h"
 #include "gfx.h"
 #include "input.h"
 #include "memory.h"
@@ -485,6 +486,28 @@ static void stmt_sys_set_font_size(struct param_list *params)
 	gfx_text_set_size(sys_var16[MES_SYS_VAR_FONT_HEIGHT]);
 }
 
+static void stmt_sys_cursor_save_pos(void)
+{
+	unsigned x, y;
+	cursor_get_pos(&x, &y);
+	sys_var16[3] = x;
+	sys_var16[4] = y;
+}
+
+static void stmt_sys_cursor(struct param_list *params)
+{
+	switch (check_expr_param(params, 0)) {
+	case 0: cursor_reload(); break;
+	case 1: cursor_unload(); break;
+	case 2: stmt_sys_cursor_save_pos(); break;
+	case 3: cursor_set_pos(check_expr_param(params, 1), check_expr_param(params, 2)); break;
+	case 4: cursor_load(check_expr_param(params, 1)); break;
+	case 5: cursor_show(); break;
+	case 6: cursor_hide(); break;
+	default: VM_ERROR("System.Cursor.function[%d] not implemented", params->params[0].val);
+	}
+}
+
 static void stmt_sys_audio(struct param_list *params)
 {
 	switch (check_expr_param(params, 0)) {
@@ -571,6 +594,7 @@ static void stmt_sys(void)
 
 	switch (no) {
 	case 0:  stmt_sys_set_font_size(&params); break;
+	case 2:  stmt_sys_cursor(&params); break;
 	case 5:  stmt_sys_audio(&params); break;
 	case 8:  stmt_sys_load_image(&params); break;
 	case 9:  stmt_sys_palette(&params); break;
