@@ -97,3 +97,10 @@ struct archive_data *asset_effect_load(const char *name)
 		return NULL;
 	return archive_get(arc.effect, name);
 }
+
+struct archive_data *asset_data_load(const char *name)
+{
+	if (!arc.data)
+		return NULL;
+	return archive_get(arc.data, name);
+}

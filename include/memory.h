@@ -19,6 +19,8 @@
 
 #include <stdint.h>
 
+#define MEMORY_FILE_DATA_SIZE 0x200000
+
 // 16-bit address space
 struct mem16 {
 	char mes_name[128];
@@ -34,7 +36,7 @@ struct mem16 {
 // 32-bit address space
 struct memory {
 	struct mem16 mem16;
-	uint8_t file_data[0x20000];
+	uint8_t file_data[MEMORY_FILE_DATA_SIZE];
 	uint8_t palette[0x400];
 	uint32_t menu_entry_addresses[200];
 	uint32_t menu_entry_numbers[200];

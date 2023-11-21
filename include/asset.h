@@ -39,5 +39,6 @@ bool asset_mes_load(const char *name, uint8_t *dst);
 struct cg *asset_cg_load(const char *name);
 struct archive_data *asset_bgm_load(const char *name);
 struct archive_data *asset_effect_load(const char *name);
+struct archive_data *asset_data_load(const char *name);
 
 #endif // AI5_ASSET_H

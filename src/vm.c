@@ -21,6 +21,7 @@
 #include "nulib/little_endian.h"
 #include "nulib/string.h"
 #include "nulib/utfsjis.h"
+#include "ai5/arc.h"
 #include "ai5/cg.h"
 #include "ai5/game.h"
 #include "ai5/mes.h"
@@ -529,6 +530,35 @@ static void stmt_sys_audio(struct param_list *params)
 	}
 }
 
+static void stmt_sys_file_read(struct param_list *params)
+{
+	const char *name = check_string_param(params, 1);
+	uint32_t offset = check_expr_param(params, 2);
+	struct archive_data *data = asset_data_load(name);
+	if (!data) {
+		WARNING("Failed to read data file \"%s\"", name);
+		return;
+	}
+	if (offset + data->size > MEMORY_FILE_DATA_SIZE) {
+		WARNING("Tried to read file beyond end of buffer");
+		goto end;
+	}
+	memcpy(memory.file_data + offset, data->data, data->size);
+end:
+	archive_data_release(data);
+}
+
+static void stmt_sys_file(struct param_list *params)
+{
+	// TODO: on older games there is no File.write, and this call doesn't take
+	//       a cmd parameter
+	switch (check_expr_param(params, 0)) {
+	case 0:  stmt_sys_file_read(params); break;
+	case 1:  // TODO: File.write
+	default: VM_ERROR("System.File.function[%d] not implemented", params->params[0].val);
+	}
+}
+
 static void stmt_sys_load_image(struct param_list *params)
 {
 	check_string_param(params, 0);
@@ -585,6 +615,27 @@ static void stmt_sys_set_text_colors(struct param_list *params)
 	gfx_text_set_colors((colors >> 4) & 0xf, colors & 0xf);
 }
 
+static bool farcall_addr_valid(uint32_t addr)
+{
+	// XXX: *in theory* the program could farcall to any offset into memory,
+	//      but in practice only System.file_data should contain bytecode
+	return addr >= offsetof(struct memory, file_data) &&
+		addr < offsetof(struct memory, file_data) + MEMORY_FILE_DATA_SIZE;
+}
+
+static void stmt_sys_farcall(struct param_list *params)
+{
+	uint32_t addr = check_expr_param(params, 0);
+	if (unlikely(!farcall_addr_valid(addr)))
+		VM_ERROR("Tried to farcall to invalid address");
+
+	struct vm_pointer saved_ip = vm.ip;
+	vm.ip.ptr = 0;
+	vm.ip.code = memory_raw + addr;
+	vm_exec();
+	vm.ip = saved_ip;
+}
+
 static void stmt_sys(void)
 {
 	int32_t no = vm_eval();
@@ -596,11 +647,13 @@ static void stmt_sys(void)
 	case 0:  stmt_sys_set_font_size(&params); break;
 	case 2:  stmt_sys_cursor(&params); break;
 	case 5:  stmt_sys_audio(&params); break;
+	case 7:  stmt_sys_file(&params); break;
 	case 8:  stmt_sys_load_image(&params); break;
 	case 9:  stmt_sys_palette(&params); break;
 	case 10: stmt_sys_graphics(&params); break;
 	case 11: stmt_sys_wait(&params); break;
 	case 12: stmt_sys_set_text_colors(&params); break;
+	case 13: stmt_sys_farcall(&params); break;
 	default: VM_ERROR("System.function[%d] not implemented", no);
 	}
 }
