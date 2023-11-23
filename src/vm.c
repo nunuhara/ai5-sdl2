@@ -16,6 +16,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 #include "nulib.h"
 #include "nulib/little_endian.h"
@@ -32,15 +33,16 @@
 #include "gfx.h"
 #include "input.h"
 #include "memory.h"
+#include "savedata.h"
 #include "vm.h"
 
 #define VM_ERROR(fmt, ...) { vm_print_state(); ERROR(fmt, ##__VA_ARGS__); }
 
-#define usr_var4  memory.mem16.var4
-#define usr_var16 memory.mem16.var16
-#define usr_var32 memory.mem16.var32
-#define sys_var16 memory.mem16.system_var16
-#define sys_var32 memory.mem16.system_var32
+#define usr_var4  memory_var4()
+#define usr_var16 memory_var16()
+#define usr_var32 memory_var32()
+#define sys_var16 memory_system_var16()
+#define sys_var32 memory_system_var32()
 
 struct vm vm = {0};
 
@@ -99,7 +101,10 @@ uint32_t vm_stack_pop(void)
 
 void vm_load_mes(char *name)
 {
-	strcpy(memory.mem16.mes_name, name);
+	strcpy(memory_mes_name(), name);
+	for (int i = 0; memory_raw[i]; i++) {
+		memory_raw[i] = toupper(memory_raw[i]);
+	}
 	if (!asset_mes_load(name, memory.file_data))
 		VM_ERROR("Failed to load MES file \"%s\"", name);
 }
@@ -123,7 +128,7 @@ static uint32_t vm_eval(void)
 		case MES_EXPR_ARRAY16_GET16: {
 			uint32_t i = vm_stack_pop();
 			uint8_t var = vm_read_byte();
-			uint16_t *src = memory.mem16.system_var16_ptr;
+			uint16_t *src = memory_system_var16_ptr();
 			if (var)
 				src = (uint16_t*)(memory_raw + usr_var16[var - 1]);
 			vm_stack_push(src[i]);
@@ -422,7 +427,7 @@ static void stmt_seta_at(void)
 {
 	uint32_t i = vm_eval();
 	uint8_t var = vm_read_byte();
-	uint16_t *dst = memory.mem16.system_var16_ptr;
+	uint16_t *dst = memory_system_var16_ptr();
 	if (var) {
 		dst = (uint16_t*)(memory_raw + usr_var16[var - 1]);
 	}
@@ -506,6 +511,42 @@ static void stmt_sys_cursor(struct param_list *params)
 	case 5: cursor_show(); break;
 	case 6: cursor_hide(); break;
 	default: VM_ERROR("System.Cursor.function[%d] not implemented", params->params[0].val);
+	}
+}
+
+static void stmt_sys_savedata(struct param_list *params)
+{
+	char save_name[7];
+	uint32_t save_no = check_expr_param(params, 1);
+	if (save_no > 99)
+		VM_ERROR("Invalid save number: %u", save_no);
+	sprintf(save_name, "FLAG%02u", save_no);
+
+	switch (check_expr_param(params, 0)) {
+	case 0: savedata_resume_load(save_name); break;
+	case 1: savedata_resume_save(save_name); break;
+	case 2: savedata_load(save_name); break;
+	case 3: savedata_save(save_name); break;
+	case 4: savedata_load_var4(save_name); break;
+	case 5: savedata_save_var4(save_name); break;
+	case 6: savedata_save_union_var4(save_name); break;
+	case 7: savedata_load_var4_slice(save_name, check_expr_param(params, 2),
+				check_expr_param(params, 3)); break;
+	case 8: savedata_save_var4_slice(save_name, check_expr_param(params, 2),
+				check_expr_param(params, 3)); break;
+	case 9: {
+		char save_name2[7];
+		uint32_t save_no2 = check_expr_param(params, 2);
+		if (save_no2 > 99)
+			VM_ERROR("Invalid save number: %u", save_no2);
+		sprintf(save_name2, "FLAG%02u", save_no2);
+		savedata_copy(save_name, save_name2);
+		break;
+	}
+	case 11: savedata_f11(save_name); break;
+	// TODO: 12 -- interacts with Util.function[11]
+	case 13: savedata_set_mes_name(save_name, check_string_param(params, 2)); break;
+	default: VM_ERROR("System.savedata.function[%u] not implemented", params->params[0].val);
 	}
 }
 
@@ -646,6 +687,7 @@ static void stmt_sys(void)
 	switch (no) {
 	case 0:  stmt_sys_set_font_size(&params); break;
 	case 2:  stmt_sys_cursor(&params); break;
+	case 4:  stmt_sys_savedata(&params); break;
 	case 5:  stmt_sys_audio(&params); break;
 	case 7:  stmt_sys_file(&params); break;
 	case 8:  stmt_sys_load_image(&params); break;
@@ -678,7 +720,7 @@ static void stmt_call(void)
 	// save current VM state
 	struct vm_mes_call *frame = &vm.mes_call_stack[vm.mes_call_stack_ptr++];
 	frame->ip = vm.ip;
-	memcpy(frame->mes_name, memory.mem16.mes_name, 12);
+	memcpy(frame->mes_name, memory_mes_name(), 12);
 	frame->mes_name[12] = '\0';
 	memcpy(frame->procedures, vm.procedures, sizeof(vm.procedures));
 

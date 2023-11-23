@@ -26,6 +26,7 @@ sources = [
   'src/input.c',
   'src/main.c',
   'src/memory.c',
+  'src/savedata.c',
   'src/text.c',
   'src/vm.c',
 ]

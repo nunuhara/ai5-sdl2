@@ -58,7 +58,7 @@ void gfx_text_init(void)
 {
 	if (TTF_Init() == -1)
 		ERROR("TTF_Init: %s", TTF_GetError());
-	gfx_text_set_size(memory.mem16.system_var16[MES_SYS_VAR_FONT_HEIGHT]);
+	gfx_text_set_size(memory_system_var16()[MES_SYS_VAR_FONT_HEIGHT]);
 }
 
 void gfx_text_set_colors(uint8_t bg, uint8_t fg)

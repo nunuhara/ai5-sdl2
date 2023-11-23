@@ -62,17 +62,17 @@ enum vm_flag {
 
 static inline bool vm_flag_is_on(uint16_t flag)
 {
-	return (memory.mem16.system_var16[MES_SYS_VAR_FLAGS] & flag) == flag;
+	return (memory_system_var16()[MES_SYS_VAR_FLAGS] & flag) == flag;
 }
 
 static inline void vm_flag_on(uint16_t flag)
 {
-	memory.mem16.system_var16[MES_SYS_VAR_FLAGS] |= flag;
+	memory_system_var16()[MES_SYS_VAR_FLAGS] |= flag;
 }
 
 static inline void vm_flag_off(uint16_t flag)
 {
-	memory.mem16.system_var16[MES_SYS_VAR_FLAGS] &= ~flag;
+	memory_system_var16()[MES_SYS_VAR_FLAGS] &= ~flag;
 }
 
 #endif
