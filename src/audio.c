@@ -26,6 +26,8 @@
 static Mix_Chunk *bgm = NULL;
 static Mix_Chunk *se = NULL;
 
+static char *bgm_name = NULL;
+
 void audio_fini(void)
 {
 	Mix_CloseAudio();
@@ -48,10 +50,16 @@ void audio_bgm_stop(void)
 		Mix_FreeChunk(bgm);
 		bgm = NULL;
 	}
+	if (bgm_name) {
+		free(bgm_name);
+		bgm_name = NULL;
+	}
 }
 
 void audio_bgm_play(const char *name)
 {
+	if (bgm_name && !strcmp(name, bgm_name))
+		return;
 	audio_bgm_stop();
 	struct archive_data *data = asset_bgm_load(name);
 	if (!data) {
@@ -65,6 +73,7 @@ void audio_bgm_play(const char *name)
 		return;
 	}
 	Mix_PlayChannel(0, bgm, -1);
+	bgm_name = strdup(name);
 }
 
 // XXX: Volume is a value in the range [0,31], which corresponds to the range
