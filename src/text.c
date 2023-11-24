@@ -95,33 +95,34 @@ void gfx_text_swap_colors(unsigned tl_x, unsigned tl_y, unsigned br_x, unsigned 
 // XXX: We have to blit manually so that the correct foreground index is written.
 static void glyph_blit(SDL_Surface *glyph, unsigned x, unsigned y)
 {
+	SDL_Surface *s = gfx_dst_surface();
 	int glyph_w = glyph->w;
 	int glyph_h = glyph->h;
-	if (unlikely(x + glyph_w > gfx.indexed->w))
-		glyph_w = max(0, gfx.indexed->w - x);
-	if (unlikely(y + glyph_h > gfx.indexed->h))
-		glyph_h = max(0, gfx.indexed->h - y);
+	if (unlikely(x + glyph_w > s->w))
+		glyph_w = max(0, s->w - x);
+	if (unlikely(y + glyph_h > s->h))
+		glyph_h = max(0, s->h - y);
 	if (unlikely(!glyph_w || !glyph_h))
 		return;
 
 	if (SDL_MUSTLOCK(glyph))
 		SDL_CALL(SDL_LockSurface, glyph);
-	if (SDL_MUSTLOCK(gfx.indexed))
-		SDL_CALL(SDL_LockSurface, gfx.indexed);
+	if (SDL_MUSTLOCK(s))
+		SDL_CALL(SDL_LockSurface, s);
 
 	uint8_t *src_base = glyph->pixels;
-	uint8_t *dst_base = gfx.indexed->pixels + y * gfx.indexed->w + x;
+	uint8_t *dst_base = s->pixels + y * s->w + x;
 	for (int row = 0; row < glyph_h; row++) {
 		uint8_t *src_p = src_base + row * glyph->pitch;
-		uint8_t *dst_p = dst_base + row * gfx.indexed->pitch;
+		uint8_t *dst_p = dst_base + row * s->pitch;
 		for (int col = 0; col < glyph_w; col++, dst_p++, src_p++) {
 			if (*src_p != 0)
 				*dst_p = gfx.text.fg;
 		}
 	}
 
-	if (SDL_MUSTLOCK(gfx.indexed))
-		SDL_UnlockSurface(gfx.indexed);
+	if (SDL_MUSTLOCK(s))
+		SDL_UnlockSurface(s);
 	if (SDL_MUSTLOCK(glyph))
 		SDL_UnlockSurface(glyph);
 }
@@ -131,8 +132,9 @@ unsigned gfx_text_draw_glyph(unsigned x, unsigned y, uint32_t ch)
 	if (!cur_font)
 		return 0;
 
-	assert(gfx.text.fg < gfx.indexed->format->palette->ncolors);
-	SDL_Color fg = gfx.indexed->format->palette->colors[gfx.text.fg];
+	SDL_Surface *dst = gfx_dst_surface();
+	assert(gfx.text.fg < dst->format->palette->ncolors);
+	SDL_Color fg = dst->format->palette->colors[gfx.text.fg];
 	SDL_Surface *s = TTF_RenderGlyph32_Solid(cur_font->id, ch, fg);
 	if (!s)
 		ERROR("TTF_RenderGlyph32_Solid: %s", TTF_GetError());

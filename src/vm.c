@@ -688,6 +688,14 @@ static void stmt_sys_farcall(struct param_list *params)
 	vm.ip = saved_ip;
 }
 
+static void stmt_sys_set_screen_surface(struct param_list *params)
+{
+	unsigned i = check_expr_param(params, 0);
+	if (i >= GFX_NR_SURFACES)
+		VM_ERROR("Invalid surface number: %u", i);
+	gfx_set_screen_surface(i);
+}
+
 static void stmt_sys(void)
 {
 	int32_t no = vm_eval();
@@ -707,6 +715,7 @@ static void stmt_sys(void)
 	case 11: stmt_sys_wait(&params); break;
 	case 12: stmt_sys_set_text_colors(&params); break;
 	case 13: stmt_sys_farcall(&params); break;
+	case 23: stmt_sys_set_screen_surface(&params); break;
 	default: VM_ERROR("System.function[%d] not implemented", no);
 	}
 }
@@ -783,7 +792,12 @@ static void stmt_proc(void)
 
 static void stmt_util(void)
 {
-	VM_ERROR("UTIL statement not implemented");
+	struct param_list params = {0};
+	read_params(&params);
+	switch (check_expr_param(&params, 0)) {
+	case 100: WARNING("Util.set_monochrome not implemented"); break;
+	default: VM_ERROR("Util.function[%u] not implemented", params.params[0].val);
+	}
 }
 
 static void stmt_line(void)

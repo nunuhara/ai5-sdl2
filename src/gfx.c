@@ -21,7 +21,7 @@
 #include "ai5/cg.h"
 
 #include "gfx_private.h"
-#include "gfx.h"
+#include "memory.h"
 
 struct gfx gfx = { .dirty = true };
 struct gfx_view gfx_view = { 640, 400 };
@@ -31,6 +31,19 @@ void gfx_dirty(void)
 	gfx.dirty = true;
 }
 
+// FIXME: AI5WIN.EXE can access 5 surfaces without crashing, but only
+//        surfaces 0 and 1 behave as expected... surfaces 2-3 seem to
+//        have the same behavior, and surface 4 is different again.
+SDL_Surface *gfx_dst_surface(void)
+{
+	unsigned i = memory_system_var16()[1];
+	if (i >= GFX_NR_SURFACES) {
+		WARNING("Invalid destination surface index: %u", i);
+		i = 0;
+	}
+	return gfx.surface[i];
+}
+
 static void _gfx_set_window_size(unsigned w, unsigned h)
 {
 
@@ -38,15 +51,26 @@ static void _gfx_set_window_size(unsigned w, unsigned h)
 	gfx_view.h = h;
 
 	SDL_CALL(SDL_RenderSetLogicalSize, gfx.renderer, w, h);
-	SDL_FreeSurface(gfx.indexed);
+
+	// free old surfaces/texture
+	for (int i = 0; i < GFX_NR_SURFACES; i++) {
+		SDL_FreeSurface(gfx.surface[i]);
+	}
 	SDL_FreeSurface(gfx.display);
 	SDL_DestroyTexture(gfx.texture);
-	SDL_CTOR(SDL_CreateRGBSurfaceWithFormat, gfx.indexed, 0, w, h, 8, SDL_PIXELFORMAT_INDEX8);
+
+	// recreate and initialize surfaces/texture
+	for (int i = 0; i < GFX_NR_SURFACES; i++) {
+		SDL_CTOR(SDL_CreateRGBSurfaceWithFormat, gfx.surface[i], 0, w, h, 8,
+				SDL_PIXELFORMAT_INDEX8);
+		SDL_CALL(SDL_FillRect, gfx.surface[i], NULL, 0);
+	}
+
 	SDL_CTOR(SDL_CreateRGBSurfaceWithFormat, gfx.display, 0, w, h, 32, SDL_PIXELFORMAT_RGB888);
+	SDL_CALL(SDL_FillRect, gfx.display, NULL, SDL_MapRGB(gfx.display->format, 0, 0, 0));
+
 	SDL_CTOR(SDL_CreateTexture, gfx.texture, gfx.renderer, gfx.display->format->format,
 			SDL_TEXTUREACCESS_STATIC, w, h);
-	SDL_CALL(SDL_FillRect, gfx.indexed, NULL, 0);
-	SDL_CALL(SDL_FillRect, gfx.display, NULL, SDL_MapRGB(gfx.display->format, 0, 0, 0));
 }
 
 void gfx_set_window_size(unsigned w, unsigned h)
@@ -59,7 +83,9 @@ void gfx_set_window_size(unsigned w, unsigned h)
 static void gfx_fini(void)
 {
 	if (gfx.display) {
-		SDL_FreeSurface(gfx.indexed);
+		for (int i = 0; i < GFX_NR_SURFACES; i++) {
+			SDL_FreeSurface(gfx.surface[i]);
+		}
 		SDL_FreeSurface(gfx.display);
 		SDL_DestroyTexture(gfx.texture);
 		SDL_DestroyRenderer(gfx.renderer);
@@ -87,7 +113,7 @@ void gfx_update(void)
 	if (!gfx.dirty)
 		return;
 	SDL_Rect rect = { 0, 0, gfx_view.w, gfx_view.h };
-	SDL_CALL(SDL_BlitSurface, gfx.indexed, &rect, gfx.display, &rect);
+	SDL_CALL(SDL_BlitSurface, gfx.surface[gfx.screen], &rect, gfx.display, &rect);
 	SDL_CALL(SDL_UpdateTexture, gfx.texture, NULL, gfx.display->pixels, gfx.display->pitch);
 	SDL_CALL(SDL_RenderClear, gfx.renderer);
 	SDL_CALL(SDL_RenderCopy, gfx.renderer, gfx.texture, NULL, NULL);
@@ -95,34 +121,44 @@ void gfx_update(void)
 	gfx.dirty = false;
 }
 
+static SDL_Color palette[256];
+
 void gfx_set_palette(const uint8_t *data)
 {
-	SDL_Color colors[256];
 	for (int i = 0; i < 256; i++) {
-		colors[i].b = data[i*4+0];
-		colors[i].g = data[i*4+1];
-		colors[i].r = data[i*4+2];
-		colors[i].a = 255;
+		palette[i].b = data[i*4+0];
+		palette[i].g = data[i*4+1];
+		palette[i].r = data[i*4+2];
+		palette[i].a = 255;
 	}
-	SDL_CALL(SDL_SetPaletteColors, gfx.indexed->format->palette, colors, 0, 256);
+	SDL_CALL(SDL_SetPaletteColors, gfx.surface[gfx.screen]->format->palette, palette, 0, 256);
+	gfx.dirty = true;
+}
+
+void gfx_set_screen_surface(unsigned i)
+{
+	assert(i < GFX_NR_SURFACES);
+	gfx.screen = i;
+	SDL_CALL(SDL_SetPaletteColors, gfx.surface[gfx.screen]->format->palette, palette, 0, 256);
 	gfx.dirty = true;
 }
 
 void gfx_fill(unsigned tl_x, unsigned tl_y, unsigned br_x, unsigned br_y, uint8_t c)
 {
 	SDL_Rect rect = { tl_x, tl_y, br_x - tl_x, br_y - tl_y };
-	SDL_CALL(SDL_FillRect, gfx.indexed, &rect, c);
+	SDL_CALL(SDL_FillRect, gfx_dst_surface(), &rect, c);
 	gfx.dirty = true;
 }
 
 void gfx_swap_colors(unsigned tl_x, unsigned tl_y, unsigned br_x, unsigned br_y,
 		uint8_t c1, uint8_t c2)
 {
-	if (SDL_MUSTLOCK(gfx.indexed))
-		SDL_CALL(SDL_LockSurface, gfx.indexed);
+	SDL_Surface *s = gfx_dst_surface();
+	if (SDL_MUSTLOCK(s))
+		SDL_CALL(SDL_LockSurface, s);
 
-	unsigned screen_w = gfx.indexed->w;
-	unsigned screen_h = gfx.indexed->h;
+	unsigned screen_w = s->w;
+	unsigned screen_h = s->h;
 	unsigned x = tl_x;
 	unsigned y = tl_y;
 	unsigned w = br_x - tl_x;
@@ -130,7 +166,7 @@ void gfx_swap_colors(unsigned tl_x, unsigned tl_y, unsigned br_x, unsigned br_y,
 	assert(x + w <= screen_w);
 	assert(y + h <= screen_h);
 
-	uint8_t *base = gfx.indexed->pixels + y * screen_w + x;
+	uint8_t *base = s->pixels + y * screen_w + x;
 	for (int row = 0; row < h; row++) {
 		uint8_t *p = base + row * screen_w;
 		for (int col = 0; col < w; col++) {
@@ -142,19 +178,20 @@ void gfx_swap_colors(unsigned tl_x, unsigned tl_y, unsigned br_x, unsigned br_y,
 		}
 	}
 
-	if (SDL_MUSTLOCK(gfx.indexed))
-		SDL_UnlockSurface(gfx.indexed);
+	if (SDL_MUSTLOCK(s))
+		SDL_UnlockSurface(s);
 
 	gfx.dirty = true;
 }
 
 void gfx_draw_cg(struct cg *cg)
 {
-	if (SDL_MUSTLOCK(gfx.indexed))
-		SDL_CALL(SDL_LockSurface, gfx.indexed);
+	SDL_Surface *s = gfx_dst_surface();
+	if (SDL_MUSTLOCK(s))
+		SDL_CALL(SDL_LockSurface, s);
 
-	unsigned screen_w = gfx.indexed->w;
-	unsigned screen_h = gfx.indexed->h;
+	unsigned screen_w = s->w;
+	unsigned screen_h = s->h;
 	unsigned cg_x = cg->metrics.x;
 	unsigned cg_y = cg->metrics.y;
 	unsigned cg_w = cg->metrics.w;
@@ -162,15 +199,15 @@ void gfx_draw_cg(struct cg *cg)
 	assert(cg_x + cg_w <= screen_w);
 	assert(cg_y + cg_h <= screen_h);
 
-	uint8_t *base = gfx.indexed->pixels + cg_y * screen_w + cg_x;
+	uint8_t *base = s->pixels + cg_y * screen_w + cg_x;
 	for (int row = 0; row < cg_h; row++) {
-		uint8_t *dst = base + row * gfx.indexed->pitch;
+		uint8_t *dst = base + row * s->pitch;
 		uint8_t *src = cg->pixels + row * cg_w;
 		memcpy(dst, src, cg_w);
 	}
 
-	if (SDL_MUSTLOCK(gfx.indexed))
-		SDL_UnlockSurface(gfx.indexed);
+	if (SDL_MUSTLOCK(s))
+		SDL_UnlockSurface(s);
 
 	gfx.dirty = true;
 }

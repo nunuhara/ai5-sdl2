@@ -22,6 +22,8 @@ struct cg;
 #define DEFAULT_VIEW_WIDTH 640
 #define DEFAULT_VIEW_HEIGHT 400
 
+#define GFX_NR_SURFACES 5
+
 struct gfx_view { unsigned w, h; };
 extern struct gfx_view gfx_view;
 
@@ -30,6 +32,7 @@ void gfx_update(void);
 void gfx_dirty(void);
 void gfx_set_window_size(unsigned w, unsigned h);
 void gfx_set_palette(const uint8_t *data);
+void gfx_set_screen_surface(unsigned i);
 void gfx_fill(unsigned tl_x, unsigned tl_y, unsigned br_x, unsigned br_y, uint8_t c);
 void gfx_swap_colors(unsigned tl_x, unsigned tl_y, unsigned br_x, unsigned br_y,
 		uint8_t c1, uint8_t c2);
