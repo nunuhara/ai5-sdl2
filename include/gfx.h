@@ -31,6 +31,8 @@ void gfx_dirty(void);
 void gfx_set_window_size(unsigned w, unsigned h);
 void gfx_set_palette(const uint8_t *data);
 void gfx_fill(unsigned tl_x, unsigned tl_y, unsigned br_x, unsigned br_y, uint8_t c);
+void gfx_swap_colors(unsigned tl_x, unsigned tl_y, unsigned br_x, unsigned br_y,
+		uint8_t c1, uint8_t c2);
 
 void gfx_draw_cg(struct cg *cg);
 
@@ -40,6 +42,7 @@ void gfx_text_init(void);
 void gfx_text_set_colors(uint8_t bg, uint8_t fg);
 void gfx_text_set_size(int size);
 void gfx_text_fill(unsigned tl_x, unsigned tl_y, unsigned br_x, unsigned br_y);
+void gfx_text_swap_colors(unsigned tl_x, unsigned tl_y, unsigned br_x, unsigned br_y);
 unsigned gfx_text_draw_glyph(unsigned x, unsigned y, uint32_t ch);
 
 #endif // AI5_GFX_H

@@ -33,10 +33,9 @@
 #include "gfx.h"
 #include "input.h"
 #include "memory.h"
+#include "menu.h"
 #include "savedata.h"
 #include "vm.h"
-
-#define VM_ERROR(fmt, ...) { vm_print_state(); ERROR(fmt, ##__VA_ARGS__); }
 
 #define usr_var4  memory_var4()
 #define usr_var16 memory_var16()
@@ -476,8 +475,9 @@ static void stmt_setab(void)
 
 static void stmt_jz(void)
 {
+	uint32_t val = vm_eval();
 	uint32_t ptr = vm_read_dword();
-	if (vm_eval() == 1)
+	if (val == 1)
 		return;
 	vm.ip.ptr = ptr;
 }
@@ -634,11 +634,21 @@ static void stmt_sys_graphics_fill_bg(struct param_list *params)
 	gfx_text_fill(tl_x * 8, tl_y, br_x * 8, br_y);
 }
 
+static void stmt_sys_graphics_swap_bg_fg(struct param_list *params)
+{
+	uint32_t tl_x = check_expr_param(params, 1);
+	uint32_t tl_y = check_expr_param(params, 2);
+	uint32_t br_x = check_expr_param(params, 3);
+	uint32_t br_y = check_expr_param(params, 4);
+	gfx_text_swap_colors(tl_x * 8, tl_y, br_x * 8, br_y);
+}
+
 static void stmt_sys_graphics(struct param_list *params)
 {
 	check_expr_param(params, 0);
 	switch (params->params[0].val) {
 	case 2:  stmt_sys_graphics_fill_bg(params); break;
+	case 4:  stmt_sys_graphics_swap_bg_fg(params); break;
 	default: VM_ERROR("System.Image.function[%d] not implemented",
 				 params->params[0].val);
 	}
@@ -646,7 +656,8 @@ static void stmt_sys_graphics(struct param_list *params)
 
 static void stmt_sys_wait(struct param_list *params)
 {
-	input_keywait();
+	while (input_keywait() != INPUT_ACTIVATE)
+		;
 }
 
 static void stmt_sys_set_text_colors(struct param_list *params)
@@ -745,26 +756,29 @@ static void stmt_call(void)
 
 static void stmt_menui(void)
 {
-	VM_ERROR("MENUI statement not implemented");
+	struct param_list params = {0};
+	read_params(&params);
+	uint32_t addr = vm_read_dword();
+	menu_define(check_expr_param(&params, 0), addr == vm.ip.ptr + 1);
+	vm.ip.ptr = addr;
 }
 
-static void stmt_menus(void)
+void vm_call_procedure(unsigned no)
 {
-	VM_ERROR("MENUS statement not implemented");
+	if (unlikely(no >= VM_MAX_PROCEDURES))
+		VM_ERROR("Invalid procedure number: %u", no);
+
+	struct vm_pointer saved_ip = vm.ip;
+	vm.ip = vm.procedures[no];
+	vm_exec();
+	vm.ip = saved_ip;
 }
 
 static void stmt_proc(void)
 {
 	struct param_list params = {0};
 	read_params(&params);
-	check_expr_param(&params, 0);
-	if (unlikely(params.params[0].val >= VM_MAX_PROCEDURES))
-		VM_ERROR("Invalid procedure number: %d", params.params[0].val);
-
-	struct vm_pointer saved_ip = vm.ip;
-	vm.ip = vm.procedures[params.params[0].val];
-	vm_exec();
-	vm.ip = saved_ip;
+	vm_call_procedure(check_expr_param(&params, 0));
 }
 
 static void stmt_util(void)
@@ -788,11 +802,19 @@ static void stmt_procd(void)
 	if (unlikely(i >= VM_MAX_PROCEDURES))
 		VM_ERROR("Invalid procedure number: %d", i);
 	vm.procedures[i] = vm.ip;
+	vm.procedures[i].ptr += 4;
 	vm.ip.ptr = vm_read_dword();
 }
 
+#include "nulib/port.h"
 bool vm_exec_statement(void)
 {
+#if 0
+	struct mes_statement *stmt = mes_parse_statement(vm.ip.code + vm.ip.ptr, 1024);
+	mes_statement_print(stmt, port_stdout());
+	mes_statement_free(stmt);
+#endif
+
 	uint8_t op = vm_read_byte();
 	switch ((uint8_t)mes_opcode_to_stmt(op)) {
 	case MES_STMT_END:     return false;
@@ -816,7 +838,7 @@ bool vm_exec_statement(void)
 	case MES_STMT_UTIL:    stmt_util(); break;
 	case MES_STMT_LINE:    stmt_line(); break;
 	case MES_STMT_PROCD:   stmt_procd(); break;
-	case MES_STMT_MENUS:   stmt_menus(); break;
+	case MES_STMT_MENUS:   menu_exec(); break;
 	case MES_STMT_SETRD:   stmt_setrd(); break;
 	case MES_STMT_INVALID:
 		vm_rewind_byte();

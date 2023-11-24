@@ -26,6 +26,8 @@
 #define MEMORY_MEM16_MAX_SIZE 0x2000
 #define MEMORY_VAR4_MAX_SIZE 0x1000
 
+#define MEMORY_MENU_ENTRY_MAX 200
+
 /* 16-bit address space. We can't use this struct because the size of var4
  * varies by game. The inline functions below should be used to access values
  * in this area.
@@ -47,8 +49,8 @@ struct memory {
 	uint8_t mem16[MEMORY_MEM16_MAX_SIZE];
 	uint8_t file_data[MEMORY_FILE_DATA_SIZE];
 	uint8_t palette[0x400];
-	uint32_t menu_entry_addresses[200];
-	uint32_t menu_entry_numbers[200];
+	uint32_t menu_entry_addresses[MEMORY_MENU_ENTRY_MAX];
+	uint32_t menu_entry_numbers[MEMORY_MENU_ENTRY_MAX];
 };
 
 struct memory_ptr {

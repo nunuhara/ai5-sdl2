@@ -14,26 +14,11 @@
  * along with this program; if not, see <http://gnu.org/licenses/>.
  */
 
-#ifndef AI5_INPUT_H
-#define AI5_INPUT_H
+#ifndef AI5_MENU_H
+#define AI5_MENU_H
 
-#include <stdint.h>
+void menu_define(unsigned menu_no, bool empty);
+void menu_exec(void);
+void menu_get_no(unsigned index);
 
-enum input_event_type {
-	INPUT_NONE,
-	INPUT_ACTIVATE,
-	INPUT_CANCEL,
-	INPUT_LEFT,
-	INPUT_RIGHT,
-	INPUT_UP,
-	INPUT_DOWN,
-};
-
-void input_init(void);
-void handle_events(void);
-enum input_event_type input_keywait(void);
-enum input_event_type input_poll(void);
-
-extern uint32_t cursor_swap_event;
-
-#endif // AI5_INPUT_H
+#endif // AI5_MENU_H

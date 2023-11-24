@@ -115,6 +115,39 @@ void gfx_fill(unsigned tl_x, unsigned tl_y, unsigned br_x, unsigned br_y, uint8_
 	gfx.dirty = true;
 }
 
+void gfx_swap_colors(unsigned tl_x, unsigned tl_y, unsigned br_x, unsigned br_y,
+		uint8_t c1, uint8_t c2)
+{
+	if (SDL_MUSTLOCK(gfx.indexed))
+		SDL_CALL(SDL_LockSurface, gfx.indexed);
+
+	unsigned screen_w = gfx.indexed->w;
+	unsigned screen_h = gfx.indexed->h;
+	unsigned x = tl_x;
+	unsigned y = tl_y;
+	unsigned w = br_x - tl_x;
+	unsigned h = br_y - tl_y;
+	assert(x + w <= screen_w);
+	assert(y + h <= screen_h);
+
+	uint8_t *base = gfx.indexed->pixels + y * screen_w + x;
+	for (int row = 0; row < h; row++) {
+		uint8_t *p = base + row * screen_w;
+		for (int col = 0; col < w; col++) {
+			if (*p == c1)
+				*p = c2;
+			else if (*p == c2)
+				*p = c1;
+			p++;
+		}
+	}
+
+	if (SDL_MUSTLOCK(gfx.indexed))
+		SDL_UnlockSurface(gfx.indexed);
+
+	gfx.dirty = true;
+}
+
 void gfx_draw_cg(struct cg *cg)
 {
 	if (SDL_MUSTLOCK(gfx.indexed))
@@ -131,7 +164,7 @@ void gfx_draw_cg(struct cg *cg)
 
 	uint8_t *base = gfx.indexed->pixels + cg_y * screen_w + cg_x;
 	for (int row = 0; row < cg_h; row++) {
-		uint8_t *dst = base + row * screen_w;
+		uint8_t *dst = base + row * gfx.indexed->pitch;
 		uint8_t *src = cg->pixels + row * cg_w;
 		memcpy(dst, src, cg_w);
 	}

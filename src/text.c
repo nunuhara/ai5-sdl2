@@ -72,6 +72,11 @@ void gfx_text_fill(unsigned tl_x, unsigned tl_y, unsigned br_x, unsigned br_y)
 	gfx_fill(tl_x, tl_y, br_x, br_y, gfx.text.bg);
 }
 
+void gfx_text_swap_colors(unsigned tl_x, unsigned tl_y, unsigned br_x, unsigned br_y)
+{
+	gfx_swap_colors(tl_x, tl_y, br_x, br_y, gfx.text.bg, gfx.text.fg);
+}
+
 // XXX: We have to blit manually so that the correct foreground index is written.
 static void glyph_blit(SDL_Surface *glyph, unsigned x, unsigned y)
 {

@@ -19,6 +19,7 @@
 
 #include <stdint.h>
 
+#include "nulib.h"
 #include "ai5/mes.h"
 
 #include "memory.h"
@@ -51,11 +52,19 @@ struct vm {
 };
 extern struct vm vm;
 
+#define VM_ERROR(fmt, ...) { vm_print_state(); ERROR(fmt, ##__VA_ARGS__); }
+
 void vm_init(void);
 void vm_exec(void);
 void vm_load_mes(char *name);
+void vm_call_procedure(unsigned no);
+void vm_print_state(void);
+
+// input.c
+void vm_delay(int ms);
 
 enum vm_flag {
+	VM_FLAG_MENU_RETURN = 0x08,
 	VM_FLAG_RETURN = 0x10,
 	VM_FLAG_LOG = 0x80,
 };
