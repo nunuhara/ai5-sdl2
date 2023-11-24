@@ -23,8 +23,13 @@
 #include "gfx.h"
 #include "memory.h"
 
+#ifndef AI5_DATA_DIR
+#define AI5_DATA_DIR "."
+#endif
+
 struct font {
 	int size;
+	int y_off;
 	TTF_Font *id;
 };
 
@@ -44,9 +49,19 @@ static struct font *font_lookup(int size)
 
 static struct font *font_insert(int size, TTF_Font *id)
 {
+	int min_x, max_x, min_y, max_y, adv;
+	int ascent = TTF_FontAscent(id);
+	TTF_GlyphMetrics32(id, 'A', &min_x, &max_x, &min_y, &max_y, &adv);
+
+	// Calculate the y-offset for the font. This is a bit hacky, but it
+	// works reasonably well for most fonts.
+	int y_off = ascent - size;         // align baseline to point size
+	y_off += (size - (max_y - 2)) / 2; // center based on height of 'A'
+
 	for (int i = 0; i < MAX_FONTS; i++) {
 		if (!fonts[i].size) {
 			fonts[i].size = size;
+			fonts[i].y_off = y_off;
 			fonts[i].id = id;
 			return &fonts[i];
 		}
@@ -122,7 +137,7 @@ unsigned gfx_text_draw_glyph(unsigned x, unsigned y, uint32_t ch)
 	if (!s)
 		ERROR("TTF_RenderGlyph32_Solid: %s", TTF_GetError());
 
-	y -= (TTF_FontHeight(cur_font->id) - cur_font->size) / 2;
+	y -= cur_font->y_off;
 	unsigned w = s->w;
 	glyph_blit(s, x, y);
 	SDL_FreeSurface(s);
@@ -134,7 +149,12 @@ void gfx_text_set_size(int size)
 {
 	struct font *font = font_lookup(size);
 	if (!font) {
-		TTF_Font *f = TTF_OpenFont(AI5_DATA_DIR "/fonts/VL-Gothic-Regular.ttf", size);
+		TTF_Font *f;
+		if (size <= 18) {
+			f = TTF_OpenFont(AI5_DATA_DIR "/fonts/DotGothic16-Regular.ttf", size);
+		} else {
+			f = TTF_OpenFont(AI5_DATA_DIR "/fonts/Kosugi-Regular.ttf", size);
+		}
 		if (!f)
 			ERROR("TTF_OpenFont: %s", TTF_GetError());
 		font = font_insert(size, f);
