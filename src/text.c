@@ -93,16 +93,28 @@ void gfx_text_swap_colors(unsigned tl_x, unsigned tl_y, unsigned br_x, unsigned 
 }
 
 // XXX: We have to blit manually so that the correct foreground index is written.
-static void glyph_blit(SDL_Surface *glyph, unsigned x, unsigned y)
+static void glyph_blit(SDL_Surface *glyph, int dst_x, int dst_y)
 {
 	SDL_Surface *s = gfx_dst_surface();
+	int glyph_x = 0;
+	int glyph_y = 0;
 	int glyph_w = glyph->w;
 	int glyph_h = glyph->h;
-	if (unlikely(x + glyph_w > s->w))
-		glyph_w = max(0, s->w - x);
-	if (unlikely(y + glyph_h > s->h))
-		glyph_h = max(0, s->h - y);
-	if (unlikely(!glyph_w || !glyph_h))
+	if (unlikely(dst_x < 0)) {
+		glyph_w += dst_x;
+		glyph_x -= dst_x;
+		dst_x = 0;
+	}
+	if (unlikely(dst_y < 0)) {
+		glyph_h += dst_y;
+		glyph_y -= dst_y;
+		dst_y = 0;
+	}
+	if (unlikely(dst_x + glyph_w > s->w))
+		glyph_w = s->w - dst_x;
+	if (unlikely(dst_y + glyph_h > s->h))
+		glyph_h = s->h - dst_y;
+	if (unlikely(glyph_w <= 0 || glyph_h <= 0))
 		return;
 
 	if (SDL_MUSTLOCK(glyph))
@@ -110,8 +122,8 @@ static void glyph_blit(SDL_Surface *glyph, unsigned x, unsigned y)
 	if (SDL_MUSTLOCK(s))
 		SDL_CALL(SDL_LockSurface, s);
 
-	uint8_t *src_base = glyph->pixels;
-	uint8_t *dst_base = s->pixels + y * s->w + x;
+	uint8_t *src_base = glyph->pixels + glyph_y * glyph->pitch + glyph_x;
+	uint8_t *dst_base = s->pixels + dst_y * s->pitch + dst_x;
 	for (int row = 0; row < glyph_h; row++) {
 		uint8_t *src_p = src_base + row * glyph->pitch;
 		uint8_t *dst_p = dst_base + row * s->pitch;
@@ -127,7 +139,7 @@ static void glyph_blit(SDL_Surface *glyph, unsigned x, unsigned y)
 		SDL_UnlockSurface(glyph);
 }
 
-unsigned gfx_text_draw_glyph(unsigned x, unsigned y, uint32_t ch)
+unsigned gfx_text_draw_glyph(int x, int y, uint32_t ch)
 {
 	if (!cur_font)
 		return 0;

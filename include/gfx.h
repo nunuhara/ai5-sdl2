@@ -46,6 +46,6 @@ void gfx_text_set_colors(uint8_t bg, uint8_t fg);
 void gfx_text_set_size(int size);
 void gfx_text_fill(unsigned tl_x, unsigned tl_y, unsigned br_x, unsigned br_y);
 void gfx_text_swap_colors(unsigned tl_x, unsigned tl_y, unsigned br_x, unsigned br_y);
-unsigned gfx_text_draw_glyph(unsigned x, unsigned y, uint32_t ch);
+unsigned gfx_text_draw_glyph(int x, int y, uint32_t ch);
 
 #endif // AI5_GFX_H
