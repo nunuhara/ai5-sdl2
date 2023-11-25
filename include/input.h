@@ -33,6 +33,7 @@ void input_init(void);
 void handle_events(void);
 enum input_event_type input_keywait(void);
 enum input_event_type input_poll(void);
+bool input_check(enum input_event_type type);
 
 extern uint32_t cursor_swap_event;
 

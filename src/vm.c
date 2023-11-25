@@ -790,6 +790,25 @@ static void stmt_proc(void)
 	vm_call_procedure(check_expr_param(&params, 0));
 }
 
+static void stmt_util_wait_until(struct param_list *params)
+{
+	if (!vm.procedures[110].code || !vm.procedures[111].code)
+		VM_ERROR("procedures 110-111 not defined in Util.wait_until");
+	uint32_t stop_t = check_expr_param(params, 1);
+	uint32_t t;
+	do {
+		if (input_check(INPUT_ACTIVATE)) {
+			vm_call_procedure(110);
+			return;
+		} else if (input_check(INPUT_CANCEL)) {
+			vm_call_procedure(111);
+			return;
+		}
+		vm_delay(16);
+		t = vm_get_ticks();
+	} while (t < stop_t);
+}
+
 static void stmt_util(void)
 {
 	struct param_list params = {0};
@@ -797,6 +816,8 @@ static void stmt_util(void)
 	switch (check_expr_param(&params, 0)) {
 	case 100: WARNING("Util.set_monochrome not implemented"); break;
 	case 201: audio_bgm_play(check_string_param(&params, 1), false); break;
+	case 210: memory_var32()[16] = vm_get_ticks(); break;
+	case 211: stmt_util_wait_until(&params); break;
 	default: VM_ERROR("Util.function[%u] not implemented", params.params[0].val);
 	}
 }

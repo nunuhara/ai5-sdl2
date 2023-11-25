@@ -17,19 +17,13 @@
 #include <SDL.h>
 
 #include "nulib.h"
-#include "nulib/queue.h"
 
 #include "cursor.h"
 #include "input.h"
 #include "gfx.h"
+#include "vm.h"
 
-struct input_event {
-	TAILQ_ENTRY(input_event) event_list_entry;
-	enum input_event_type type;
-};
-
-TAILQ_HEAD(event_list, input_event);
-struct event_list event_list = TAILQ_HEAD_INITIALIZER(event_list);
+unsigned input_events[6] = {0};
 
 uint32_t cursor_swap_event = 0;
 
@@ -56,9 +50,8 @@ enum input_event_type input_event_from_keycode(SDL_Keycode k)
 
 static void push_event(enum input_event_type type)
 {
-	struct input_event *input = xcalloc(1, sizeof(struct input_event));
-	input->type = type;
-	TAILQ_INSERT_TAIL(&event_list, input, event_list_entry);
+	assert(type > 0 && type <= 6);
+	input_events[type-1]++;
 }
 
 static void push_key_event(SDL_KeyboardEvent *ev)
@@ -108,30 +101,42 @@ void vm_delay(int ms)
 	SDL_Delay(ms);
 }
 
+uint32_t vm_get_ticks(void)
+{
+	return SDL_GetTicks();
+}
+
 static enum input_event_type pop_event(void)
 {
-	assert(!TAILQ_EMPTY(&event_list));
-	struct input_event *ev = TAILQ_FIRST(&event_list);
-	enum input_event_type r = ev->type;
-	TAILQ_REMOVE(&event_list, ev, event_list_entry);
-	free(ev);
-	return r;
+	for (int i = 0; i < 6; i++) {
+		if (input_events[i]) {
+			input_events[i]--;
+			return i + 1;
+		}
+	}
+	return INPUT_NONE;
 }
 
 enum input_event_type input_keywait(void)
 {
-	while (TAILQ_EMPTY(&event_list)) {
+	enum input_event_type e;
+	while ((e = pop_event()) == INPUT_NONE) {
 		handle_events();
 		gfx_update();
 		vm_delay(16);
 	}
-	return pop_event();
+	return e;
 }
 
 enum input_event_type input_poll(void)
 {
 	handle_events();
-	if (TAILQ_EMPTY(&event_list))
-		return INPUT_NONE;
 	return pop_event();
+}
+
+bool input_check(enum input_event_type type)
+{
+	assert(type > 0 && type <= 6);
+	handle_events();
+	return !!input_events[type-1];
 }

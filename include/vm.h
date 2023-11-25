@@ -62,6 +62,7 @@ void vm_print_state(void);
 
 // input.c
 void vm_delay(int ms);
+uint32_t vm_get_ticks(void);
 
 enum vm_flag {
 	VM_FLAG_MENU_RETURN = 0x08,
