@@ -615,11 +615,28 @@ static void stmt_sys_load_image(struct param_list *params)
 	cg_free(cg);
 }
 
+static void stmt_sys_palette_crossfade(struct param_list *params)
+{
+	// XXX: t is a value from 0-15 corresponding to the interval [0-3600]
+	//      in increments of 240
+	uint32_t t = check_expr_param(params, 1);
+	if (params->nr_params > 2) {
+		uint32_t c = check_expr_param(params, 2);
+		uint8_t r = ((c >> 4) & 0xf) * 17;
+		uint8_t g = ((c >> 8) & 0xf) * 17;
+		uint8_t b = (c & 0xf) * 17;
+		gfx_palette_crossfade_to(r, g, b, (t & 0xf) * 240);
+	} else {
+		gfx_palette_crossfade(memory.palette, (t & 0xf) * 240);
+	}
+}
+
 static void stmt_sys_palette(struct param_list *params)
 {
 	check_expr_param(params, 0);
 	switch (params->params[0].val) {
-	case 0:  gfx_set_palette(memory.palette); break;
+	case 0:  gfx_palette_set(memory.palette); break;
+	case 2:  stmt_sys_palette_crossfade(params); break;
 	default: VM_ERROR("System.Palette.function[%d] not implemented",
 				 params->params[0].val);
 	}

@@ -31,7 +31,9 @@ void gfx_init(void);
 void gfx_update(void);
 void gfx_dirty(void);
 void gfx_set_window_size(unsigned w, unsigned h);
-void gfx_set_palette(const uint8_t *data);
+void gfx_palette_set(const uint8_t *data);
+void gfx_palette_crossfade(const uint8_t *data, unsigned ms);
+void gfx_palette_crossfade_to(uint8_t r, uint8_t g, uint8_t b, unsigned ms);
 void gfx_set_screen_surface(unsigned i);
 void gfx_fill(unsigned tl_x, unsigned tl_y, unsigned br_x, unsigned br_y, uint8_t c);
 void gfx_swap_colors(unsigned tl_x, unsigned tl_y, unsigned br_x, unsigned br_y,
