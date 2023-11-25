@@ -21,7 +21,7 @@
 
 void audio_init(void);
 
-void audio_bgm_play(const char *name);
+void audio_bgm_play(const char *name, bool check_playing);
 void audio_bgm_stop(void);
 void audio_bgm_set_volume(uint8_t vol);
 void audio_bgm_fade(uint32_t uk, uint8_t vol, bool stop, bool sync);

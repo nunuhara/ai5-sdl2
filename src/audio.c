@@ -22,6 +22,7 @@
 #include "ai5/arc.h"
 
 #include "asset.h"
+#include "audio.h"
 
 static Mix_Chunk *bgm = NULL;
 static Mix_Chunk *se = NULL;
@@ -56,9 +57,9 @@ void audio_bgm_stop(void)
 	}
 }
 
-void audio_bgm_play(const char *name)
+void audio_bgm_play(const char *name, bool check_playing)
 {
-	if (bgm_name && !strcmp(name, bgm_name))
+	if (check_playing && bgm_name && !strcmp(name, bgm_name))
 		return;
 	audio_bgm_stop();
 	struct archive_data *data = asset_bgm_load(name);

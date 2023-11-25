@@ -553,7 +553,7 @@ static void stmt_sys_savedata(struct param_list *params)
 static void stmt_sys_audio(struct param_list *params)
 {
 	switch (check_expr_param(params, 0)) {
-	case 0:  audio_bgm_play(check_string_param(params, 1)); break;
+	case 0:  audio_bgm_play(check_string_param(params, 1), true); break;
 	case 2:  audio_bgm_stop(); break;
 	case 3:  audio_se_play(check_string_param(params, 1), check_expr_param(params, 2)); break;
 	case 4:  audio_bgm_fade(check_expr_param(params, 1), check_expr_param(params, 2),
@@ -796,6 +796,7 @@ static void stmt_util(void)
 	read_params(&params);
 	switch (check_expr_param(&params, 0)) {
 	case 100: WARNING("Util.set_monochrome not implemented"); break;
+	case 201: audio_bgm_play(check_string_param(&params, 1), false); break;
 	default: VM_ERROR("Util.function[%u] not implemented", params.params[0].val);
 	}
 }
