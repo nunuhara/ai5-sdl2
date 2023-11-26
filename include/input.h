@@ -20,20 +20,22 @@
 #include <stdint.h>
 
 enum input_event_type {
-	INPUT_NONE,
-	INPUT_ACTIVATE,
-	INPUT_CANCEL,
-	INPUT_LEFT,
-	INPUT_RIGHT,
-	INPUT_UP,
-	INPUT_DOWN,
+	INPUT_NONE = -1,
+	INPUT_ACTIVATE = 0,
+	INPUT_CANCEL = 1,
+	INPUT_UP = 2,
+	INPUT_DOWN = 3,
+	INPUT_LEFT = 4,
+	INPUT_RIGHT = 5,
 };
+#define INPUT_NR_INPUTS (INPUT_RIGHT+1)
 
 void input_init(void);
 void handle_events(void);
 enum input_event_type input_keywait(void);
 enum input_event_type input_poll(void);
-bool input_check(enum input_event_type type);
+bool input_down(enum input_event_type type);
+void input_clear(void);
 
 extern uint32_t cursor_swap_event;
 

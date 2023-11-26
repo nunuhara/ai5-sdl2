@@ -809,6 +809,20 @@ static void stmt_sys_farcall(struct param_list *params)
 	vm.ip = saved_ip;
 }
 
+static void stmt_sys_check_input(struct param_list *params)
+{
+	unsigned input = check_expr_param(params, 0);
+	bool value = check_expr_param(params, 1);
+	if (input >= INPUT_NR_INPUTS) {
+		WARNING("Invalid input number: %u", input);
+		sys_var32[18] = false;
+		return;
+	}
+
+	bool is_down = input_down(input);
+	usr_var32[18] = value && is_down;
+}
+
 static void stmt_sys_set_screen_surface(struct param_list *params)
 {
 	unsigned i = check_expr_param(params, 0);
@@ -836,6 +850,7 @@ static void stmt_sys(void)
 	case 11: stmt_sys_wait(&params); break;
 	case 12: stmt_sys_set_text_colors(&params); break;
 	case 13: stmt_sys_farcall(&params); break;
+	case 18: stmt_sys_check_input(&params); break;
 	case 23: stmt_sys_set_screen_surface(&params); break;
 	default: VM_ERROR("System.function[%d] not implemented", no);
 	}
@@ -918,10 +933,10 @@ static void stmt_util_wait_until(struct param_list *params)
 	uint32_t stop_t = check_expr_param(params, 1);
 	uint32_t t;
 	do {
-		if (input_check(INPUT_ACTIVATE)) {
+		if (input_down(INPUT_ACTIVATE)) {
 			vm_call_procedure(110);
 			return;
-		} else if (input_check(INPUT_CANCEL)) {
+		} else if (input_down(INPUT_CANCEL)) {
 			vm_call_procedure(111);
 			return;
 		}
@@ -935,9 +950,10 @@ static void stmt_util(void)
 	struct param_list params = {0};
 	read_params(&params);
 	switch (check_expr_param(&params, 0)) {
+	case 16:  vm_delay(check_expr_param(&params, 1) * 15); break;
 	case 100: WARNING("Util.set_monochrome not implemented"); break;
 	case 201: audio_bgm_play(check_string_param(&params, 1), false); break;
-	case 210: memory_var32()[16] = vm_get_ticks(); break;
+	case 210: usr_var32[16] = vm_get_ticks(); break;
 	case 211: stmt_util_wait_until(&params); break;
 	case 213: WARNING("Util.function[213] not implemented"); break;
 	default: VM_ERROR("Util.function[%u] not implemented", params.params[0].val);

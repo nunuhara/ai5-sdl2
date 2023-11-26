@@ -99,6 +99,7 @@ void menu_exec(void)
 		case INPUT_RIGHT:    vm_call_procedure(37); break;
 		}
 	}
+	input_clear();
 	menu_initialized = false;
 }
 
