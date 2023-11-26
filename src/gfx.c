@@ -218,44 +218,228 @@ void gfx_set_screen_surface(unsigned i)
 	update_palette();
 }
 
-void gfx_fill(unsigned tl_x, unsigned tl_y, unsigned br_x, unsigned br_y, uint8_t c)
+static bool copy_clip(SDL_Surface *src, SDL_Rect *src_r, SDL_Surface *dst, SDL_Point *dst_p)
 {
-	SDL_Rect rect = { tl_x, tl_y, br_x - tl_x, br_y - tl_y };
-	SDL_CALL(SDL_FillRect, gfx_dst_surface(), &rect, c);
+	if (unlikely(src_r->x < 0)) {
+		src_r->w += src_r->x;
+		dst_p->x -= src_r->x;
+		src_r->x = 0;
+	}
+	if (unlikely(src_r->y < 0)) {
+		src_r->h += src_r->y;
+		dst_p->y -= src_r->y;
+		src_r->y = 0;
+	}
+	if (unlikely(dst_p->x < 0)) {
+		src_r->w += dst_p->x;
+		src_r->x -= dst_p->x;
+		dst_p->x = 0;
+	}
+	if (unlikely(dst_p->y < 0)) {
+		src_r->h += dst_p->y;
+		src_r->y -= dst_p->y;
+		dst_p->y = 0;
+	}
+	if (unlikely(src_r->x + src_r->w > src->w)) {
+		src_r->w = src->w - src_r->x;
+	}
+	if (unlikely(src_r->y + src_r->h > src->h)) {
+		src_r->h = src->h - src_r->y;
+	}
+	if (unlikely(dst_p->x + src_r->w > dst->w)) {
+		src_r->w = dst->w - dst_p->x;
+	}
+	if (unlikely(dst_p->y + src_r->h > dst->h)) {
+		src_r->h = dst->h - dst_p->y;
+	}
+	return src_r->w > 0 && src_r->h > 0;
+}
+
+static void foreach_pixel2(SDL_Surface *src, SDL_Rect *src_r, SDL_Surface *dst,
+		SDL_Point *dst_p, void (*f)(uint8_t*,uint8_t*,void*), void *data)
+{
+	if (!copy_clip(src, src_r, dst, dst_p))
+		return;
+
+	if (SDL_MUSTLOCK(src))
+		SDL_CALL(SDL_LockSurface, src);
+	if (SDL_MUSTLOCK(dst))
+		SDL_CALL(SDL_LockSurface, dst);
+
+	uint8_t *src_base = src->pixels + src_r->y * src->pitch + src_r->x;
+	uint8_t *dst_base = dst->pixels + dst_p->y * dst->pitch + dst_p->x;
+	for (int row = 0; row < src_r->h; row++) {
+		uint8_t *src_px = src_base + row * src->pitch;
+		uint8_t *dst_px = dst_base + row * dst->pitch;
+		for (int col = 0; col < src_r->w; col++, src_px++, dst_px++) {
+			f(src_px, dst_px, data);
+		}
+	}
+
+	if (SDL_MUSTLOCK(src))
+		SDL_UnlockSurface(src);
+	if (SDL_MUSTLOCK(dst))
+		SDL_UnlockSurface(dst);
+}
+
+static void gfx_copy_cb(uint8_t *src, uint8_t *dst, void *_)
+{
+	*dst = *src;
+}
+
+void gfx_copy(int src_x, int src_y, int src_w, int src_h, unsigned src_i, int dst_x,
+		int dst_y, unsigned dst_i)
+{
+	assert(src_i < GFX_NR_SURFACES);
+	assert(dst_i < GFX_NR_SURFACES);
+	SDL_Surface *src = gfx.surface[src_i];
+	SDL_Surface *dst = gfx.surface[dst_i];
+	SDL_Rect src_r = { src_x, src_y, src_w, src_h };
+	SDL_Point dst_p = { dst_x, dst_y };
+	foreach_pixel2(src, &src_r, dst, &dst_p, gfx_copy_cb, NULL);
 	gfx.dirty = true;
 }
 
-void gfx_swap_colors(unsigned tl_x, unsigned tl_y, unsigned br_x, unsigned br_y,
-		uint8_t c1, uint8_t c2)
+static void gfx_copy_masked_cb(uint8_t *src, uint8_t *dst, void *_mask)
 {
-	SDL_Surface *s = gfx_dst_surface();
+	uint8_t mask = (uintptr_t)_mask;
+	if (*src != mask)
+		*dst = *src;
+}
+
+void gfx_copy_masked(int src_x, int src_y, int src_w, int src_h, unsigned src_i, int dst_x,
+		int dst_y, unsigned dst_i, uint8_t mask_color)
+{
+	assert(src_i < GFX_NR_SURFACES);
+	assert(dst_i < GFX_NR_SURFACES);
+	SDL_Surface *src = gfx.surface[src_i];
+	SDL_Surface *dst = gfx.surface[dst_i];
+	SDL_Rect src_r = { src_x, src_y, src_w, src_h };
+	SDL_Point dst_p = { dst_x, dst_y };
+	foreach_pixel2(src, &src_r, dst, &dst_p, gfx_copy_masked_cb, (void*)(uintptr_t)mask_color);
+	gfx.dirty = true;
+}
+
+static void gfx_copy_swap_cb(uint8_t *src, uint8_t *dst, void *_)
+{
+	uint8_t tmp = *dst;
+	*dst = *src;
+	*src = tmp;
+}
+
+void gfx_copy_swap(int src_x, int src_y, int src_w, int src_h, unsigned src_i, int dst_x,
+		int dst_y, unsigned dst_i)
+{
+	assert(src_i < GFX_NR_SURFACES);
+	assert(dst_i < GFX_NR_SURFACES);
+	SDL_Surface *src = gfx.surface[src_i];
+	SDL_Surface *dst = gfx.surface[dst_i];
+	SDL_Rect src_r = { src_x, src_y, src_w, src_h };
+	SDL_Point dst_p = { dst_x, dst_y };
+	foreach_pixel2(src, &src_r, dst, &dst_p, gfx_copy_swap_cb, NULL);
+	gfx.dirty = true;
+}
+
+void gfx_copy_sprite_bg(int fg_x, int fg_y, int w, int h, unsigned fg_i, int bg_x, int bg_y,
+		unsigned bg_i, int dst_x, int dst_y, unsigned dst_i, uint8_t mask_color)
+{
+	assert(fg_i < GFX_NR_SURFACES);
+	assert(bg_i < GFX_NR_SURFACES);
+	assert(dst_i < GFX_NR_SURFACES);
+	SDL_Surface *fg = gfx.surface[fg_i];
+	SDL_Surface *bg = gfx.surface[bg_i];
+	SDL_Surface *dst = gfx.surface[dst_i];
+	SDL_Rect fg_r = { fg_x, fg_y, w, h };
+	SDL_Rect bg_r = { bg_x, bg_y, w, h };
+	SDL_Point dst_p = { dst_x, dst_y };
+	foreach_pixel2(bg, &bg_r, dst, &dst_p, gfx_copy_cb, NULL);
+	foreach_pixel2(fg, &fg_r, dst, &dst_p, gfx_copy_masked_cb, (void*)(uintptr_t)mask_color);
+	gfx.dirty = true;
+}
+
+/*
+ * XXX: AI5WIN.EXE doesn't clip. If the rectangle exceeds the bounds of the destination
+ *      surface, it just writes to buggy addresses.
+ */
+static bool fill_clip(SDL_Surface *s, SDL_Rect *r)
+{
+	if (unlikely(r->x < 0)) {
+		r->w += r->x;
+		r->x = 0;
+	}
+	if (unlikely(r->y < 0)) {
+		r->h += r->y;
+		r->y = 0;
+	}
+	if (unlikely(r->x + r->w > s->w)) {
+		r->w = s->w - r->x;
+	}
+	if (unlikely(r->y + r->h > s->h)) {
+		r->h = s->h - r->y;
+	}
+	return r->w > 0 && r->h > 0;
+}
+
+static void foreach_pixel(SDL_Surface *s, SDL_Rect *r, void (*f)(uint8_t*,void*), void *data)
+{
+	if (!fill_clip(s, r))
+		return;
+
 	if (SDL_MUSTLOCK(s))
 		SDL_CALL(SDL_LockSurface, s);
 
-	unsigned screen_w = s->w;
-	unsigned screen_h = s->h;
-	unsigned x = tl_x;
-	unsigned y = tl_y;
-	unsigned w = br_x - tl_x;
-	unsigned h = br_y - tl_y;
-	assert(x + w <= screen_w);
-	assert(y + h <= screen_h);
-
-	uint8_t *base = s->pixels + y * screen_w + x;
-	for (int row = 0; row < h; row++) {
-		uint8_t *p = base + row * screen_w;
-		for (int col = 0; col < w; col++) {
-			if (*p == c1)
-				*p = c2;
-			else if (*p == c2)
-				*p = c1;
-			p++;
+	uint8_t *base = s->pixels + r->y * s->pitch + r->x;
+	for (int row = 0; row < r->h; row++) {
+		uint8_t *p = base + row * s->pitch;
+		for (int col = 0; col < r->w; col++, p++) {
+			f(p, data);
 		}
 	}
 
 	if (SDL_MUSTLOCK(s))
 		SDL_UnlockSurface(s);
+}
 
+static void gfx_invert_colors_cb(uint8_t *p, void *_)
+{
+	*p ^= 0xf;
+}
+
+void gfx_invert_colors(int x, int y, int w, int h, unsigned i)
+{
+	assert(i < GFX_NR_SURFACES);
+	SDL_Surface *s = gfx.surface[i];
+	SDL_Rect r = { x, y, w, h };
+	foreach_pixel(s, &r, gfx_invert_colors_cb, NULL);
+	gfx.dirty = true;
+}
+
+void gfx_fill(int x, int y, int w, int h, uint8_t c)
+{
+	SDL_Rect rect = { x, y, w, h };
+	SDL_CALL(SDL_FillRect, gfx_dst_surface(), &rect, c);
+	gfx.dirty = true;
+}
+
+struct swap_colors_data {
+	uint8_t c1, c2;
+};
+
+void gfx_swap_colors_cb(uint8_t *p, void *data)
+{
+	struct swap_colors_data *colors = data;
+	if (*p == colors->c1)
+		*p = colors->c2;
+	else if (*p == colors->c2)
+		*p = colors->c1;
+}
+
+void gfx_swap_colors(int x, int y, int w, int h, uint8_t c1, uint8_t c2)
+{
+	SDL_Surface *s = gfx_dst_surface();
+	SDL_Rect r = { x, y, w, h };
+	struct swap_colors_data colors = { c1, c2 };
+	foreach_pixel(s, &r, gfx_swap_colors_cb, &colors);
 	gfx.dirty = true;
 }
 

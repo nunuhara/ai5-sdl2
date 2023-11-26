@@ -35,10 +35,17 @@ void gfx_palette_set(const uint8_t *data);
 void gfx_palette_crossfade(const uint8_t *data, unsigned ms);
 void gfx_palette_crossfade_to(uint8_t r, uint8_t g, uint8_t b, unsigned ms);
 void gfx_set_screen_surface(unsigned i);
-void gfx_fill(unsigned tl_x, unsigned tl_y, unsigned br_x, unsigned br_y, uint8_t c);
-void gfx_swap_colors(unsigned tl_x, unsigned tl_y, unsigned br_x, unsigned br_y,
-		uint8_t c1, uint8_t c2);
-
+void gfx_copy(int src_x, int src_y, int src_w, int src_h, unsigned src_i, int dst_x,
+		int dst_y, unsigned dst_i);
+void gfx_copy_masked(int src_x, int src_y, int src_w, int src_h, unsigned src_i, int dst_x,
+		int dst_y, unsigned dst_i, uint8_t mask_color);
+void gfx_copy_swap(int src_x, int src_y, int src_w, int src_h, unsigned src_i, int dst_x,
+		int dst_y, unsigned dst_i);
+void gfx_copy_sprite_bg(int fg_x, int fg_y, int w, int h, unsigned fg_i, int bg_x, int bg_y,
+		unsigned bg_i, int dst_x, int dst_y, unsigned dst_i, uint8_t mask_color);
+void gfx_invert_colors(int x, int y, int w, int h, unsigned i);
+void gfx_fill(int x, int y, int w, int h, uint8_t c);
+void gfx_swap_colors(int x, int y, int w, int h, uint8_t c1, uint8_t c2);
 void gfx_draw_cg(struct cg *cg);
 
 #define DEFAULT_FONT_SIZE 16
@@ -46,8 +53,8 @@ void gfx_draw_cg(struct cg *cg);
 void gfx_text_init(void);
 void gfx_text_set_colors(uint8_t bg, uint8_t fg);
 void gfx_text_set_size(int size);
-void gfx_text_fill(unsigned tl_x, unsigned tl_y, unsigned br_x, unsigned br_y);
-void gfx_text_swap_colors(unsigned tl_x, unsigned tl_y, unsigned br_x, unsigned br_y);
+void gfx_text_fill(int x, int y, int w, int h);
+void gfx_text_swap_colors(int x, int y, int w, int h);
 unsigned gfx_text_draw_glyph(int x, int y, uint32_t ch);
 
 #endif // AI5_GFX_H

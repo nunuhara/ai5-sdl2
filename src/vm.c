@@ -258,7 +258,7 @@ struct param {
 	};
 };
 
-#define MAX_PARAMS 8
+#define MAX_PARAMS 30
 
 struct param_list {
 	struct param params[MAX_PARAMS];
@@ -642,30 +642,134 @@ static void stmt_sys_palette(struct param_list *params)
 	}
 }
 
+static void stmt_sys_graphics_copy(struct param_list *params)
+{
+	// System.Grahpics.copy(src_x, src_y, src_br_x, src_br_y, src_i, dst_x, dst_y, dst_i)
+	int src_x = check_expr_param(params, 1);
+	int src_y = check_expr_param(params, 2);
+	int src_w = check_expr_param(params, 3) - src_x;
+	int src_h = check_expr_param(params, 4) - src_y;
+	unsigned src_i = check_expr_param(params, 5);
+	int dst_x = check_expr_param(params, 6);
+	int dst_y = check_expr_param(params, 7);
+	unsigned dst_i = check_expr_param(params, 8);
+	if (unlikely(src_i >= GFX_NR_SURFACES))
+		VM_ERROR("Invalid surface index: %u", src_i);
+	if (unlikely(dst_i >= GFX_NR_SURFACES))
+		VM_ERROR("Invalid surface index: %u", dst_i);
+	gfx_copy(src_x * 8, src_y, src_w * 8, src_h, src_i, dst_x * 8, dst_y, dst_i);
+}
+
+static void stmt_sys_graphics_copy_masked(struct param_list *params)
+{
+	// System.Grahpics.copy_masked(src_x, src_y, src_br_x, src_br_y, src_i, dst_x, dst_y, dst_i)
+	int src_x = check_expr_param(params, 1);
+	int src_y = check_expr_param(params, 2);
+	int src_w = check_expr_param(params, 3) - src_x;
+	int src_h = check_expr_param(params, 4) - src_y;
+	unsigned src_i = check_expr_param(params, 5);
+	int dst_x = check_expr_param(params, 6);
+	int dst_y = check_expr_param(params, 7);
+	unsigned dst_i = check_expr_param(params, 8);
+	if (unlikely(src_i >= GFX_NR_SURFACES))
+		VM_ERROR("Invalid surface index: %u", src_i);
+	if (unlikely(dst_i >= GFX_NR_SURFACES))
+		VM_ERROR("Invalid surface index: %u", dst_i);
+	gfx_copy_masked(src_x * 8, src_y, src_w * 8, src_h, src_i, dst_x * 8, dst_y, dst_i,
+			sys_var16[MES_SYS_VAR_MASK_COLOR]);
+}
+
 static void stmt_sys_graphics_fill_bg(struct param_list *params)
 {
-	uint32_t tl_x = check_expr_param(params, 1);
-	uint32_t tl_y = check_expr_param(params, 2);
-	uint32_t br_x = check_expr_param(params, 3);
-	uint32_t br_y = check_expr_param(params, 4);
-	gfx_text_fill(tl_x * 8, tl_y, br_x * 8, br_y);
+	// System.Graphics.fill_bg(x, y, br_x, br_y)
+	int x = check_expr_param(params, 1);
+	int y = check_expr_param(params, 2);
+	int w = check_expr_param(params, 3) - x;
+	int h = check_expr_param(params, 4) - y;
+	gfx_text_fill(x * 8, y, w * 8, h);
+}
+
+static void stmt_sys_graphics_copy_swap(struct param_list *params)
+{
+	// System.Grahpics.copy_swap(src_x, src_y, src_br_x, src_br_y, src_i, dst_x, dst_y, dst_i)
+	int src_x = check_expr_param(params, 1);
+	int src_y = check_expr_param(params, 2);
+	int src_w = check_expr_param(params, 3) - src_x;
+	int src_h = check_expr_param(params, 4) - src_y;
+	unsigned src_i = check_expr_param(params, 5);
+	int dst_x = check_expr_param(params, 6);
+	int dst_y = check_expr_param(params, 7);
+	unsigned dst_i = check_expr_param(params, 8);
+	if (unlikely(src_i >= GFX_NR_SURFACES))
+		VM_ERROR("Invalid surface index: %u", src_i);
+	if (unlikely(dst_i >= GFX_NR_SURFACES))
+		VM_ERROR("Invalid surface index: %u", dst_i);
+	gfx_copy_swap(src_x * 8, src_y, src_w * 8, src_h, src_i, dst_x * 8, dst_y, dst_i);
 }
 
 static void stmt_sys_graphics_swap_bg_fg(struct param_list *params)
 {
-	uint32_t tl_x = check_expr_param(params, 1);
-	uint32_t tl_y = check_expr_param(params, 2);
-	uint32_t br_x = check_expr_param(params, 3);
-	uint32_t br_y = check_expr_param(params, 4);
-	gfx_text_swap_colors(tl_x * 8, tl_y, br_x * 8, br_y);
+	// System.Graphics.swap_bg_fg(x, y, br_x, br_y)
+	int x = check_expr_param(params, 1);
+	int y = check_expr_param(params, 2);
+	int w = check_expr_param(params, 3) - x;
+	int h = check_expr_param(params, 4) - y;
+	gfx_text_swap_colors(x * 8, y, w * 8, h);
+}
+
+static void stmt_sys_graphics_copy_sprite_bg(struct param_list *params)
+{
+	// System.Grahpics.copy_sprite_bg(src_x, src_y, src_br_x, src_br_y, src_i, dst_x, dst_y, dst_i)
+	int fg_x = check_expr_param(params, 1);
+	int fg_y = check_expr_param(params, 2);
+	int w = check_expr_param(params, 3) - fg_x;
+	int h = check_expr_param(params, 4) - fg_y;
+	unsigned fg_i = check_expr_param(params, 5);
+	int bg_x = check_expr_param(params, 6);
+	int bg_y = check_expr_param(params, 7);
+	unsigned bg_i = check_expr_param(params, 8);
+	int dst_x = check_expr_param(params, 9);
+	int dst_y = check_expr_param(params, 10);
+	unsigned dst_i = check_expr_param(params, 11);
+	if (unlikely(fg_i >= GFX_NR_SURFACES))
+		VM_ERROR("Invalid surface index: %u", fg_i);
+	if (unlikely(bg_i >= GFX_NR_SURFACES))
+		VM_ERROR("Invalid surface index: %u", bg_i);
+	if (unlikely(dst_i >= GFX_NR_SURFACES))
+		VM_ERROR("Invalid surface_index: %u", dst_i);
+	gfx_copy_sprite_bg(fg_x * 8, fg_y, w * 8, h, fg_i, bg_x * 8, bg_y, bg_i, dst_x * 8,
+			dst_y, dst_i, sys_var16[MES_SYS_VAR_MASK_COLOR]);
+}
+
+static void stmt_sys_graphics_invert_colors(struct param_list *params)
+{
+	// System.Grahpics.invert_colors(x, y, br_x, br_y)
+	int x = check_expr_param(params, 1);
+	int y = check_expr_param(params, 2);
+	int w = check_expr_param(params, 3) - x;
+	int h = check_expr_param(params, 4) - y;
+	unsigned i = sys_var16[MES_SYS_VAR_DST_SURFACE];
+	if (unlikely(i >= GFX_NR_SURFACES))
+		VM_ERROR("Invalid surface index: %u", i);
+	gfx_invert_colors(x * 8, y, w * 8, h, i);
 }
 
 static void stmt_sys_graphics(struct param_list *params)
 {
 	check_expr_param(params, 0);
 	switch (params->params[0].val) {
+	case 0:  stmt_sys_graphics_copy(params); break;
+	case 1:  stmt_sys_graphics_copy_masked(params); break;
 	case 2:  stmt_sys_graphics_fill_bg(params); break;
+	case 3:  stmt_sys_graphics_copy_swap(params); break;
 	case 4:  stmt_sys_graphics_swap_bg_fg(params); break;
+	case 5:  stmt_sys_graphics_copy_sprite_bg(params); break;
+	case 6:  stmt_sys_graphics_invert_colors(params); break;
+	// FIXME: I *think* this is supposed to be a progressive copy (i.e. updating
+	//        the screen while the copy is in progress), but it runs so fast on a
+	//        modern machine that it looks like a regular copy. We could implement
+	//        this with a delay to emulate the feeling of playing on old hardware.
+	case 20: stmt_sys_graphics_copy(params); break;
 	default: VM_ERROR("System.Image.function[%d] not implemented",
 				 params->params[0].val);
 	}
@@ -835,6 +939,7 @@ static void stmt_util(void)
 	case 201: audio_bgm_play(check_string_param(&params, 1), false); break;
 	case 210: memory_var32()[16] = vm_get_ticks(); break;
 	case 211: stmt_util_wait_until(&params); break;
+	case 213: WARNING("Util.function[213] not implemented"); break;
 	default: VM_ERROR("Util.function[%u] not implemented", params.params[0].val);
 	}
 }

@@ -82,14 +82,14 @@ void gfx_text_set_colors(uint8_t bg, uint8_t fg)
 	gfx.text.fg = fg;
 }
 
-void gfx_text_fill(unsigned tl_x, unsigned tl_y, unsigned br_x, unsigned br_y)
+void gfx_text_fill(int x, int y, int w, int h)
 {
-	gfx_fill(tl_x, tl_y, br_x, br_y, gfx.text.bg);
+	gfx_fill(x, y, w, h, gfx.text.bg);
 }
 
-void gfx_text_swap_colors(unsigned tl_x, unsigned tl_y, unsigned br_x, unsigned br_y)
+void gfx_text_swap_colors(int x, int y, int w, int h)
 {
-	gfx_swap_colors(tl_x, tl_y, br_x, br_y, gfx.text.bg, gfx.text.fg);
+	gfx_swap_colors(x, y, w, h, gfx.text.bg, gfx.text.fg);
 }
 
 // XXX: We have to blit manually so that the correct foreground index is written.
