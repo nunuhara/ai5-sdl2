@@ -27,6 +27,7 @@
 #include "ai5/game.h"
 #include "ai5/mes.h"
 
+#include "anim.h"
 #include "asset.h"
 #include "audio.h"
 #include "cursor.h"
@@ -316,6 +317,7 @@ static uint32_t check_expr_param(struct param_list *params, int i)
 
 static void draw_text(const char *text)
 {
+	const unsigned surface = sys_var16[MES_SYS_VAR_DST_SURFACE];
 	const uint16_t char_space = sys_var16[MES_SYS_VAR_CHAR_SPACE];
 	uint16_t *x = &sys_var16[MES_SYS_VAR_TEXT_CURSOR_X];
 	uint16_t *y = &sys_var16[MES_SYS_VAR_TEXT_CURSOR_Y];
@@ -329,7 +331,7 @@ static void draw_text(const char *text)
 			next_x = *x + (zenkaku ? char_space / 8 : char_space / 16);
 		}
 		text = sjis_char2unicode(text, &ch);
-		gfx_text_draw_glyph(*x * 8, *y, ch);
+		gfx_text_draw_glyph(*x * 8, *y, surface, ch);
 		*x = next_x;
 		// TODO: YU-NO Eng TL doesnt' wrap the same way -- text can overflow the
 		//       text area, and if it overflows the screen, it wraps around to the
@@ -510,7 +512,24 @@ static void stmt_sys_cursor(struct param_list *params)
 	case 4: cursor_load(check_expr_param(params, 1)); break;
 	case 5: cursor_show(); break;
 	case 6: cursor_hide(); break;
-	default: VM_ERROR("System.Cursor.function[%d] not implemented", params->params[0].val);
+	default: VM_ERROR("System.Cursor.function[%u] not implemented", params->params[0].val);
+	}
+}
+
+static void stmt_sys_anim(struct param_list *params)
+{
+	switch (check_expr_param(params, 0)) {
+	case 0:  anim_init_stream(check_expr_param(params, 1)); break;
+	case 1:  anim_start(check_expr_param(params, 1)); break;
+	case 2:  anim_stop(check_expr_param(params, 1)); break;
+	case 3:  anim_halt(check_expr_param(params, 1)); break;
+	// TODO
+	case 4:  WARNING("System.Anim.function[4] not implemented"); break;
+	case 5:  anim_stop_all(); break;
+	case 6:  anim_halt_all(); break;
+	case 20: anim_set_offset(check_expr_param(params, 1), check_expr_param(params, 2),
+				check_expr_param(params, 3)); break;
+	default: VM_ERROR("System.Anim.function[%u] not implemented", params->params[0].val);
 	}
 }
 
@@ -571,10 +590,8 @@ static void stmt_sys_audio(struct param_list *params)
 	}
 }
 
-static void stmt_sys_file_read(struct param_list *params)
+static void vm_read_file(const char *name, uint32_t offset)
 {
-	const char *name = check_string_param(params, 1);
-	uint32_t offset = check_expr_param(params, 2);
 	struct archive_data *data = asset_data_load(name);
 	if (!data) {
 		WARNING("Failed to read data file \"%s\"", name);
@@ -594,25 +611,50 @@ static void stmt_sys_file(struct param_list *params)
 	// TODO: on older games there is no File.write, and this call doesn't take
 	//       a cmd parameter
 	switch (check_expr_param(params, 0)) {
-	case 0:  stmt_sys_file_read(params); break;
+	case 0:  vm_read_file(check_string_param(params, 1), check_expr_param(params, 2)); break;
 	case 1:  // TODO: File.write
 	default: VM_ERROR("System.File.function[%d] not implemented", params->params[0].val);
 	}
 }
 
-static void stmt_sys_load_image(struct param_list *params)
+static void vm_load_image(const char *name, unsigned i)
 {
-	check_string_param(params, 0);
-	struct cg *cg = asset_cg_load(params->params[0].str);
-	if (!cg) {
-		WARNING("Failed to load CG \"%s\"", params->params[0].str);
+	struct archive_data *data = asset_cg_load(name);
+	if (!data) {
+		WARNING("Failed to load CG \"%s\"", name);
 		return;
 	}
-	gfx_draw_cg(cg);
-	if (cg->palette) {
+
+	// copy CG data into file_data
+	uint32_t off = sys_var32[MES_SYS_VAR_CG_OFFSET];
+	if (off + data->size > MEMORY_FILE_DATA_SIZE)
+		VM_ERROR("CG data would exceed buffer size");
+	memcpy(memory.file_data + off, data->data, data->size);
+
+	// decode CG
+	struct cg *cg = cg_load_arcdata(data);
+	archive_data_release(data);
+	if (!cg) {
+		WARNING("Failed to decode CG \"%s\"", name);
+		return;
+	}
+
+	sys_var16[MES_SYS_VAR_CG_X] = cg->metrics.x / 8;
+	sys_var16[MES_SYS_VAR_CG_Y] = cg->metrics.y;
+	sys_var16[MES_SYS_VAR_CG_W] = cg->metrics.w / 8;
+	sys_var16[MES_SYS_VAR_CG_H] = cg->metrics.h;
+
+	// draw CG
+	gfx_draw_cg(i, cg);
+	if (cg->palette && vm_flag_is_on(VM_FLAG_LOAD_PALETTE)) {
 		memcpy(memory.palette, cg->palette, 256 * 4);
 	}
 	cg_free(cg);
+}
+
+static void stmt_sys_load_image(struct param_list *params)
+{
+	vm_load_image(check_string_param(params, 0), sys_var16[MES_SYS_VAR_DST_SURFACE]);
 }
 
 static void stmt_sys_palette_crossfade(struct param_list *params)
@@ -637,6 +679,8 @@ static void stmt_sys_palette(struct param_list *params)
 	switch (params->params[0].val) {
 	case 0:  gfx_palette_set(memory.palette); break;
 	case 2:  stmt_sys_palette_crossfade(params); break;
+	case 3:  gfx_hide_screen(); break;
+	case 4:  gfx_unhide_screen(); break;
 	default: VM_ERROR("System.Palette.function[%d] not implemented",
 				 params->params[0].val);
 	}
@@ -647,8 +691,8 @@ static void stmt_sys_graphics_copy(struct param_list *params)
 	// System.Grahpics.copy(src_x, src_y, src_br_x, src_br_y, src_i, dst_x, dst_y, dst_i)
 	int src_x = check_expr_param(params, 1);
 	int src_y = check_expr_param(params, 2);
-	int src_w = check_expr_param(params, 3) - src_x;
-	int src_h = check_expr_param(params, 4) - src_y;
+	int src_w = (check_expr_param(params, 3) - src_x) + 1;
+	int src_h = (check_expr_param(params, 4) - src_y) + 1;
 	unsigned src_i = check_expr_param(params, 5);
 	int dst_x = check_expr_param(params, 6);
 	int dst_y = check_expr_param(params, 7);
@@ -665,8 +709,8 @@ static void stmt_sys_graphics_copy_masked(struct param_list *params)
 	// System.Grahpics.copy_masked(src_x, src_y, src_br_x, src_br_y, src_i, dst_x, dst_y, dst_i)
 	int src_x = check_expr_param(params, 1);
 	int src_y = check_expr_param(params, 2);
-	int src_w = check_expr_param(params, 3) - src_x;
-	int src_h = check_expr_param(params, 4) - src_y;
+	int src_w = (check_expr_param(params, 3) - src_x) + 1;
+	int src_h = (check_expr_param(params, 4) - src_y) + 1;
 	unsigned src_i = check_expr_param(params, 5);
 	int dst_x = check_expr_param(params, 6);
 	int dst_y = check_expr_param(params, 7);
@@ -684,9 +728,9 @@ static void stmt_sys_graphics_fill_bg(struct param_list *params)
 	// System.Graphics.fill_bg(x, y, br_x, br_y)
 	int x = check_expr_param(params, 1);
 	int y = check_expr_param(params, 2);
-	int w = check_expr_param(params, 3) - x;
-	int h = check_expr_param(params, 4) - y;
-	gfx_text_fill(x * 8, y, w * 8, h);
+	int w = (check_expr_param(params, 3) - x) + 1;
+	int h = (check_expr_param(params, 4) - y) + 1;
+	gfx_text_fill(x * 8, y, w * 8, h, sys_var16[MES_SYS_VAR_DST_SURFACE]);
 }
 
 static void stmt_sys_graphics_copy_swap(struct param_list *params)
@@ -694,8 +738,8 @@ static void stmt_sys_graphics_copy_swap(struct param_list *params)
 	// System.Grahpics.copy_swap(src_x, src_y, src_br_x, src_br_y, src_i, dst_x, dst_y, dst_i)
 	int src_x = check_expr_param(params, 1);
 	int src_y = check_expr_param(params, 2);
-	int src_w = check_expr_param(params, 3) - src_x;
-	int src_h = check_expr_param(params, 4) - src_y;
+	int src_w = (check_expr_param(params, 3) - src_x) + 1;
+	int src_h = (check_expr_param(params, 4) - src_y) + 1;
 	unsigned src_i = check_expr_param(params, 5);
 	int dst_x = check_expr_param(params, 6);
 	int dst_y = check_expr_param(params, 7);
@@ -712,18 +756,18 @@ static void stmt_sys_graphics_swap_bg_fg(struct param_list *params)
 	// System.Graphics.swap_bg_fg(x, y, br_x, br_y)
 	int x = check_expr_param(params, 1);
 	int y = check_expr_param(params, 2);
-	int w = check_expr_param(params, 3) - x;
-	int h = check_expr_param(params, 4) - y;
-	gfx_text_swap_colors(x * 8, y, w * 8, h);
+	int w = (check_expr_param(params, 3) - x) + 1;
+	int h = (check_expr_param(params, 4) - y) + 1;
+	gfx_text_swap_colors(x * 8, y, w * 8, h, sys_var16[MES_SYS_VAR_DST_SURFACE]);
 }
 
-static void stmt_sys_graphics_copy_sprite_bg(struct param_list *params)
+static void stmt_sys_graphics_compose(struct param_list *params)
 {
-	// System.Grahpics.copy_sprite_bg(src_x, src_y, src_br_x, src_br_y, src_i, dst_x, dst_y, dst_i)
+	// System.Grahpics.compose(src_x, src_y, src_br_x, src_br_y, src_i, dst_x, dst_y, dst_i)
 	int fg_x = check_expr_param(params, 1);
 	int fg_y = check_expr_param(params, 2);
-	int w = check_expr_param(params, 3) - fg_x;
-	int h = check_expr_param(params, 4) - fg_y;
+	int w = (check_expr_param(params, 3) - fg_x) + 1;
+	int h = (check_expr_param(params, 4) - fg_y) + 1;
 	unsigned fg_i = check_expr_param(params, 5);
 	int bg_x = check_expr_param(params, 6);
 	int bg_y = check_expr_param(params, 7);
@@ -737,7 +781,7 @@ static void stmt_sys_graphics_copy_sprite_bg(struct param_list *params)
 		VM_ERROR("Invalid surface index: %u", bg_i);
 	if (unlikely(dst_i >= GFX_NR_SURFACES))
 		VM_ERROR("Invalid surface_index: %u", dst_i);
-	gfx_copy_sprite_bg(fg_x * 8, fg_y, w * 8, h, fg_i, bg_x * 8, bg_y, bg_i, dst_x * 8,
+	gfx_compose(fg_x * 8, fg_y, w * 8, h, fg_i, bg_x * 8, bg_y, bg_i, dst_x * 8,
 			dst_y, dst_i, sys_var16[MES_SYS_VAR_MASK_COLOR]);
 }
 
@@ -746,8 +790,8 @@ static void stmt_sys_graphics_invert_colors(struct param_list *params)
 	// System.Grahpics.invert_colors(x, y, br_x, br_y)
 	int x = check_expr_param(params, 1);
 	int y = check_expr_param(params, 2);
-	int w = check_expr_param(params, 3) - x;
-	int h = check_expr_param(params, 4) - y;
+	int w = (check_expr_param(params, 3) - x) + 1;
+	int h = (check_expr_param(params, 4) - y) + 1;
 	unsigned i = sys_var16[MES_SYS_VAR_DST_SURFACE];
 	if (unlikely(i >= GFX_NR_SURFACES))
 		VM_ERROR("Invalid surface index: %u", i);
@@ -763,7 +807,7 @@ static void stmt_sys_graphics(struct param_list *params)
 	case 2:  stmt_sys_graphics_fill_bg(params); break;
 	case 3:  stmt_sys_graphics_copy_swap(params); break;
 	case 4:  stmt_sys_graphics_swap_bg_fg(params); break;
-	case 5:  stmt_sys_graphics_copy_sprite_bg(params); break;
+	case 5:  stmt_sys_graphics_compose(params); break;
 	case 6:  stmt_sys_graphics_invert_colors(params); break;
 	// FIXME: I *think* this is supposed to be a progressive copy (i.e. updating
 	//        the screen while the copy is in progress), but it runs so fast on a
@@ -841,6 +885,7 @@ static void stmt_sys(void)
 	switch (no) {
 	case 0:  stmt_sys_set_font_size(&params); break;
 	case 2:  stmt_sys_cursor(&params); break;
+	case 3:  stmt_sys_anim(&params); break;
 	case 4:  stmt_sys_savedata(&params); break;
 	case 5:  stmt_sys_audio(&params); break;
 	case 7:  stmt_sys_file(&params); break;
@@ -926,13 +971,34 @@ static void stmt_proc(void)
 	vm_call_procedure(check_expr_param(&params, 0));
 }
 
+static char *saved_cg_name = NULL;
+static char *saved_data_name = NULL;
+
+static void stmt_util_save_animation(void)
+{
+	free(saved_cg_name);
+	free(saved_data_name);
+	saved_cg_name = asset_cg_name ? xstrdup(asset_cg_name) : NULL;
+	saved_data_name = asset_data_name ? xstrdup(asset_data_name) : NULL;
+}
+
+static void stmt_util_restore_animation(void)
+{
+	if (!saved_cg_name || !saved_data_name)
+		VM_ERROR("No saved animation in Util.restore_animation");
+	vm_load_image(saved_cg_name, 1);
+	vm_read_file(saved_data_name, sys_var32[MES_SYS_VAR_DATA_OFFSET]);
+	// TODO: animate
+}
+
 static void stmt_util_wait_until(struct param_list *params)
 {
 	if (!vm.procedures[110].code || !vm.procedures[111].code)
 		VM_ERROR("procedures 110-111 not defined in Util.wait_until");
 	uint32_t stop_t = check_expr_param(params, 1);
-	uint32_t t;
+	uint32_t t = vm_get_ticks();
 	do {
+		vm_peek();
 		if (input_down(INPUT_ACTIVATE)) {
 			vm_call_procedure(110);
 			return;
@@ -940,7 +1006,11 @@ static void stmt_util_wait_until(struct param_list *params)
 			vm_call_procedure(111);
 			return;
 		}
-		vm_delay(16);
+
+		uint32_t delta_t = vm_get_ticks() - t;
+		if (delta_t < 16)
+			vm_delay(16 - delta_t);
+
 		t = vm_get_ticks();
 	} while (t < stop_t);
 }
@@ -951,6 +1021,9 @@ static void stmt_util(void)
 	read_params(&params);
 	switch (check_expr_param(&params, 0)) {
 	case 16:  vm_delay(check_expr_param(&params, 1) * 15); break;
+	case 17:  stmt_util_save_animation(); break;
+	case 18:  stmt_util_restore_animation(); break;
+	case 22:  usr_var16[18] = anim_running(); break;
 	case 100: WARNING("Util.set_monochrome not implemented"); break;
 	case 201: audio_bgm_play(check_string_param(&params, 1), false); break;
 	case 210: usr_var32[16] = vm_get_ticks(); break;
@@ -1026,11 +1099,17 @@ bool vm_exec_statement(void)
 	return true;
 }
 
+void vm_peek(void)
+{
+	handle_events();
+	anim_execute();
+	gfx_update();
+}
+
 void vm_exec(void)
 {
 	vm.scope_counter++;
 	while (true) {
-		gfx_update();
 		if (vm_flag_is_on(VM_FLAG_RETURN)) {
 			if (vm.scope_counter != 1)
 				break;
@@ -1039,7 +1118,7 @@ void vm_exec(void)
 		}
 		if (!vm_exec_statement())
 			break;
-		handle_events();
+		vm_peek();
 	}
 	vm.scope_counter--;
 }

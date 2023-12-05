@@ -18,6 +18,7 @@ libai5_dep = libai5_proj.get_variable('libai5_dep')
 incdirs = include_directories('include')
 
 sources = [
+  'src/anim.c',
   'src/asset.c',
   'src/audio.c',
   'src/cursor.c',

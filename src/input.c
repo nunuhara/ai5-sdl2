@@ -134,8 +134,7 @@ enum input_event_type input_keywait(void)
 {
 	enum input_event_type e;
 	while ((e = pop_event()) == INPUT_NONE) {
-		handle_events();
-		gfx_update();
+		vm_peek();
 		vm_delay(16);
 	}
 	input_clear();

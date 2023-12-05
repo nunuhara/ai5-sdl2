@@ -65,6 +65,6 @@ void memory_init(void)
 	memory_system_var16()[MES_SYS_VAR_LINE_SPACE] = DEFAULT_FONT_SIZE;
 	memory_system_var16()[MES_SYS_VAR_MASK_COLOR] = 0;
 
-	memory_system_var32()[1] = 0x20000;
+	memory_system_var32()[MES_SYS_VAR_CG_OFFSET] = 0x20000;
 	memory_restore();
 }

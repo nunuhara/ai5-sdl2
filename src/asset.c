@@ -18,6 +18,8 @@
 #include "ai5/arc.h"
 #include "ai5/cg.h"
 
+#include "asset.h"
+
 static struct {
 	struct archive *bg;
 	struct archive *mes;
@@ -27,6 +29,12 @@ static struct {
 	struct archive *data;
 	struct archive *priv;
 } arc = {0};
+
+char *asset_mes_name = NULL;
+char *asset_cg_name = NULL;
+char *asset_bgm_name = NULL;
+char *asset_effect_name = NULL;
+char *asset_data_name = NULL;
 
 void asset_init(void)
 {
@@ -68,39 +76,55 @@ bool asset_mes_load(const char *name, uint8_t *dst)
 		return false;
 	memcpy(dst, file->data, file->size);
 	archive_data_release(file);
+	free(asset_mes_name);
+	asset_mes_name = xstrdup(name);
 	return true;
 }
 
-struct cg *asset_cg_load(const char *name)
+struct archive_data *asset_cg_load(const char *name)
 {
 	if (!arc.bg)
 		return NULL;
 	struct archive_data *file = archive_get(arc.bg, name);
 	if (!file)
 		return NULL;
-
-	struct cg *cg = cg_load_arcdata(file);
-	archive_data_release(file);
-	return cg;
+	free(asset_cg_name);
+	asset_cg_name = xstrdup(name);
+	return file;
 }
 
 struct archive_data *asset_bgm_load(const char *name)
 {
 	if (!arc.bgm)
 		return NULL;
-	return archive_get(arc.bgm, name);
+	struct archive_data *file = archive_get(arc.bgm, name);
+	if (!file)
+		return NULL;
+	free(asset_bgm_name);
+	asset_bgm_name = xstrdup(name);
+	return file;
 }
 
 struct archive_data *asset_effect_load(const char *name)
 {
 	if (!arc.effect)
 		return NULL;
-	return archive_get(arc.effect, name);
+	struct archive_data *file = archive_get(arc.effect, name);
+	if (!file)
+		return NULL;
+	free(asset_effect_name);
+	asset_effect_name = xstrdup(name);
+	return file;
 }
 
 struct archive_data *asset_data_load(const char *name)
 {
 	if (!arc.data)
 		return NULL;
-	return archive_get(arc.data, name);
+	struct archive_data *file = archive_get(arc.data, name);
+	if (!file)
+		return NULL;
+	free(asset_data_name);
+	asset_data_name = xstrdup(name);
+	return file;
 }

@@ -42,10 +42,11 @@ struct gfx {
 		uint8_t fg;
 	} text;
 	bool dirty;
+	bool hidden;
 };
 extern struct gfx gfx;
 
-SDL_Surface *gfx_dst_surface(void);
+SDL_Surface *gfx_get_surface(unsigned i);
 
 
 #endif // AI5_GFX_PRIVATE_H

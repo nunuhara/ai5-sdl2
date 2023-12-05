@@ -21,8 +21,14 @@
 #include "ai5/cg.h"
 
 #include "gfx_private.h"
-#include "memory.h"
 #include "vm.h"
+
+
+#if 0
+#define GFX_LOG(...) NOTICE(__VA_ARGS__)
+#else
+#define GFX_LOG(...)
+#endif
 
 struct gfx gfx = { .dirty = true };
 struct gfx_view gfx_view = { 640, 400 };
@@ -35,11 +41,10 @@ void gfx_dirty(void)
 // FIXME: AI5WIN.EXE can access 5 surfaces without crashing, but only
 //        surfaces 0 and 1 behave as expected... surfaces 2-3 seem to
 //        have the same behavior, and surface 4 is different again.
-SDL_Surface *gfx_dst_surface(void)
+SDL_Surface *gfx_get_surface(unsigned i)
 {
-	unsigned i = memory_system_var16()[1];
-	if (i >= GFX_NR_SURFACES) {
-		WARNING("Invalid destination surface index: %u", i);
+	if (unlikely(i >= GFX_NR_SURFACES)) {
+		WARNING("Invalid surface index: %u", i);
 		i = 0;
 	}
 	return gfx.surface[i];
@@ -116,7 +121,7 @@ void gfx_init(void)
 
 void gfx_update(void)
 {
-	if (!gfx.dirty)
+	if (gfx.hidden || !gfx.dirty)
 		return;
 	SDL_Rect rect = { 0, 0, gfx_view.w, gfx_view.h };
 	SDL_CALL(SDL_BlitSurface, gfx_screen(), &rect, gfx.display, &rect);
@@ -125,6 +130,23 @@ void gfx_update(void)
 	SDL_CALL(SDL_RenderCopy, gfx.renderer, gfx.texture, NULL, NULL);
 	SDL_RenderPresent(gfx.renderer);
 	gfx.dirty = false;
+}
+
+void gfx_hide_screen(void)
+{
+	GFX_LOG("gfx_hide_screen");
+	// fill screen with color 0 and prevent updates
+	SDL_CALL(SDL_RenderClear, gfx.renderer);
+	SDL_RenderPresent(gfx.renderer);
+	gfx.hidden = true;
+}
+
+void gfx_unhide_screen(void)
+{
+	GFX_LOG("gfx_unhide_screen");
+	// allow updates
+	gfx.hidden = false;
+	gfx.dirty = true;
 }
 
 static SDL_Color palette[256];
@@ -147,8 +169,65 @@ static void update_palette(void)
 
 void gfx_palette_set(const uint8_t *data)
 {
+	GFX_LOG("gfx_palette_set (...)");
 	read_palette(palette, data);
 	update_palette();
+}
+
+static void pal_set_color(uint8_t *pal, uint8_t i, uint8_t r, uint8_t g, uint8_t b)
+{
+	pal[i*4+0] = b;
+	pal[i*4+1] = g;
+	pal[i*4+2] = r;
+	pal[i*4+3] = 0;
+}
+
+/*
+ * Write a surface to a PNG file, altering the palette so that every color
+ * index is identifiable.
+ */
+#include "nulib/file.h"
+void gfx_dump_surface(unsigned i, const char *filename)
+{
+	SDL_Surface *s = gfx_get_surface(i);
+
+	struct cg *cg = xcalloc(1, sizeof(struct cg));
+	cg->metrics.w = s->w;
+	cg->metrics.h = s->h;
+	cg->metrics.bpp = 8;
+
+	cg->palette = xcalloc(4, 256);
+	pal_set_color(cg->palette, 0,  0,   0,   0);
+	pal_set_color(cg->palette, 1,  127, 127, 127);
+	pal_set_color(cg->palette, 2,  255, 255, 255);
+
+	pal_set_color(cg->palette, 3,  255, 0,   0);
+	pal_set_color(cg->palette, 4,  255, 255, 0);
+	pal_set_color(cg->palette, 5,  255, 0,   255);
+
+	pal_set_color(cg->palette, 6,  0,   255, 0);
+	pal_set_color(cg->palette, 7,  255, 255, 0);
+	pal_set_color(cg->palette, 8,  0,   255, 255);
+
+	pal_set_color(cg->palette, 9,  0,   0,   255);
+	pal_set_color(cg->palette, 10, 255, 0,   255);
+	pal_set_color(cg->palette, 11, 0,   255, 255);
+
+	pal_set_color(cg->palette, 12, 255, 127, 63);
+	pal_set_color(cg->palette, 13, 127, 255, 63);
+	pal_set_color(cg->palette, 14, 127, 63, 255);
+	pal_set_color(cg->palette, 14, 31,  63, 255);
+
+	cg->pixels = xcalloc(cg->metrics.w, cg->metrics.h);
+	for (int row = 0; row < cg->metrics.h; row++) {
+		uint8_t *src = s->pixels + s->pitch * row;
+		uint8_t *dst = cg->pixels + cg->metrics.w * row;
+		memcpy(dst, src, cg->metrics.w);
+	}
+
+	FILE *f = file_open_utf8(filename, "wb");
+	cg_write(cg, f, CG_TYPE_PNG);
+	fclose(f);
 }
 
 static uint8_t u8_interp(uint8_t a, uint8_t b, float rate)
@@ -186,7 +265,7 @@ static void _gfx_palette_crossfade(SDL_Color *new, unsigned ms)
 		update_palette();
 
 		// update
-		gfx_update();
+		vm_peek();
 		SDL_Delay(16);
 		t = vm_get_ticks() - start_t;
 	}
@@ -194,6 +273,7 @@ static void _gfx_palette_crossfade(SDL_Color *new, unsigned ms)
 
 void gfx_palette_crossfade(const uint8_t *data, unsigned ms)
 {
+	GFX_LOG("gfx_palette_crossfade[%u] (...)", ms);
 	SDL_Color new[256];
 	read_palette(new, data);
 	_gfx_palette_crossfade(new, ms);
@@ -201,6 +281,7 @@ void gfx_palette_crossfade(const uint8_t *data, unsigned ms)
 
 void gfx_palette_crossfade_to(uint8_t r, uint8_t g, uint8_t b, unsigned ms)
 {
+	GFX_LOG("gfx_palette_crossfade_to[%u] (%u,%u,%u)", ms, r, g, b);
 	SDL_Color new[256];
 	for (int i = 0; i < 256; i++) {
 		new[i].r = r;
@@ -213,6 +294,7 @@ void gfx_palette_crossfade_to(uint8_t r, uint8_t g, uint8_t b, unsigned ms)
 
 void gfx_set_screen_surface(unsigned i)
 {
+	GFX_LOG("gfx_set_screen_surface %u", i);
 	assert(i < GFX_NR_SURFACES);
 	gfx.screen = i;
 	update_palette();
@@ -258,8 +340,10 @@ static bool copy_clip(SDL_Surface *src, SDL_Rect *src_r, SDL_Surface *dst, SDL_P
 static void foreach_pixel2(SDL_Surface *src, SDL_Rect *src_r, SDL_Surface *dst,
 		SDL_Point *dst_p, void (*f)(uint8_t*,uint8_t*,void*), void *data)
 {
-	if (!copy_clip(src, src_r, dst, dst_p))
+	if (!copy_clip(src, src_r, dst, dst_p)) {
+		WARNING("Invalid copy");
 		return;
+	}
 
 	if (SDL_MUSTLOCK(src))
 		SDL_CALL(SDL_LockSurface, src);
@@ -290,6 +374,8 @@ static void gfx_copy_cb(uint8_t *src, uint8_t *dst, void *_)
 void gfx_copy(int src_x, int src_y, int src_w, int src_h, unsigned src_i, int dst_x,
 		int dst_y, unsigned dst_i)
 {
+	GFX_LOG("gfx_copy %u(%d,%d) -> %u(%d,%d) @ (%d,%d)",
+			src_i, src_x, src_y, dst_i, dst_x, dst_y, src_w, src_h);
 	assert(src_i < GFX_NR_SURFACES);
 	assert(dst_i < GFX_NR_SURFACES);
 	SDL_Surface *src = gfx.surface[src_i];
@@ -310,6 +396,8 @@ static void gfx_copy_masked_cb(uint8_t *src, uint8_t *dst, void *_mask)
 void gfx_copy_masked(int src_x, int src_y, int src_w, int src_h, unsigned src_i, int dst_x,
 		int dst_y, unsigned dst_i, uint8_t mask_color)
 {
+	GFX_LOG("gfx_copy_masked[%u] %u(%d,%d) -> %u(%d,%d) @ (%d,%d)", mask_color,
+			src_i, src_x, src_y, dst_i, dst_x, dst_y, src_w, src_h);
 	assert(src_i < GFX_NR_SURFACES);
 	assert(dst_i < GFX_NR_SURFACES);
 	SDL_Surface *src = gfx.surface[src_i];
@@ -330,6 +418,9 @@ static void gfx_copy_swap_cb(uint8_t *src, uint8_t *dst, void *_)
 void gfx_copy_swap(int src_x, int src_y, int src_w, int src_h, unsigned src_i, int dst_x,
 		int dst_y, unsigned dst_i)
 {
+	GFX_LOG("gfx_copy_swap %u(%d,%d) -> %u(%d,%d) @ (%d,%d)",
+			src_i, src_x, src_y, dst_i, dst_x, dst_y, src_w, src_h);
+
 	assert(src_i < GFX_NR_SURFACES);
 	assert(dst_i < GFX_NR_SURFACES);
 	SDL_Surface *src = gfx.surface[src_i];
@@ -340,9 +431,11 @@ void gfx_copy_swap(int src_x, int src_y, int src_w, int src_h, unsigned src_i, i
 	gfx.dirty = true;
 }
 
-void gfx_copy_sprite_bg(int fg_x, int fg_y, int w, int h, unsigned fg_i, int bg_x, int bg_y,
+void gfx_compose(int fg_x, int fg_y, int w, int h, unsigned fg_i, int bg_x, int bg_y,
 		unsigned bg_i, int dst_x, int dst_y, unsigned dst_i, uint8_t mask_color)
 {
+	GFX_LOG("gfx_compose[%u] %u(%d,%d) + %u(%d,%d) -> %u(%d,%d) @ (%d,%d)", mask_color,
+			fg_i, fg_x, fg_y, bg_i, bg_x, bg_y, dst_i, dst_x, dst_y, w, h);
 	assert(fg_i < GFX_NR_SURFACES);
 	assert(bg_i < GFX_NR_SURFACES);
 	assert(dst_i < GFX_NR_SURFACES);
@@ -382,8 +475,10 @@ static bool fill_clip(SDL_Surface *s, SDL_Rect *r)
 
 static void foreach_pixel(SDL_Surface *s, SDL_Rect *r, void (*f)(uint8_t*,void*), void *data)
 {
-	if (!fill_clip(s, r))
+	if (!fill_clip(s, r)) {
+		WARNING("Invalid fill");
 		return;
+	}
 
 	if (SDL_MUSTLOCK(s))
 		SDL_CALL(SDL_LockSurface, s);
@@ -407,6 +502,7 @@ static void gfx_invert_colors_cb(uint8_t *p, void *_)
 
 void gfx_invert_colors(int x, int y, int w, int h, unsigned i)
 {
+	GFX_LOG("gfx_invert_colors %u(%d,%d) @ (%d,%d)", i, x, y, w, h);
 	assert(i < GFX_NR_SURFACES);
 	SDL_Surface *s = gfx.surface[i];
 	SDL_Rect r = { x, y, w, h };
@@ -414,10 +510,11 @@ void gfx_invert_colors(int x, int y, int w, int h, unsigned i)
 	gfx.dirty = true;
 }
 
-void gfx_fill(int x, int y, int w, int h, uint8_t c)
+void gfx_fill(int x, int y, int w, int h, unsigned i, uint8_t c)
 {
+	GFX_LOG("gfx_fill[%u] %u(%d,%d) @ (%d,%d)", c, i, x, y, w, h);
 	SDL_Rect rect = { x, y, w, h };
-	SDL_CALL(SDL_FillRect, gfx_dst_surface(), &rect, c);
+	SDL_CALL(SDL_FillRect, gfx_get_surface(i), &rect, c);
 	gfx.dirty = true;
 }
 
@@ -434,18 +531,21 @@ void gfx_swap_colors_cb(uint8_t *p, void *data)
 		*p = colors->c1;
 }
 
-void gfx_swap_colors(int x, int y, int w, int h, uint8_t c1, uint8_t c2)
+void gfx_swap_colors(int x, int y, int w, int h, unsigned i, uint8_t c1, uint8_t c2)
 {
-	SDL_Surface *s = gfx_dst_surface();
+	GFX_LOG("gfx_swap_colors[%u,%u] %u(%d,%d) @ (%d,%d)", c1, c2, i, x, y, w, h);
+	SDL_Surface *s = gfx_get_surface(i);
 	SDL_Rect r = { x, y, w, h };
 	struct swap_colors_data colors = { c1, c2 };
 	foreach_pixel(s, &r, gfx_swap_colors_cb, &colors);
 	gfx.dirty = true;
 }
 
-void gfx_draw_cg(struct cg *cg)
+void gfx_draw_cg(unsigned i, struct cg *cg)
 {
-	SDL_Surface *s = gfx_dst_surface();
+	GFX_LOG("gfx_draw_cg[%u] (%u,%u,%u,%u)", i, cg->metrics.x, cg->metrics.y,
+			cg->metrics.w, cg->metrics.h);
+	SDL_Surface *s = gfx_get_surface(i);
 	if (SDL_MUSTLOCK(s))
 		SDL_CALL(SDL_LockSurface, s);
 

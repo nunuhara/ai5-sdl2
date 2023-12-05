@@ -14,36 +14,17 @@
  * along with this program; if not, see <http://gnu.org/licenses/>.
  */
 
-#ifndef AI5_ASSET_H
-#define AI5_ASSET_H
+#ifndef AI5_ANIM_H
+#define AI5_ANIM_H
 
-#include <stdbool.h>
+void anim_execute(void);
+bool anim_running(void);
+void anim_init_stream(unsigned stream);
+void anim_start(unsigned stream);
+void anim_stop(unsigned stream);
+void anim_halt(unsigned stream);
+void anim_stop_all(void);
+void anim_halt_all(void);
+void anim_set_offset(unsigned stream, unsigned x, unsigned y);
 
-struct archive_data;
-
-enum asset_type {
-	ASSET_BG,
-	ASSET_MES,
-	ASSET_BGM,
-	ASSET_VOICE,
-	ASSET_EFFECT,
-	ASSET_DATA,
-	ASSET_PRIV,
-};
-
-void asset_init(void);
-void asset_fini(void);
-
-bool asset_mes_load(const char *name, uint8_t *dst);
-struct archive_data *asset_cg_load(const char *name);
-struct archive_data *asset_bgm_load(const char *name);
-struct archive_data *asset_effect_load(const char *name);
-struct archive_data *asset_data_load(const char *name);
-
-extern char *asset_mes_name;
-extern char *asset_cg_name;
-extern char *asset_bgm_name;
-extern char *asset_effect_name;
-extern char *asset_data_name;
-
-#endif // AI5_ASSET_H
+#endif // AI5_ANIM_H

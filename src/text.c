@@ -82,20 +82,19 @@ void gfx_text_set_colors(uint8_t bg, uint8_t fg)
 	gfx.text.fg = fg;
 }
 
-void gfx_text_fill(int x, int y, int w, int h)
+void gfx_text_fill(int x, int y, int w, int h, unsigned i)
 {
-	gfx_fill(x, y, w, h, gfx.text.bg);
+	gfx_fill(x, y, w, h, i, gfx.text.bg);
 }
 
-void gfx_text_swap_colors(int x, int y, int w, int h)
+void gfx_text_swap_colors(int x, int y, int w, int h, unsigned i)
 {
-	gfx_swap_colors(x, y, w, h, gfx.text.bg, gfx.text.fg);
+	gfx_swap_colors(x, y, w, h, i, gfx.text.bg, gfx.text.fg);
 }
 
 // XXX: We have to blit manually so that the correct foreground index is written.
-static void glyph_blit(SDL_Surface *glyph, int dst_x, int dst_y)
+static void glyph_blit(SDL_Surface *glyph, int dst_x, int dst_y, SDL_Surface *s)
 {
-	SDL_Surface *s = gfx_dst_surface();
 	int glyph_x = 0;
 	int glyph_y = 0;
 	int glyph_w = glyph->w;
@@ -139,12 +138,12 @@ static void glyph_blit(SDL_Surface *glyph, int dst_x, int dst_y)
 		SDL_UnlockSurface(glyph);
 }
 
-unsigned gfx_text_draw_glyph(int x, int y, uint32_t ch)
+unsigned gfx_text_draw_glyph(int x, int y, unsigned i, uint32_t ch)
 {
 	if (!cur_font)
 		return 0;
 
-	SDL_Surface *dst = gfx_dst_surface();
+	SDL_Surface *dst = gfx_get_surface(i);
 	assert(gfx.text.fg < dst->format->palette->ncolors);
 	SDL_Color fg = dst->format->palette->colors[gfx.text.fg];
 	SDL_Surface *s = TTF_RenderGlyph32_Solid(cur_font->id, ch, fg);
@@ -153,7 +152,7 @@ unsigned gfx_text_draw_glyph(int x, int y, uint32_t ch)
 
 	y -= cur_font->y_off;
 	unsigned w = s->w;
-	glyph_blit(s, x, y);
+	glyph_blit(s, x, y, dst);
 	SDL_FreeSurface(s);
 	gfx_dirty();
 	return w;

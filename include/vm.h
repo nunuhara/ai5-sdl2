@@ -56,6 +56,7 @@ extern struct vm vm;
 
 void vm_init(void);
 void vm_exec(void);
+void vm_peek(void);
 void vm_load_mes(char *name);
 void vm_call_procedure(unsigned no);
 void vm_print_state(void);
@@ -65,9 +66,10 @@ void vm_delay(int ms);
 uint32_t vm_get_ticks(void);
 
 enum vm_flag {
-	VM_FLAG_MENU_RETURN = 0x08,
-	VM_FLAG_RETURN = 0x10,
-	VM_FLAG_LOG = 0x80,
+	VM_FLAG_MENU_RETURN  = 0x0008,
+	VM_FLAG_RETURN       = 0x0010,
+	VM_FLAG_LOG          = 0x0080,
+	VM_FLAG_LOAD_PALETTE = 0x2000,
 };
 
 static inline bool vm_flag_is_on(uint16_t flag)
