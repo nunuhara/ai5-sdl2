@@ -87,4 +87,20 @@ static inline void vm_flag_off(uint16_t flag)
 	memory_system_var16()[MES_SYS_VAR_FLAGS] &= ~flag;
 }
 
+typedef uint32_t vm_timer_t;
+
+static inline void vm_timer_tick(vm_timer_t *timer, unsigned ms)
+{
+	uint32_t t = vm_get_ticks();
+	uint32_t delta_t = t - *timer;
+	*timer = t;
+	if (delta_t < ms)
+		vm_delay(ms - delta_t);
+}
+
+static inline uint32_t vm_timer_create(void)
+{
+	return vm_get_ticks();
+}
+
 #endif

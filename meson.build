@@ -22,6 +22,7 @@ sources = [
   'src/asset.c',
   'src/audio.c',
   'src/cursor.c',
+  'src/effect.c',
   'src/gfx.c',
   'src/ini.c',
   'src/input.c',

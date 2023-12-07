@@ -49,6 +49,8 @@ void gfx_invert_colors(int x, int y, int w, int h, unsigned i);
 void gfx_fill(int x, int y, int w, int h, unsigned i, uint8_t c);
 void gfx_swap_colors(int x, int y, int w, int h, unsigned i, uint8_t c1, uint8_t c2);
 void gfx_draw_cg(unsigned i, struct cg *cg);
+void gfx_fade_down(int x, int y, int w, int h, unsigned dst_i, int src_i);
+void gfx_fade_right(int x, int y, int w, int h, unsigned dst_i, int src_i);
 
 #define DEFAULT_FONT_SIZE 16
 

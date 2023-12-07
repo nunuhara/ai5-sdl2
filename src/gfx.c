@@ -23,13 +23,6 @@
 #include "gfx_private.h"
 #include "vm.h"
 
-
-#if 0
-#define GFX_LOG(...) NOTICE(__VA_ARGS__)
-#else
-#define GFX_LOG(...)
-#endif
-
 struct gfx gfx = { .dirty = true };
 struct gfx_view gfx_view = { 640, 400 };
 

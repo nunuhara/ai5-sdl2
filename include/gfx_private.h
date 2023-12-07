@@ -24,6 +24,12 @@
 #define SDL_CALL(f, ...) if (f(__VA_ARGS__) < 0) { ERROR(#f ": %s", SDL_GetError()); }
 #define SDL_CTOR(f, dst, ...) if (!(dst = f(__VA_ARGS__))) { ERROR(#f ": %s", SDL_GetError()); }
 
+#if 0
+#define GFX_LOG(...) NOTICE(__VA_ARGS__)
+#else
+#define GFX_LOG(...)
+#endif
+
 struct gfx {
 	SDL_Window *window;
 	SDL_Renderer *renderer;
