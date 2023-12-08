@@ -45,6 +45,8 @@ enum input_event_type input_event_from_keycode(SDL_Keycode k)
 	case SDLK_DOWN:   return INPUT_DOWN;
 	case SDLK_LEFT:   return INPUT_LEFT;
 	case SDLK_RIGHT:  return INPUT_RIGHT;
+	case SDLK_LSHIFT: return INPUT_SHIFT;
+	case SDLK_RSHIFT: return INPUT_SHIFT;
 	default:          return INPUT_NONE;
 	}
 }

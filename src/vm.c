@@ -20,6 +20,7 @@
 
 #include "nulib.h"
 #include "nulib/little_endian.h"
+#include "nulib/port.h"
 #include "nulib/string.h"
 #include "nulib/utfsjis.h"
 #include "ai5/arc.h"
@@ -49,6 +50,7 @@ struct vm vm = {0};
 void vm_print_state(void)
 {
 	sys_warning("ip = %08x\n", vm.ip.ptr);
+	sys_warning("file = %s\n", asset_mes_name);
 }
 
 void vm_init(void)
@@ -128,7 +130,7 @@ static uint32_t vm_eval(void)
 		case MES_EXPR_ARRAY16_GET16: {
 			uint32_t i = vm_stack_pop();
 			uint8_t var = vm_read_byte();
-			uint16_t *src = memory_system_var16_ptr();
+			uint16_t *src = memory_system_var16();
 			if (var)
 				src = (uint16_t*)(memory_raw + usr_var16[var - 1]);
 			vm_stack_push(src[i]);
@@ -428,7 +430,7 @@ static void stmt_seta_at(void)
 {
 	uint32_t i = vm_eval();
 	uint8_t var = vm_read_byte();
-	uint16_t *dst = memory_system_var16_ptr();
+	uint16_t *dst = memory_system_var16();
 	if (var) {
 		dst = (uint16_t*)(memory_raw + usr_var16[var - 1]);
 	}
@@ -821,8 +823,17 @@ static void stmt_sys_graphics(struct param_list *params)
 
 static void stmt_sys_wait(struct param_list *params)
 {
-	while (input_keywait() != INPUT_ACTIVATE)
-		;
+	if (params->nr_params == 0 || check_expr_param(params, 0) == 0) {
+		while (input_keywait() != INPUT_ACTIVATE)
+			;
+	} else {
+		vm_timer_t timer = vm_timer_create();
+		uint32_t target_t = timer + params->params[0].val;
+		while (timer < target_t && !input_down(INPUT_SHIFT)) {
+			vm_timer_tick(&timer, 16);
+		}
+		input_clear();
+	}
 }
 
 static void stmt_sys_set_text_colors(struct param_list *params)
@@ -1083,7 +1094,6 @@ static void stmt_procd(void)
 	vm.ip.ptr = vm_read_dword();
 }
 
-#include "nulib/port.h"
 bool vm_exec_statement(void)
 {
 #if 0

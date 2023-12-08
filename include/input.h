@@ -27,8 +27,9 @@ enum input_event_type {
 	INPUT_DOWN = 3,
 	INPUT_LEFT = 4,
 	INPUT_RIGHT = 5,
+	INPUT_SHIFT = 6,
 };
-#define INPUT_NR_INPUTS (INPUT_RIGHT+1)
+#define INPUT_NR_INPUTS (INPUT_SHIFT+1)
 
 void input_init(void);
 void handle_events(void);

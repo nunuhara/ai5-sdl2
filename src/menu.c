@@ -90,13 +90,16 @@ void menu_exec(void)
 		// update menu
 		vm_call_procedure(39);
 		switch (input_poll()) {
-		case INPUT_NONE:     vm_delay(16); break;
 		case INPUT_ACTIVATE: vm_call_procedure(32); break;
 		case INPUT_CANCEL:   vm_call_procedure(33); break;
 		case INPUT_UP:       vm_call_procedure(34); break;
 		case INPUT_DOWN:     vm_call_procedure(35); break;
 		case INPUT_LEFT:     vm_call_procedure(36); break;
 		case INPUT_RIGHT:    vm_call_procedure(37); break;
+		case INPUT_NONE:
+		default:
+			vm_delay(16);
+			break;
 		}
 	}
 	input_clear();
