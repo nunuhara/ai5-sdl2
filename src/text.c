@@ -34,7 +34,7 @@ struct font {
 };
 
 #define MAX_FONTS 256
-static struct font fonts[MAX_FONTS];
+static struct font fonts[MAX_FONTS] = {0};
 static int nr_fonts = 0;
 static struct font *cur_font = NULL;
 
@@ -58,15 +58,12 @@ static struct font *font_insert(int size, TTF_Font *id)
 	int y_off = ascent - size;         // align baseline to point size
 	y_off += (size - (max_y - 2)) / 2; // center based on height of 'A'
 
-	for (int i = 0; i < MAX_FONTS; i++) {
-		if (!fonts[i].size) {
-			fonts[i].size = size;
-			fonts[i].y_off = y_off;
-			fonts[i].id = id;
-			return &fonts[i];
-		}
-	}
-	ERROR("Font table is full");
+	if (nr_fonts >= MAX_FONTS)
+		ERROR("Font table is full");
+	fonts[nr_fonts].size = size;
+	fonts[nr_fonts].y_off = y_off;
+	fonts[nr_fonts].id = id;
+	return &fonts[nr_fonts++];
 }
 
 void gfx_text_init(void)
