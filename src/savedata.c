@@ -124,6 +124,7 @@ void savedata_load(const char *save_name)
 	// load except mes name
 	read_save(save_name, memory_raw, MEMORY_MES_NAME_SIZE,
 			savedata_size() - MEMORY_MES_NAME_SIZE);
+	memory_restore();
 }
 
 void savedata_save(const char *save_name)
