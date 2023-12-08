@@ -99,10 +99,16 @@ static void gfx_fini(void)
 	gfx = (struct gfx){ .dirty = true };
 }
 
-void gfx_init(void)
+void gfx_init(const char *name)
 {
+	char title[2048];
+	if (name) {
+		snprintf(title, 2048, "%s - AI5-SDL2", name);
+	} else {
+		strcpy(title, "AI5-SDL2");
+	}
 	SDL_CALL(SDL_Init, SDL_INIT_VIDEO | SDL_INIT_TIMER);
-	SDL_CTOR(SDL_CreateWindow, gfx.window, "ai5-sdl2",
+	SDL_CTOR(SDL_CreateWindow, gfx.window, title,
 			SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, gfx_view.w, gfx_view.h,
 			SDL_WINDOW_RESIZABLE);
 	SDL_CTOR(SDL_CreateRenderer, gfx.renderer, gfx.window, -1, 0);

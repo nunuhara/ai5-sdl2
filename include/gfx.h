@@ -27,7 +27,7 @@ struct cg;
 struct gfx_view { unsigned w, h; };
 extern struct gfx_view gfx_view;
 
-void gfx_init(void);
+void gfx_init(const char *name);
 void gfx_update(void);
 void gfx_dirty(void);
 void gfx_set_window_size(unsigned w, unsigned h);

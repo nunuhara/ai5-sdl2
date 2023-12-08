@@ -260,7 +260,7 @@ int main(int argc, char *argv[])
 	srand(time(NULL));
 	asset_init();
 	memory_init();
-	gfx_init();
+	gfx_init(config.title);
 	input_init();
 	cursor_init(exe_path);
 	audio_init();
