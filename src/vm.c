@@ -496,6 +496,34 @@ static void stmt_sys_set_font_size(struct param_list *params)
 	gfx_text_set_size(sys_var16[MES_SYS_VAR_FONT_HEIGHT]);
 }
 
+#define MAX_DIGITS 10
+static void stmt_sys_display_number(struct param_list *params)
+{
+	uint32_t n = check_expr_param(params, 0);
+	uint8_t buf[MAX_DIGITS * 2 + 1];
+
+	// count digits
+	unsigned digits = 0;
+	for (uint32_t i = n; i > 0; i /= 10, digits++)
+		;
+
+	// write digits into buffer
+	if (!digits) {
+		buf[0] = 0x82;
+		buf[1] = 0x4f;
+		buf[2] = 0;
+	} else {
+		for (int i = 0; n > 0; i++, n /= 10) {
+			int off = (digits - (i + 1)) * 2;
+			buf[off+0] = 0x82;
+			buf[off+1] = 0x4f + n % 10;
+		}
+		buf[digits * 2] = 0;
+	}
+
+	draw_text((char*)buf);
+}
+
 static void stmt_sys_cursor_save_pos(void)
 {
 	unsigned x, y;
@@ -978,6 +1006,7 @@ static void stmt_sys(void)
 
 	switch (no) {
 	case 0:  stmt_sys_set_font_size(&params); break;
+	case 1:  stmt_sys_display_number(&params); break;
 	case 2:  stmt_sys_cursor(&params); break;
 	case 3:  stmt_sys_anim(&params); break;
 	case 4:  stmt_sys_savedata(&params); break;
