@@ -952,6 +952,15 @@ static void stmt_sys_check_input(struct param_list *params)
 	usr_var32[18] = value && is_down;
 }
 
+static void stmt_sys_strlen(struct param_list *params)
+{
+	uint32_t ptr = check_expr_param(params, 0);
+	if (unlikely(ptr >= sizeof(struct memory)))
+		VM_ERROR("Invalid pointer: %u", ptr);
+	uint8_t *str = memory_raw + ptr;
+	usr_var32[18] = strnlen((char*)str, sizeof(struct memory) - ptr);
+}
+
 static void stmt_sys_set_screen_surface(struct param_list *params)
 {
 	unsigned i = check_expr_param(params, 0);
@@ -983,6 +992,7 @@ static void stmt_sys(void)
 	case 14: stmt_sys_check_cursor_pos(&params); break;
 	case 15: menu_get_no(check_expr_param(&params, 0)); break;
 	case 18: stmt_sys_check_input(&params); break;
+	case 21: stmt_sys_strlen(&params); break;
 	case 23: stmt_sys_set_screen_surface(&params); break;
 	default: VM_ERROR("System.function[%d] not implemented", no);
 	}
