@@ -659,16 +659,34 @@ static void stmt_sys_load_image(struct param_list *params)
 	vm_load_image(check_string_param(params, 0), sys_var16[MES_SYS_VAR_DST_SURFACE]);
 }
 
-static void stmt_sys_palette_crossfade(struct param_list *params)
+static void check_rgb_param(struct param_list *params, unsigned i, uint8_t *r, uint8_t *g,
+		uint8_t *b)
+{
+	uint32_t c = check_expr_param(params, i);
+	*r = ((c >> 4) & 0xf) * 17;
+	*g = ((c >> 8) & 0xf) * 17;
+	*b = (c & 0xf) * 17;
+}
+
+static void stmt_sys_palette_crossfade1(struct param_list *params)
+{
+	if (params->nr_params > 1) {
+		uint8_t r, g, b;
+		check_rgb_param(params, 1, &r, &g, &b);
+		gfx_palette_crossfade_to(r, g, b, 240);
+	} else {
+		gfx_palette_crossfade(memory.palette, 240);
+	}
+}
+
+static void stmt_sys_palette_crossfade2(struct param_list *params)
 {
 	// XXX: t is a value from 0-15 corresponding to the interval [0-3600]
 	//      in increments of 240
 	uint32_t t = check_expr_param(params, 1);
 	if (params->nr_params > 2) {
-		uint32_t c = check_expr_param(params, 2);
-		uint8_t r = ((c >> 4) & 0xf) * 17;
-		uint8_t g = ((c >> 8) & 0xf) * 17;
-		uint8_t b = (c & 0xf) * 17;
+		uint8_t r, g, b;
+		check_rgb_param(params, 2, &r, &g, &b);
 		gfx_palette_crossfade_to(r, g, b, (t & 0xf) * 240);
 	} else {
 		gfx_palette_crossfade(memory.palette, (t & 0xf) * 240);
@@ -680,7 +698,8 @@ static void stmt_sys_palette(struct param_list *params)
 	check_expr_param(params, 0);
 	switch (params->params[0].val) {
 	case 0:  gfx_palette_set(memory.palette); break;
-	case 2:  stmt_sys_palette_crossfade(params); break;
+	case 1:  stmt_sys_palette_crossfade1(params); break;
+	case 2:  stmt_sys_palette_crossfade2(params); break;
 	case 3:  gfx_hide_screen(); break;
 	case 4:  gfx_unhide_screen(); break;
 	default: VM_ERROR("System.Palette.function[%d] not implemented",
