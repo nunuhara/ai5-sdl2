@@ -163,3 +163,8 @@ bool input_down(enum input_event_type type)
 	handle_events();
 	return key_down[type];
 }
+
+void input_get_cursor_pos(int *x, int *y)
+{
+	SDL_GetMouseState(x, y);
+}

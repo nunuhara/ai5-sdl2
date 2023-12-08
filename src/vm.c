@@ -906,6 +906,7 @@ static void stmt_sys(void)
 	case 11: stmt_sys_wait(&params); break;
 	case 12: stmt_sys_set_text_colors(&params); break;
 	case 13: stmt_sys_farcall(&params); break;
+	case 15: menu_get_no(check_expr_param(&params, 0)); break;
 	case 18: stmt_sys_check_input(&params); break;
 	case 23: stmt_sys_set_screen_surface(&params); break;
 	default: VM_ERROR("System.function[%d] not implemented", no);
@@ -1010,6 +1011,37 @@ static void stmt_util_pixelate(struct param_list *params)
 	gfx_pixelate(x * 8, y, w * 8, h, dst_i, mag);
 }
 
+// wait for cursor to rest for a given interval
+static void stmt_util_check_cursor(struct param_list *params)
+{
+	static uint32_t start_t = 0, wait_t = 0;
+	static int cursor_x = 0, cursor_y = 0;
+	if (!check_expr_param(params, 1)) {
+		start_t = vm_get_ticks();
+		wait_t = check_expr_param(params, 2);
+		input_get_cursor_pos(&cursor_x, &cursor_y);
+	} else {
+		// check timer
+		uint32_t current_t = vm_get_ticks();
+		usr_var16[18] = 0;
+		if (current_t < start_t + wait_t)
+			return;
+
+		// return TRUE if cursor didn't move
+		int x, y;
+		input_get_cursor_pos(&x, &y);
+		if (x == cursor_x && y == cursor_y) {
+			usr_var16[18] = 1;
+			return;
+		}
+
+		// otherwise restart timer
+		start_t = current_t;
+		cursor_x = x;
+		cursor_y = y;
+	}
+}
+
 static char *saved_cg_name = NULL;
 static char *saved_data_name = NULL;
 
@@ -1061,6 +1093,7 @@ static void stmt_util(void)
 	switch (check_expr_param(&params, 0)) {
 	case 10:  stmt_util_fade(&params); break;
 	case 12:  stmt_util_pixelate(&params); break;
+	case 15:  stmt_util_check_cursor(&params); break;
 	case 16:  vm_delay(check_expr_param(&params, 1) * 15); break;
 	case 17:  stmt_util_save_animation(); break;
 	case 18:  stmt_util_restore_animation(); break;

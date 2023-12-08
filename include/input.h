@@ -38,6 +38,8 @@ enum input_event_type input_poll(void);
 bool input_down(enum input_event_type type);
 void input_clear(void);
 
+void input_get_cursor_pos(int *x, int *y);
+
 extern uint32_t cursor_swap_event;
 
 #endif // AI5_INPUT_H
