@@ -987,6 +987,18 @@ static void stmt_util_fade(struct param_list *params)
 		gfx_fade_right(x * 8, y, w * 8, h, dst_i, src_i);
 }
 
+static void stmt_util_pixelate(struct param_list *params)
+{
+	int x = check_expr_param(params, 1);
+	int y = check_expr_param(params, 2);
+	int w = (check_expr_param(params, 3) - x) + 1;
+	int h = (check_expr_param(params, 4) - y) + 1;
+	unsigned dst_i = check_expr_param(params, 5);
+	unsigned mag = check_expr_param(params, 6);
+
+	gfx_pixelate(x * 8, y, w * 8, h, dst_i, mag);
+}
+
 static char *saved_cg_name = NULL;
 static char *saved_data_name = NULL;
 
@@ -1037,6 +1049,7 @@ static void stmt_util(void)
 	read_params(&params);
 	switch (check_expr_param(&params, 0)) {
 	case 10:  stmt_util_fade(&params); break;
+	case 12:  stmt_util_pixelate(&params); break;
 	case 16:  vm_delay(check_expr_param(&params, 1) * 15); break;
 	case 17:  stmt_util_save_animation(); break;
 	case 18:  stmt_util_restore_animation(); break;

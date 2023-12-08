@@ -51,6 +51,7 @@ void gfx_swap_colors(int x, int y, int w, int h, unsigned i, uint8_t c1, uint8_t
 void gfx_draw_cg(unsigned i, struct cg *cg);
 void gfx_fade_down(int x, int y, int w, int h, unsigned dst_i, int src_i);
 void gfx_fade_right(int x, int y, int w, int h, unsigned dst_i, int src_i);
+void gfx_pixelate(int x, int y, int w, int h, unsigned dst_i, unsigned mag);
 
 #define DEFAULT_FONT_SIZE 16
 

@@ -276,3 +276,32 @@ void gfx_fade_right(int x, int y, int w, int h, unsigned dst_i, int src_i)
 		vm_timer_tick(&frame_timer, 10);
 	}
 }
+
+void gfx_pixelate(int x, int y, int w, int h, unsigned dst_i, unsigned mag)
+{
+	GFX_LOG("gfx_pixelate[%u] %u(%d,%d) @ (%d,%d)", mag, dst_i, x, y, w, h);
+	SDL_Surface *s = gfx_get_surface(dst_i);
+	SDL_Rect r = { x, y, w, h };
+	if (!fill_clip(s, &r)) {
+		WARNING("Invalid pixelate");
+		return;
+	}
+
+	unsigned band_size = min(w, 2 << mag);
+	if (band_size < 2) {
+		WARNING("Invalid magnitude");
+		return;
+	}
+
+	uint8_t *base = s->pixels + r.y * s->pitch + r.x;
+	for (int row = 0; row < r.h; row++) {
+		uint8_t *p = base + row * s->pitch;
+		for (int col = 0; col < r.w; col += band_size, p += band_size) {
+			// FIXME: this sampling method doesn't give the same result as the
+			//        original implementation.
+			uint8_t c = p[min(band_size/2, (r.w - 1) - col)];
+			memset(p, c, min(band_size, r.w - col));
+		}
+	}
+	gfx.dirty = true;
+}
