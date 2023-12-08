@@ -100,6 +100,12 @@ void audio_bgm_fade(uint32_t uk, uint8_t vol, bool stop, bool sync)
 		audio_bgm_set_volume(vol);
 }
 
+bool audio_bgm_is_fading(void)
+{
+	// TODO
+	return false;
+}
+
 void audio_se_stop(uint32_t uk)
 {
 	Mix_HaltChannel(1);

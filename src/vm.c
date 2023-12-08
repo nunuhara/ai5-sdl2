@@ -878,10 +878,7 @@ static void stmt_sys_set_text_colors(struct param_list *params)
 
 static bool farcall_addr_valid(uint32_t addr)
 {
-	// XXX: *in theory* the program could farcall to any offset into memory,
-	//      but in practice only System.file_data should contain bytecode
-	return addr >= offsetof(struct memory, file_data) &&
-		addr < offsetof(struct memory, file_data) + MEMORY_FILE_DATA_SIZE;
+	return addr < sizeof(struct memory);
 }
 
 static void stmt_sys_farcall(struct param_list *params)
@@ -1212,6 +1209,7 @@ static void stmt_util(void)
 	case 210: usr_var32[16] = vm_get_ticks(); break;
 	case 211: stmt_util_wait_until(&params); break;
 	case 213: WARNING("Util.function[213] not implemented"); break;
+	case 214: usr_var32[13] = audio_bgm_is_fading(); break;
 	default: VM_ERROR("Util.function[%u] not implemented", params.params[0].val);
 	}
 }
@@ -1271,7 +1269,6 @@ bool vm_exec_statement(void)
 	case MES_STMT_SETRD:   stmt_setrd(); break;
 	case MES_STMT_INVALID:
 		vm_rewind_byte();
-		WARNING("Unprefixed text: 0x%02x (possibly unhandled statement)", (unsigned)op);
 		if (mes_char_is_hankaku(op))
 			stmt_str();
 		else
