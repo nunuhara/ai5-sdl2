@@ -160,16 +160,19 @@ void set_game(const char *name)
 enum {
 	LOPT_HELP = 256,
 	LOPT_GAME,
+	LOPT_CG_LOAD_FRAME_TIME,
 };
 
 int main(int argc, char *argv[])
 {
 	bool have_game = false;
 	char *ini_name = NULL;
+	int progressive_frame_time = -1;
 
 	while (1) {
 		static struct option long_options[] = {
 			{ "game", required_argument, 0, LOPT_GAME },
+			{ "cg-load-frame-time", required_argument, 0, LOPT_CG_LOAD_FRAME_TIME },
 			{ "help", no_argument, 0, LOPT_HELP },
 			{0}
 		};
@@ -186,6 +189,9 @@ int main(int argc, char *argv[])
 		case LOPT_GAME:
 			ai5_set_game(optarg);
 			have_game = true;
+			break;
+		case LOPT_CG_LOAD_FRAME_TIME:
+			progressive_frame_time = atoi(optarg);
 			break;
 		}
 	}
@@ -265,6 +271,9 @@ int main(int argc, char *argv[])
 	cursor_init(exe_path);
 	audio_init();
 	vm_init();
+
+	if (progressive_frame_time >= 0)
+		gfx_set_progressive_frame_time(progressive_frame_time);
 
 	free(ini_name);
 	free(exe_path);

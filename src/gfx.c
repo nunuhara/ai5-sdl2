@@ -299,7 +299,7 @@ void gfx_set_screen_surface(unsigned i)
 	update_palette();
 }
 
-static bool copy_clip(SDL_Surface *src, SDL_Rect *src_r, SDL_Surface *dst, SDL_Point *dst_p)
+bool gfx_copy_clip(SDL_Surface *src, SDL_Rect *src_r, SDL_Surface *dst, SDL_Point *dst_p)
 {
 	if (unlikely(src_r->x < 0)) {
 		src_r->w += src_r->x;
@@ -339,7 +339,7 @@ static bool copy_clip(SDL_Surface *src, SDL_Rect *src_r, SDL_Surface *dst, SDL_P
 static void foreach_pixel2(SDL_Surface *src, SDL_Rect *src_r, SDL_Surface *dst,
 		SDL_Point *dst_p, void (*f)(uint8_t*,uint8_t*,void*), void *data)
 {
-	if (!copy_clip(src, src_r, dst, dst_p)) {
+	if (!gfx_copy_clip(src, src_r, dst, dst_p)) {
 		WARNING("Invalid copy");
 		return;
 	}
@@ -453,7 +453,7 @@ void gfx_compose(int fg_x, int fg_y, int w, int h, unsigned fg_i, int bg_x, int 
  * XXX: AI5WIN.EXE doesn't clip. If the rectangle exceeds the bounds of the destination
  *      surface, it just writes to buggy addresses.
  */
-static bool fill_clip(SDL_Surface *s, SDL_Rect *r)
+bool gfx_fill_clip(SDL_Surface *s, SDL_Rect *r)
 {
 	if (unlikely(r->x < 0)) {
 		r->w += r->x;
@@ -474,7 +474,7 @@ static bool fill_clip(SDL_Surface *s, SDL_Rect *r)
 
 static void foreach_pixel(SDL_Surface *s, SDL_Rect *r, void (*f)(uint8_t*,void*), void *data)
 {
-	if (!fill_clip(s, r)) {
+	if (!gfx_fill_clip(s, r)) {
 		WARNING("Invalid fill");
 		return;
 	}

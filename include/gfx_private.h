@@ -53,6 +53,7 @@ struct gfx {
 extern struct gfx gfx;
 
 SDL_Surface *gfx_get_surface(unsigned i);
-
+bool gfx_fill_clip(SDL_Surface *s, SDL_Rect *r);
+bool gfx_copy_clip(SDL_Surface *src, SDL_Rect *src_r, SDL_Surface *dst, SDL_Point *dst_p);
 
 #endif // AI5_GFX_PRIVATE_H

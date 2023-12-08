@@ -819,6 +819,24 @@ static void stmt_sys_graphics_invert_colors(struct param_list *params)
 	gfx_invert_colors(x * 8, y, w * 8, h, i);
 }
 
+static void stmt_sys_graphics_copy_progressive(struct param_list *params)
+{
+	// System.Grahpics.copy(src_x, src_y, src_br_x, src_br_y, src_i, dst_x, dst_y, dst_i)
+	int src_x = check_expr_param(params, 1);
+	int src_y = check_expr_param(params, 2);
+	int src_w = (check_expr_param(params, 3) - src_x) + 1;
+	int src_h = (check_expr_param(params, 4) - src_y) + 1;
+	unsigned src_i = check_expr_param(params, 5);
+	int dst_x = check_expr_param(params, 6);
+	int dst_y = check_expr_param(params, 7);
+	unsigned dst_i = check_expr_param(params, 8);
+	if (unlikely(src_i >= GFX_NR_SURFACES))
+		VM_ERROR("Invalid surface index: %u", src_i);
+	if (unlikely(dst_i >= GFX_NR_SURFACES))
+		VM_ERROR("Invalid surface index: %u", dst_i);
+	gfx_copy_progressive(src_x * 8, src_y, src_w * 8, src_h, src_i, dst_x * 8, dst_y, dst_i);
+}
+
 static void stmt_sys_graphics(struct param_list *params)
 {
 	check_expr_param(params, 0);
@@ -830,11 +848,7 @@ static void stmt_sys_graphics(struct param_list *params)
 	case 4:  stmt_sys_graphics_swap_bg_fg(params); break;
 	case 5:  stmt_sys_graphics_compose(params); break;
 	case 6:  stmt_sys_graphics_invert_colors(params); break;
-	// FIXME: I *think* this is supposed to be a progressive copy (i.e. updating
-	//        the screen while the copy is in progress), but it runs so fast on a
-	//        modern machine that it looks like a regular copy. We could implement
-	//        this with a delay to emulate the feeling of playing on old hardware.
-	case 20: stmt_sys_graphics_copy(params); break;
+	case 20: stmt_sys_graphics_copy_progressive(params); break;
 	default: VM_ERROR("System.Image.function[%d] not implemented",
 				 params->params[0].val);
 	}
@@ -1142,6 +1156,18 @@ static void stmt_util_restore_animation(void)
 	// TODO: animate
 }
 
+static void stmt_util_copy_progressive(struct param_list *params)
+{
+	unsigned dst_i = check_expr_param(params, 1);
+	gfx_copy_progressive(64, 0, 512, 288, 2, 64, 0, dst_i);
+}
+
+static void stmt_util_fade_progressive(struct param_list *params)
+{
+	unsigned dst_i = check_expr_param(params, 1);
+	gfx_fade_progressive(64, 0, 512, 288, dst_i);
+}
+
 static void stmt_util_wait_until(struct param_list *params)
 {
 	if (!vm.procedures[110].code || !vm.procedures[111].code)
@@ -1178,6 +1204,8 @@ static void stmt_util(void)
 	case 16:  vm_delay(check_expr_param(&params, 1) * 15); break;
 	case 17:  stmt_util_save_animation(); break;
 	case 18:  stmt_util_restore_animation(); break;
+	case 20:  stmt_util_copy_progressive(&params); break;
+	case 21:  stmt_util_fade_progressive(&params); break;
 	case 22:  usr_var16[18] = anim_running(); break;
 	case 100: WARNING("Util.set_monochrome not implemented"); break;
 	case 201: audio_bgm_play(check_string_param(&params, 1), false); break;

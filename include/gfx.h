@@ -49,9 +49,15 @@ void gfx_invert_colors(int x, int y, int w, int h, unsigned i);
 void gfx_fill(int x, int y, int w, int h, unsigned i, uint8_t c);
 void gfx_swap_colors(int x, int y, int w, int h, unsigned i, uint8_t c1, uint8_t c2);
 void gfx_draw_cg(unsigned i, struct cg *cg);
+
+// effect.c
+void gfx_set_progressive_frame_time(unsigned t);
 void gfx_fade_down(int x, int y, int w, int h, unsigned dst_i, int src_i);
 void gfx_fade_right(int x, int y, int w, int h, unsigned dst_i, int src_i);
 void gfx_pixelate(int x, int y, int w, int h, unsigned dst_i, unsigned mag);
+void gfx_fade_progressive(int x, int y, int w, int h, unsigned dst_i);
+void gfx_copy_progressive(int src_x, int src_y, int w, int h, unsigned src_i, int dst_x,
+		int dst_y, unsigned dst_i);
 
 #define DEFAULT_FONT_SIZE 16
 

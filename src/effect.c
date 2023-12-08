@@ -148,32 +148,13 @@ static uint8_t *get_pixel_p(SDL_Surface *s, int x, int y)
 	return &((uint8_t*)s->pixels)[pixel_off(s, x, y)];
 }
 
-static bool fill_clip(SDL_Surface *s, SDL_Rect *r)
-{
-	if (unlikely(r->x < 0)) {
-		r->w += r->x;
-		r->x = 0;
-	}
-	if (unlikely(r->y < 0)) {
-		r->h += r->y;
-		r->y = 0;
-	}
-	if (unlikely(r->x + r->w > s->w)) {
-		r->w = s->w - r->x;
-	}
-	if (unlikely(r->y + r->h > s->h)) {
-		r->h = s->h - r->y;
-	}
-	return r->w > 0 && r->h > 0;
-}
-
 void gfx_fade_down(int x, int y, int w, int h, unsigned dst_i, int src_i)
 {
 	GFX_LOG("gfx_fade_down %d -> %u{%d,%d} @ (%d,%d)", src_i, dst_i, x, y, w, h);
 	SDL_Surface *s = gfx_get_surface(dst_i);
 	SDL_Surface *src_s = src_i < 0 ? NULL : gfx_get_surface(src_i);
 	SDL_Rect r = { x, y, w, h };
-	if (!fill_clip(s, &r)) {
+	if (!gfx_fill_clip(s, &r)) {
 		WARNING("Invalid fade");
 		return;
 	}
@@ -226,7 +207,7 @@ void gfx_fade_right(int x, int y, int w, int h, unsigned dst_i, int src_i)
 	SDL_Surface *s = gfx_get_surface(dst_i);
 	SDL_Surface *src_s = src_i < 0 ? NULL : gfx_get_surface(src_i);
 	SDL_Rect r = { x, y, w, h };
-	if (!fill_clip(s, &r)) {
+	if (!gfx_fill_clip(s, &r)) {
 		WARNING("Invalid fade");
 		return;
 	}
@@ -282,7 +263,7 @@ void gfx_pixelate(int x, int y, int w, int h, unsigned dst_i, unsigned mag)
 	GFX_LOG("gfx_pixelate[%u] %u(%d,%d) @ (%d,%d)", mag, dst_i, x, y, w, h);
 	SDL_Surface *s = gfx_get_surface(dst_i);
 	SDL_Rect r = { x, y, w, h };
-	if (!fill_clip(s, &r)) {
+	if (!gfx_fill_clip(s, &r)) {
 		WARNING("Invalid pixelate");
 		return;
 	}
@@ -304,4 +285,99 @@ void gfx_pixelate(int x, int y, int w, int h, unsigned dst_i, unsigned mag)
 		}
 	}
 	gfx.dirty = true;
+}
+
+static unsigned progressive_frame_time = 8;
+
+void gfx_set_progressive_frame_time(unsigned t)
+{
+	progressive_frame_time = t;
+}
+
+static void fade_row(uint8_t *base, unsigned row, unsigned w, unsigned h, unsigned pitch)
+{
+	if (row >= h)
+		return;
+	uint8_t *dst = base + row * pitch;
+	memset(dst, 0, w);
+}
+
+void gfx_fade_progressive(int x, int y, int w, int h, unsigned dst_i)
+{
+	GFX_LOG("gfx_fade_progressive %u(%d,%d) @ (%d,%d)", dst_i, x, y, w, h);
+	SDL_Surface *s = gfx_get_surface(dst_i);
+	SDL_Rect r = { x, y, w, h };
+	if (!gfx_fill_clip(s, &r)) {
+		WARNING("Invalid fade_progressive");
+		return;
+	}
+
+	uint32_t timer = vm_timer_create();
+	unsigned logical_h = ((unsigned)r.h + 3u) & ~3u;
+	uint8_t *base = s->pixels + r.y * s->pitch + r.x;
+	for (int row = 0; row <= logical_h; row += 4) {
+		fade_row(base, row, r.w, r.h, s->pitch);
+		fade_row(base, (logical_h - row) + 2, r.w, r.h, s->pitch);
+		gfx.dirty = true;
+		vm_peek();
+		vm_timer_tick(&timer, progressive_frame_time);
+	}
+
+	for (int row = 0; row <= logical_h; row += 4) {
+		fade_row(base, row + 1, r.w, r.h, s->pitch);
+		fade_row(base, (logical_h - row) + 3, r.w, r.h, s->pitch);
+		gfx.dirty = true;
+		vm_peek();
+		vm_timer_tick(&timer, progressive_frame_time);
+	}
+}
+
+static void copy_row(uint8_t *src_base, uint8_t *dst_base, unsigned row, unsigned w,
+		unsigned h, unsigned src_pitch, unsigned dst_pitch)
+{
+	if (row >= h)
+		return;
+	uint8_t *src = src_base + row * src_pitch;
+	uint8_t *dst = dst_base + row * dst_pitch;
+	memcpy(dst, src, w);
+}
+
+void gfx_copy_progressive(int src_x, int src_y, int w, int h, unsigned src_i, int dst_x,
+		int dst_y, unsigned dst_i)
+{
+	GFX_LOG("gfx_copy_progressive %u(%d,%d) -> %u(%d,%d) @ (%d,%d)", src_i, src_x, src_y,
+			dst_i, dst_x, dst_y, w, h);
+	SDL_Surface *src = gfx_get_surface(src_i);
+	SDL_Surface *dst = gfx_get_surface(dst_i);
+	SDL_Rect src_r = { src_x, src_y, w, h };
+	SDL_Point dst_p = { dst_x, dst_y };
+
+	if (!gfx_copy_clip(src, &src_r, dst, &dst_p)) {
+		WARNING("Invalid copy");
+		return;
+	}
+
+	uint32_t timer = vm_timer_create();
+	unsigned logical_h = ((unsigned)src_r.h + 3u) & ~3u;
+	uint8_t *src_base = src->pixels + src_r.y * src->pitch + src_r.x;
+	uint8_t *dst_base = dst->pixels + dst_p.y * dst->pitch + dst_p.x;
+	for (int row = 0; row <= logical_h; row += 4) {
+		unsigned row_top = row;
+		unsigned row_bot = (logical_h - row) + 2;
+		copy_row(src_base, dst_base, row_top, src_r.w, src_r.h, src->pitch, dst->pitch);
+		copy_row(src_base, dst_base, row_bot, src_r.w, src_r.h, src->pitch, dst->pitch);
+		gfx.dirty = true;
+		vm_peek();
+		vm_timer_tick(&timer, progressive_frame_time);
+	}
+
+	for (int row = 0; row <= logical_h; row += 4) {
+		unsigned row_top = row + 1;
+		unsigned row_bot = (logical_h - row) + 3;
+		copy_row(src_base, dst_base, row_top, src_r.w, src_r.h, src->pitch, dst->pitch);
+		copy_row(src_base, dst_base, row_bot, src_r.w, src_r.h, src->pitch, dst->pitch);
+		gfx.dirty = true;
+		vm_peek();
+		vm_timer_tick(&timer, progressive_frame_time);
+	}
 }
