@@ -1075,6 +1075,21 @@ static void stmt_util_pixelate(struct param_list *params)
 	gfx_pixelate(x * 8, y, w * 8, h, dst_i, mag);
 }
 
+static void stmt_util_get_time(struct param_list *params)
+{
+	static uint32_t start_t = 0;
+	if (!check_expr_param(params, 1)) {
+		start_t = vm_get_ticks();
+		return;
+	}
+
+	// return hours:minutes:seconds
+	uint32_t elapsed = (vm_get_ticks() - start_t) / 1000;
+	usr_var16[7] = elapsed / 3600;
+	usr_var16[12] = (elapsed % 3600) / 60;
+	usr_var16[18] = elapsed % 60;
+}
+
 // wait for cursor to rest for a given interval
 static void stmt_util_check_cursor(struct param_list *params)
 {
@@ -1084,26 +1099,27 @@ static void stmt_util_check_cursor(struct param_list *params)
 		start_t = vm_get_ticks();
 		wait_t = check_expr_param(params, 2);
 		input_get_cursor_pos(&cursor_x, &cursor_y);
-	} else {
-		// check timer
-		uint32_t current_t = vm_get_ticks();
-		usr_var16[18] = 0;
-		if (current_t < start_t + wait_t)
-			return;
-
-		// return TRUE if cursor didn't move
-		int x, y;
-		input_get_cursor_pos(&x, &y);
-		if (x == cursor_x && y == cursor_y) {
-			usr_var16[18] = 1;
-			return;
-		}
-
-		// otherwise restart timer
-		start_t = current_t;
-		cursor_x = x;
-		cursor_y = y;
+		return;
 	}
+
+	// check timer
+	uint32_t current_t = vm_get_ticks();
+	usr_var16[18] = 0;
+	if (current_t < start_t + wait_t)
+		return;
+
+	// return TRUE if cursor didn't move
+	int x, y;
+	input_get_cursor_pos(&x, &y);
+	if (x == cursor_x && y == cursor_y) {
+		usr_var16[18] = 1;
+		return;
+	}
+
+	// otherwise restart timer
+	start_t = current_t;
+	cursor_x = x;
+	cursor_y = y;
 }
 
 static char *saved_cg_name = NULL;
@@ -1157,6 +1173,7 @@ static void stmt_util(void)
 	switch (check_expr_param(&params, 0)) {
 	case 10:  stmt_util_fade(&params); break;
 	case 12:  stmt_util_pixelate(&params); break;
+	case 14:  stmt_util_get_time(&params); break;
 	case 15:  stmt_util_check_cursor(&params); break;
 	case 16:  vm_delay(check_expr_param(&params, 1) * 15); break;
 	case 17:  stmt_util_save_animation(); break;
