@@ -883,6 +883,50 @@ static void stmt_sys_farcall(struct param_list *params)
 	vm.ip = saved_ip;
 }
 
+/*
+ * This is essentially an array lookup based on cursor position.
+ * It reads an array of the following structures:
+ *
+ *     struct a6_entry {
+ *         unsigned id;
+ *         struct { unsigned x, y; } top_left;
+ *         struct { unsigned x, y; } bot_right;
+ *     };
+ *
+ * If the cursor position is between `top_left` and `bot_right`, then `id` is returned.
+ * If no match is found, then 0xFFFF is returned.
+ */
+static void stmt_sys_check_cursor_pos(struct param_list *params)
+{
+	unsigned x = check_expr_param(params, 0);
+	unsigned y = check_expr_param(params, 1);
+	if (x >= gfx_view.w || y >= gfx_view.h) {
+		WARNING("Invalid argument to System.check_cursor_pos: (%u,%u)", x, y);
+		return;
+	}
+
+	uint8_t *a = memory.file_data + check_expr_param(params, 2);
+	while (a < memory.file_data + MEMORY_FILE_DATA_SIZE - 10) {
+		uint16_t id = le_get16(a, 0);
+		if (id == 0xffff) {
+			usr_var16[18] = 0xffff;
+			return;
+		}
+		uint16_t x_left = le_get16(a, 2);
+		uint16_t y_top = le_get16(a, 4);
+		uint16_t x_right = le_get16(a, 6);
+		uint16_t y_bot = le_get16(a, 8);
+		if (x >= x_left && x <= x_right && y >= y_top && y <= y_bot) {
+			usr_var16[18] = id;
+			return;
+		}
+
+		a += 10;
+	}
+	WARNING("Read past end of buffer in System.check_cursor_pos");
+	usr_var16[18] = 0;
+}
+
 static void stmt_sys_check_input(struct param_list *params)
 {
 	unsigned input = check_expr_param(params, 0);
@@ -925,6 +969,7 @@ static void stmt_sys(void)
 	case 11: stmt_sys_wait(&params); break;
 	case 12: stmt_sys_set_text_colors(&params); break;
 	case 13: stmt_sys_farcall(&params); break;
+	case 14: stmt_sys_check_cursor_pos(&params); break;
 	case 15: menu_get_no(check_expr_param(&params, 0)); break;
 	case 18: stmt_sys_check_input(&params); break;
 	case 23: stmt_sys_set_screen_surface(&params); break;
@@ -965,7 +1010,7 @@ static void stmt_call(void)
 	// restore previous VM state
 	frame = &vm.mes_call_stack[--vm.mes_call_stack_ptr];
 	vm.ip.code = frame->ip.code;
-	if (vm_flag_is_on(VM_FLAG_RETURN)) {
+	if (!vm_flag_is_on(VM_FLAG_RETURN)) {
 		vm.ip.ptr = frame->ip.ptr;
 		memcpy(vm.procedures, frame->procedures, sizeof(vm.procedures));
 		vm_load_mes(frame->mes_name);
@@ -1149,7 +1194,7 @@ static void stmt_procd(void)
 bool vm_exec_statement(void)
 {
 #if 0
-	struct mes_statement *stmt = mes_parse_statement(vm.ip.code + vm.ip.ptr, 1024);
+	struct mes_statement *stmt = mes_parse_statement(vm.ip.code + vm.ip.ptr, 2048);
 	mes_statement_print(stmt, port_stdout());
 	mes_statement_free(stmt);
 #endif
