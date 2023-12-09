@@ -231,6 +231,12 @@ void anim_execute(void)
 	}
 }
 
+bool anim_stream_running(unsigned stream)
+{
+	assert(stream < S4_MAX_STREAMS);
+	return streams[stream].cmd != ANIM_CMD_HALTED;
+}
+
 bool anim_running(void)
 {
 	for (int i = 0; i < S4_MAX_STREAMS; i++) {

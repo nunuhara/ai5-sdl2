@@ -79,6 +79,12 @@ void gfx_text_set_colors(uint8_t bg, uint8_t fg)
 	gfx.text.fg = fg;
 }
 
+void gfx_text_get_colors(uint8_t *bg, uint8_t *fg)
+{
+	*bg = gfx.text.bg;
+	*fg = gfx.text.fg;
+}
+
 void gfx_text_fill(int x, int y, int w, int h, unsigned i)
 {
 	gfx_fill(x, y, w, h, i, gfx.text.bg);

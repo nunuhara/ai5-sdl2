@@ -213,12 +213,35 @@ void savedata_f11(const char *save_name)
 	for (int i = 50; i < 90; i++) {
 		mem_var4[i] = load_var4[i];
 	}
-	for (int i = 96; i < 1999; i++) {
+	for (int i = 96; i < 2000; i++) {
 		mem_var4[i] = load_var4[i];
 	}
 	memory_restore();
 	vm_load_mes(memory_mes_name());
 	vm_flag_on(VM_FLAG_RETURN);
+}
+
+static uint8_t stashed_mes_name[MEMORY_MES_NAME_SIZE];
+
+void savedata_stash_name(void)
+{
+	memcpy(stashed_mes_name, memory_raw, MEMORY_MES_NAME_SIZE);
+}
+
+void savedata_f12(const char *save_name)
+{
+	uint8_t buf[MEMORY_MEM16_MAX_SIZE];
+	uint8_t *out_var4 = buf + MEMORY_MES_NAME_SIZE;
+	uint8_t *mem_var4 = memory_var4();
+	read_save(save_name, buf, 0, MEMORY_VAR4_OFFSET + memory_var4_size());
+	memcpy(buf, stashed_mes_name, MEMORY_MES_NAME_SIZE);
+	for (int i = 50; i < 90; i++) {
+		out_var4[i] = mem_var4[i];
+	}
+	for (int i = 96; i < 2000; i++) {
+		out_var4[i] = mem_var4[i];
+	}
+	write_save(save_name, buf, 0, MEMORY_VAR4_OFFSET + memory_var4_size());
 }
 
 void savedata_set_mes_name(const char *save_name, const char *mes_name)

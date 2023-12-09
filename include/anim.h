@@ -19,6 +19,7 @@
 
 void anim_execute(void);
 bool anim_running(void);
+bool anim_stream_running(unsigned stream);
 void anim_init_stream(unsigned stream);
 void anim_start(unsigned stream);
 void anim_stop(unsigned stream);

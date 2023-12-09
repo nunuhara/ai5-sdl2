@@ -64,6 +64,7 @@ void gfx_copy_progressive(int src_x, int src_y, int w, int h, unsigned src_i, in
 
 void gfx_text_init(void);
 void gfx_text_set_colors(uint8_t bg, uint8_t fg);
+void gfx_text_get_colors(uint8_t *bg, uint8_t *fg);
 void gfx_text_set_size(int size);
 void gfx_text_fill(int x, int y, int w, int h, unsigned i);
 void gfx_text_swap_colors(int x, int y, int w, int h, unsigned i);

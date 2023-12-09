@@ -27,6 +27,7 @@
 #include "ai5/cg.h"
 #include "ai5/game.h"
 #include "ai5/mes.h"
+#include "ai5/s4.h"
 
 #include "anim.h"
 #include "asset.h"
@@ -598,7 +599,7 @@ static void stmt_sys_savedata(struct param_list *params)
 		break;
 	}
 	case 11: savedata_f11(save_name); break;
-	// TODO: 12 -- interacts with Util.function[11]
+	case 12: savedata_f12(save_name); break;
 	case 13: savedata_set_mes_name(save_name, check_string_param(params, 2)); break;
 	default: VM_ERROR("System.savedata.function[%u] not implemented", params->params[0].val);
 	}
@@ -1112,6 +1113,22 @@ static void stmt_proc(void)
 	vm_call_procedure(check_expr_param(&params, 0));
 }
 
+static void stmt_util_get_text_colors(void)
+{
+	uint8_t bg, fg;
+	gfx_text_get_colors(&bg, &fg);
+	usr_var32[18] = (bg << 4) | fg;
+}
+
+static void stmt_util_invert_colors(struct param_list *params)
+{
+	int x = check_expr_param(params, 1);
+	int y = check_expr_param(params, 2);
+	int w = (check_expr_param(params, 3) - x) + 1;
+	int h = (check_expr_param(params, 4) - y) + 1;
+	gfx_invert_colors(x, y, w, h, 0);
+}
+
 static void stmt_util_fade(struct param_list *params)
 {
 	int x = check_expr_param(params, 1);
@@ -1190,6 +1207,8 @@ static void stmt_util_check_cursor(struct param_list *params)
 static char *saved_cg_name = NULL;
 static char *saved_data_name = NULL;
 
+static bool saved_anim_running[S4_MAX_STREAMS] = {0};
+
 static void stmt_util_save_animation(void)
 {
 	free(saved_cg_name);
@@ -1204,7 +1223,22 @@ static void stmt_util_restore_animation(void)
 		VM_ERROR("No saved animation in Util.restore_animation");
 	vm_load_image(saved_cg_name, 1);
 	vm_read_file(saved_data_name, sys_var32[MES_SYS_VAR_DATA_OFFSET]);
-	// TODO: animate
+	for (int i = 0; i < S4_MAX_STREAMS; i++) {
+		if (saved_anim_running[i]) {
+			anim_init_stream(i);
+			anim_start(i);
+		}
+	}
+}
+
+static void stmt_util_anim_save_running(void)
+{
+	bool running = false;
+	for (int i = 0; i < S4_MAX_STREAMS; i++) {
+		saved_anim_running[i] = anim_stream_running(i);
+		running |= saved_anim_running[i];
+	}
+	usr_var16[18] = running;
 }
 
 static void stmt_util_copy_progressive(struct param_list *params)
@@ -1248,14 +1282,19 @@ static void stmt_util(void)
 	struct param_list params = {0};
 	read_params(&params);
 	switch (check_expr_param(&params, 0)) {
+	case 1:   stmt_util_get_text_colors(); break;
+	case 3:   break; // noop
 	case 5:   gfx_blink_fade(64, 0, 512, 288, 0); break;
+	case 8:   stmt_util_invert_colors(&params); break;
 	case 10:  stmt_util_fade(&params); break;
+	case 11:  savedata_stash_name(); break;
 	case 12:  stmt_util_pixelate(&params); break;
 	case 14:  stmt_util_get_time(&params); break;
 	case 15:  stmt_util_check_cursor(&params); break;
 	case 16:  vm_delay(check_expr_param(&params, 1) * 15); break;
 	case 17:  stmt_util_save_animation(); break;
 	case 18:  stmt_util_restore_animation(); break;
+	case 19:  stmt_util_anim_save_running(); break;
 	case 20:  stmt_util_copy_progressive(&params); break;
 	case 21:  stmt_util_fade_progressive(&params); break;
 	case 22:  usr_var16[18] = anim_running(); break;
