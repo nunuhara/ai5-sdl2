@@ -42,6 +42,7 @@ void menu_define(unsigned menu_no, bool empty)
 {
 	if (!menu_initialized) {
 		memset(memory.menu_entry_addresses, 0, sizeof(memory.menu_entry_addresses));
+		memset(menu_no_to_index_table, 0xff, sizeof(menu_no_to_index_table));
 		menu_index = 0;
 		menu_initialized = true;
 	}

@@ -319,6 +319,11 @@ static uint32_t check_expr_param(struct param_list *params, int i)
 
 static void draw_text(const char *text)
 {
+#if 1
+	string u = sjis_cstring_to_utf8(text, strlen(text));
+	NOTICE("%s", u);
+	string_free(u);
+#endif
 	const unsigned surface = sys_var16[MES_SYS_VAR_DST_SURFACE];
 	const uint16_t char_space = sys_var16[MES_SYS_VAR_CHAR_SPACE];
 	uint16_t *x = &sys_var16[MES_SYS_VAR_TEXT_CURSOR_X];
