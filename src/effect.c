@@ -302,6 +302,49 @@ static void fade_row(uint8_t *base, unsigned row, unsigned w, unsigned h, unsign
 	memset(dst, 0, w);
 }
 
+void progressive_update(vm_timer_t *timer)
+{
+	gfx.dirty = true;
+	vm_peek();
+	vm_timer_tick(timer, progressive_frame_time);
+}
+
+/*
+ * Fill with color 7, then fill from top and bottom progressively with color 0.
+ */
+void gfx_blink_fade(int x, int y, int w, int h, unsigned dst_i)
+{
+	GFX_LOG("gfx_blink_fade %u(%d,%d) @ (%d,%d)", dst_i, x, y, w, h);
+	SDL_Surface *s = gfx_get_surface(dst_i);
+	SDL_Rect r = { x, y, w, h };
+	if (!gfx_fill_clip(s, &r)) {
+		WARNING("Invalid blink_fade");
+		return;
+	}
+
+	vm_timer_t timer = vm_timer_create();
+	uint8_t *base = s->pixels + r.y * s->pitch + r.x;
+	for (int row = 0; row < r.h; row++) {
+		uint8_t *dst = base + row * s->pitch;
+		memset(dst, 7, r.w);
+	}
+	progressive_update(&timer);
+
+	unsigned logical_h = ((unsigned)r.h + 3u) & ~3u;
+	for (int row = 0; row < logical_h / 2; row += 4) {
+		unsigned row_top = row;
+		unsigned row_bot = (logical_h - row) - 4;
+		uint8_t *top = base + row_top * s->pitch;
+		uint8_t *bot = base + row_bot * s->pitch;
+		for (int i = 0; i < 4; i++) {
+			memset(top + i * s->pitch, 0, r.w);
+			if (row_bot + i < r.h)
+				memset(bot + i * s->pitch, 0, r.w);
+		}
+		progressive_update(&timer);
+	}
+}
+
 void gfx_fade_progressive(int x, int y, int w, int h, unsigned dst_i)
 {
 	GFX_LOG("gfx_fade_progressive %u(%d,%d) @ (%d,%d)", dst_i, x, y, w, h);
@@ -312,23 +355,19 @@ void gfx_fade_progressive(int x, int y, int w, int h, unsigned dst_i)
 		return;
 	}
 
-	uint32_t timer = vm_timer_create();
+	vm_timer_t timer = vm_timer_create();
 	unsigned logical_h = ((unsigned)r.h + 3u) & ~3u;
 	uint8_t *base = s->pixels + r.y * s->pitch + r.x;
 	for (int row = 0; row <= logical_h; row += 4) {
 		fade_row(base, row, r.w, r.h, s->pitch);
 		fade_row(base, (logical_h - row) + 2, r.w, r.h, s->pitch);
-		gfx.dirty = true;
-		vm_peek();
-		vm_timer_tick(&timer, progressive_frame_time);
+		progressive_update(&timer);
 	}
 
 	for (int row = 0; row <= logical_h; row += 4) {
 		fade_row(base, row + 1, r.w, r.h, s->pitch);
 		fade_row(base, (logical_h - row) + 3, r.w, r.h, s->pitch);
-		gfx.dirty = true;
-		vm_peek();
-		vm_timer_tick(&timer, progressive_frame_time);
+		progressive_update(&timer);
 	}
 }
 
@@ -357,7 +396,7 @@ void gfx_copy_progressive(int src_x, int src_y, int w, int h, unsigned src_i, in
 		return;
 	}
 
-	uint32_t timer = vm_timer_create();
+	vm_timer_t timer = vm_timer_create();
 	unsigned logical_h = ((unsigned)src_r.h + 3u) & ~3u;
 	uint8_t *src_base = src->pixels + src_r.y * src->pitch + src_r.x;
 	uint8_t *dst_base = dst->pixels + dst_p.y * dst->pitch + dst_p.x;
@@ -366,9 +405,7 @@ void gfx_copy_progressive(int src_x, int src_y, int w, int h, unsigned src_i, in
 		unsigned row_bot = (logical_h - row) + 2;
 		copy_row(src_base, dst_base, row_top, src_r.w, src_r.h, src->pitch, dst->pitch);
 		copy_row(src_base, dst_base, row_bot, src_r.w, src_r.h, src->pitch, dst->pitch);
-		gfx.dirty = true;
-		vm_peek();
-		vm_timer_tick(&timer, progressive_frame_time);
+		progressive_update(&timer);
 	}
 
 	for (int row = 0; row <= logical_h; row += 4) {
@@ -376,8 +413,6 @@ void gfx_copy_progressive(int src_x, int src_y, int w, int h, unsigned src_i, in
 		unsigned row_bot = (logical_h - row) + 3;
 		copy_row(src_base, dst_base, row_top, src_r.w, src_r.h, src->pitch, dst->pitch);
 		copy_row(src_base, dst_base, row_bot, src_r.w, src_r.h, src->pitch, dst->pitch);
-		gfx.dirty = true;
-		vm_peek();
-		vm_timer_tick(&timer, progressive_frame_time);
+		progressive_update(&timer);
 	}
 }

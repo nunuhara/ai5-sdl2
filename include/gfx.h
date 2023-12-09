@@ -52,6 +52,7 @@ void gfx_draw_cg(unsigned i, struct cg *cg);
 
 // effect.c
 void gfx_set_progressive_frame_time(unsigned t);
+void gfx_blink_fade(int x, int y, int w, int h, unsigned dst_i);
 void gfx_fade_down(int x, int y, int w, int h, unsigned dst_i, int src_i);
 void gfx_fade_right(int x, int y, int w, int h, unsigned dst_i, int src_i);
 void gfx_pixelate(int x, int y, int w, int h, unsigned dst_i, unsigned mag);

@@ -1248,6 +1248,7 @@ static void stmt_util(void)
 	struct param_list params = {0};
 	read_params(&params);
 	switch (check_expr_param(&params, 0)) {
+	case 5:   gfx_blink_fade(64, 0, 512, 288, 0); break;
 	case 10:  stmt_util_fade(&params); break;
 	case 12:  stmt_util_pixelate(&params); break;
 	case 14:  stmt_util_get_time(&params); break;
