@@ -1258,8 +1258,9 @@ static void stmt_util_wait_until(struct param_list *params)
 {
 	if (!vm.procedures[110].code || !vm.procedures[111].code)
 		VM_ERROR("procedures 110-111 not defined in Util.wait_until");
+
 	uint32_t stop_t = check_expr_param(params, 1);
-	uint32_t t = vm_get_ticks();
+	vm_timer_t t = vm_timer_create();
 	do {
 		vm_peek();
 		if (input_down(INPUT_ACTIVATE)) {
@@ -1270,12 +1271,18 @@ static void stmt_util_wait_until(struct param_list *params)
 			return;
 		}
 
-		uint32_t delta_t = vm_get_ticks() - t;
-		if (delta_t < 16)
-			vm_delay(16 - delta_t);
-
-		t = vm_get_ticks();
+		vm_timer_tick(&t, 16);
 	} while (t < stop_t);
+}
+
+static void stmt_util_wait_until2(struct param_list *params)
+{
+	uint32_t stop_t = check_expr_param(params, 1);
+	vm_timer_t t = vm_timer_create();
+	while (t < stop_t) {
+		vm_peek();
+		vm_timer_tick(&t, 16);
+	}
 }
 
 static void stmt_util(void)
@@ -1307,6 +1314,7 @@ static void stmt_util(void)
 	case 203: usr_var16[18] = audio_se_is_playing(); break;
 	case 210: usr_var32[16] = vm_get_ticks(); break;
 	case 211: stmt_util_wait_until(&params); break;
+	case 212: stmt_util_wait_until2(&params); break;
 	case 213: WARNING("Util.function[213] not implemented"); break;
 	case 214: usr_var32[13] = audio_bgm_is_fading(); break;
 	// XXX: 26 - 29 are only used in SP disk contents
@@ -1315,7 +1323,6 @@ static void stmt_util(void)
 	case 28:
 	case 29:
 	case 101:
-	case 212:
 	default: VM_ERROR("Util.function[%u] not implemented", params.params[0].val);
 	}
 }
