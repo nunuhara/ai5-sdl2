@@ -1303,6 +1303,8 @@ static void stmt_util(void)
 	case 100: WARNING("Util.set_monochrome not implemented"); break;
 	case 200: stmt_util_copy(&params); break;
 	case 201: audio_bgm_play(check_string_param(&params, 1), false); break;
+	case 202: usr_var16[18] = audio_bgm_is_playing(); break;
+	case 203: usr_var16[18] = audio_se_is_playing(); break;
 	case 210: usr_var32[16] = vm_get_ticks(); break;
 	case 211: stmt_util_wait_until(&params); break;
 	case 213: WARNING("Util.function[213] not implemented"); break;
@@ -1313,8 +1315,6 @@ static void stmt_util(void)
 	case 28:
 	case 29:
 	case 101:
-	case 202:
-	case 203:
 	case 212:
 	default: VM_ERROR("Util.function[%u] not implemented", params.params[0].val);
 	}

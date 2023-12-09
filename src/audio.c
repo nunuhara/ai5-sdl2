@@ -100,6 +100,11 @@ void audio_bgm_fade(uint32_t uk, uint8_t vol, bool stop, bool sync)
 		audio_bgm_set_volume(vol);
 }
 
+bool audio_bgm_is_playing(void)
+{
+	return Mix_PlayingMusic();
+}
+
 bool audio_bgm_is_fading(void)
 {
 	// TODO
@@ -131,4 +136,9 @@ void audio_se_play(const char *name, uint32_t uk)
 	}
 	// FIXME: some effects loop (but SDL_mixer only gives loop info for music...)
 	Mix_PlayChannel(1, se, 0);
+}
+
+bool audio_se_is_playing(void)
+{
+	return Mix_Playing(1);
 }
