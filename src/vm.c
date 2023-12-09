@@ -752,10 +752,6 @@ static void stmt_sys_graphics_copy(struct param_list *params)
 	int dst_x = check_expr_param(params, 6);
 	int dst_y = check_expr_param(params, 7);
 	unsigned dst_i = check_expr_param(params, 8);
-	if (unlikely(src_i >= GFX_NR_SURFACES))
-		VM_ERROR("Invalid surface index: %u", src_i);
-	if (unlikely(dst_i >= GFX_NR_SURFACES))
-		VM_ERROR("Invalid surface index: %u", dst_i);
 	gfx_copy(src_x * 8, src_y, src_w * 8, src_h, src_i, dst_x * 8, dst_y, dst_i);
 }
 
@@ -770,10 +766,6 @@ static void stmt_sys_graphics_copy_masked(struct param_list *params)
 	int dst_x = check_expr_param(params, 6);
 	int dst_y = check_expr_param(params, 7);
 	unsigned dst_i = check_expr_param(params, 8);
-	if (unlikely(src_i >= GFX_NR_SURFACES))
-		VM_ERROR("Invalid surface index: %u", src_i);
-	if (unlikely(dst_i >= GFX_NR_SURFACES))
-		VM_ERROR("Invalid surface index: %u", dst_i);
 	gfx_copy_masked(src_x * 8, src_y, src_w * 8, src_h, src_i, dst_x * 8, dst_y, dst_i,
 			sys_var16[MES_SYS_VAR_MASK_COLOR]);
 }
@@ -799,10 +791,6 @@ static void stmt_sys_graphics_copy_swap(struct param_list *params)
 	int dst_x = check_expr_param(params, 6);
 	int dst_y = check_expr_param(params, 7);
 	unsigned dst_i = check_expr_param(params, 8);
-	if (unlikely(src_i >= GFX_NR_SURFACES))
-		VM_ERROR("Invalid surface index: %u", src_i);
-	if (unlikely(dst_i >= GFX_NR_SURFACES))
-		VM_ERROR("Invalid surface index: %u", dst_i);
 	gfx_copy_swap(src_x * 8, src_y, src_w * 8, src_h, src_i, dst_x * 8, dst_y, dst_i);
 }
 
@@ -830,12 +818,6 @@ static void stmt_sys_graphics_compose(struct param_list *params)
 	int dst_x = check_expr_param(params, 9);
 	int dst_y = check_expr_param(params, 10);
 	unsigned dst_i = check_expr_param(params, 11);
-	if (unlikely(fg_i >= GFX_NR_SURFACES))
-		VM_ERROR("Invalid surface index: %u", fg_i);
-	if (unlikely(bg_i >= GFX_NR_SURFACES))
-		VM_ERROR("Invalid surface index: %u", bg_i);
-	if (unlikely(dst_i >= GFX_NR_SURFACES))
-		VM_ERROR("Invalid surface_index: %u", dst_i);
 	gfx_compose(fg_x * 8, fg_y, w * 8, h, fg_i, bg_x * 8, bg_y, bg_i, dst_x * 8,
 			dst_y, dst_i, sys_var16[MES_SYS_VAR_MASK_COLOR]);
 }
@@ -848,8 +830,6 @@ static void stmt_sys_graphics_invert_colors(struct param_list *params)
 	int w = (check_expr_param(params, 3) - x) + 1;
 	int h = (check_expr_param(params, 4) - y) + 1;
 	unsigned i = sys_var16[MES_SYS_VAR_DST_SURFACE];
-	if (unlikely(i >= GFX_NR_SURFACES))
-		VM_ERROR("Invalid surface index: %u", i);
 	gfx_invert_colors(x * 8, y, w * 8, h, i);
 }
 
@@ -864,10 +844,6 @@ static void stmt_sys_graphics_copy_progressive(struct param_list *params)
 	int dst_x = check_expr_param(params, 6);
 	int dst_y = check_expr_param(params, 7);
 	unsigned dst_i = check_expr_param(params, 8);
-	if (unlikely(src_i >= GFX_NR_SURFACES))
-		VM_ERROR("Invalid surface index: %u", src_i);
-	if (unlikely(dst_i >= GFX_NR_SURFACES))
-		VM_ERROR("Invalid surface index: %u", dst_i);
 	gfx_copy_progressive(src_x * 8, src_y, src_w * 8, src_h, src_i, dst_x * 8, dst_y, dst_i);
 }
 
@@ -1265,6 +1241,19 @@ static void stmt_util_fade_progressive(struct param_list *params)
 	gfx_fade_progressive(64, 0, 512, 288, dst_i);
 }
 
+static void stmt_util_copy(struct param_list *params)
+{
+	int src_x = check_expr_param(params, 1);
+	int src_y = check_expr_param(params, 2);
+	int w = (check_expr_param(params, 3) - src_x) + 1;
+	int h = (check_expr_param(params, 4) - src_y) + 1;
+	unsigned src_i = check_expr_param(params, 5);
+	int dst_x = check_expr_param(params, 6);
+	int dst_y = check_expr_param(params, 7);
+	unsigned dst_i = check_expr_param(params, 8);
+	gfx_copy(src_x, src_y, w, h, src_i, dst_x, dst_y, dst_i);
+}
+
 static void stmt_util_wait_until(struct param_list *params)
 {
 	if (!vm.procedures[110].code || !vm.procedures[111].code)
@@ -1312,11 +1301,21 @@ static void stmt_util(void)
 	case 21:  stmt_util_fade_progressive(&params); break;
 	case 22:  usr_var16[18] = anim_running(); break;
 	case 100: WARNING("Util.set_monochrome not implemented"); break;
+	case 200: stmt_util_copy(&params); break;
 	case 201: audio_bgm_play(check_string_param(&params, 1), false); break;
 	case 210: usr_var32[16] = vm_get_ticks(); break;
 	case 211: stmt_util_wait_until(&params); break;
 	case 213: WARNING("Util.function[213] not implemented"); break;
 	case 214: usr_var32[13] = audio_bgm_is_fading(); break;
+	// XXX: 26 - 29 are only used in SP disk contents
+	case 26:
+	case 27:
+	case 28:
+	case 29:
+	case 101:
+	case 202:
+	case 203:
+	case 212:
 	default: VM_ERROR("Util.function[%u] not implemented", params.params[0].val);
 	}
 }
