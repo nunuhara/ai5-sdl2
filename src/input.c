@@ -24,7 +24,6 @@
 #include "vm.h"
 
 static bool key_down[INPUT_NR_INPUTS] = {0};
-unsigned input_events[INPUT_NR_INPUTS] = {0};
 
 uint32_t cursor_swap_event = 0;
 
@@ -47,17 +46,17 @@ enum input_event_type input_event_from_keycode(SDL_Keycode k)
 	case SDLK_RIGHT:  return INPUT_RIGHT;
 	case SDLK_LSHIFT: return INPUT_SHIFT;
 	case SDLK_RSHIFT: return INPUT_SHIFT;
+	case SDLK_RCTRL:  return INPUT_CTRL;
+	case SDLK_LCTRL:  return INPUT_CTRL;
 	default:          return INPUT_NONE;
 	}
 }
 
-static void push_key_event(SDL_KeyboardEvent *ev, bool down)
+static void key_event(SDL_KeyboardEvent *ev, bool down)
 {
 	enum input_event_type type = input_event_from_keycode(ev->keysym.sym);
 	if (type == INPUT_NONE)
 		return;
-	if (!down && key_down[type])
-		input_events[type]++;
 	key_down[type] = down;
 }
 
@@ -70,13 +69,11 @@ static enum input_event_type input_event_from_button(int button)
 	return INPUT_NONE;
 }
 
-static void push_mouse_event(SDL_MouseButtonEvent *ev, bool down)
+static void mouse_event(SDL_MouseButtonEvent *ev, bool down)
 {
 	enum input_event_type type = input_event_from_button(ev->button);
 	if (type == INPUT_NONE)
 		return;
-	if (!down && key_down[type])
-		input_events[type]++;
 	key_down[type] = down;
 }
 
@@ -92,16 +89,16 @@ void handle_events(void)
 			gfx_dirty();
 			break;
 		case SDL_KEYDOWN:
-			push_key_event(&e.key, true);
+			key_event(&e.key, true);
 			break;
 		case SDL_KEYUP:
-			push_key_event(&e.key, false);
+			key_event(&e.key, false);
 			break;
 		case SDL_MOUSEBUTTONDOWN:
-			push_mouse_event(&e.button, true);
+			mouse_event(&e.button, true);
 			break;
 		case SDL_MOUSEBUTTONUP:
-			push_mouse_event(&e.button, false);
+			mouse_event(&e.button, false);
 			break;
 		default:
 			if (e.type == cursor_swap_event)
@@ -121,47 +118,19 @@ uint32_t vm_get_ticks(void)
 	return SDL_GetTicks();
 }
 
-static enum input_event_type pop_event(void)
-{
-	for (int i = 0; i < INPUT_NR_INPUTS; i++) {
-		if (input_events[i]) {
-			input_events[i]--;
-			return i;
-		}
-	}
-	return INPUT_NONE;
-}
-
-enum input_event_type input_keywait(void)
-{
-	enum input_event_type e;
-	while ((e = pop_event()) == INPUT_NONE) {
-		vm_peek();
-		vm_delay(16);
-	}
-	input_clear();
-	return e;
-}
-
-enum input_event_type input_poll(void)
-{
-	handle_events();
-	return pop_event();
-}
-
-void input_clear(void)
-{
-	for (int i = 0; i < INPUT_NR_INPUTS; i++) {
-		input_events[i] = 0;
-		key_down[i] = false;
-	}
-}
-
 bool input_down(enum input_event_type type)
 {
 	assert(type >= 0 && type < INPUT_NR_INPUTS);
 	handle_events();
 	return key_down[type];
+}
+
+void input_wait_until_up(enum input_event_type type)
+{
+	while (input_down(type)) {
+		vm_peek();
+		vm_delay(16);
+	}
 }
 
 void input_get_cursor_pos(int *x, int *y)

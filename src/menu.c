@@ -89,20 +89,28 @@ void menu_exec(void)
 			break;
 		// update menu
 		vm_call_procedure(39);
-		switch (input_poll()) {
-		case INPUT_ACTIVATE: vm_call_procedure(32); break;
-		case INPUT_CANCEL:   vm_call_procedure(33); break;
-		case INPUT_UP:       vm_call_procedure(34); break;
-		case INPUT_DOWN:     vm_call_procedure(35); break;
-		case INPUT_LEFT:     vm_call_procedure(36); break;
-		case INPUT_RIGHT:    vm_call_procedure(37); break;
-		case INPUT_NONE:
-		default:
+		if (input_down(INPUT_ACTIVATE)) {
+			vm_call_procedure(32);
+			input_wait_until_up(INPUT_ACTIVATE);
+		} else if (input_down(INPUT_CANCEL)) {
+			vm_call_procedure(33);
+			input_wait_until_up(INPUT_CANCEL);
+		} else if (input_down(INPUT_UP)) {
+			vm_call_procedure(34);
+			input_wait_until_up(INPUT_UP);
+		} else if (input_down(INPUT_DOWN)) {
+			vm_call_procedure(35);
+			input_wait_until_up(INPUT_DOWN);
+		} else if (input_down(INPUT_LEFT)) {
+			vm_call_procedure(36);
+			input_wait_until_up(INPUT_LEFT);
+		} else if (input_down(INPUT_RIGHT)) {
+			vm_call_procedure(37);
+			input_wait_until_up(INPUT_RIGHT);
+		} else {
 			vm_delay(16);
-			break;
 		}
 	}
-	input_clear();
 	menu_initialized = false;
 }
 

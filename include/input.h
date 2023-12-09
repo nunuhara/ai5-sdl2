@@ -28,16 +28,14 @@ enum input_event_type {
 	INPUT_LEFT = 4,
 	INPUT_RIGHT = 5,
 	INPUT_SHIFT = 6,
+	INPUT_CTRL = 7,
 };
-#define INPUT_NR_INPUTS (INPUT_SHIFT+1)
+#define INPUT_NR_INPUTS (INPUT_CTRL+1)
 
 void input_init(void);
 void handle_events(void);
-enum input_event_type input_keywait(void);
-enum input_event_type input_poll(void);
 bool input_down(enum input_event_type type);
-void input_clear(void);
-
+void input_wait_until_up(enum input_event_type type);
 void input_get_cursor_pos(int *x, int *y);
 
 extern uint32_t cursor_swap_event;

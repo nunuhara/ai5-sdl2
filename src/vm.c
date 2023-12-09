@@ -885,15 +885,25 @@ static void stmt_sys_graphics(struct param_list *params)
 static void stmt_sys_wait(struct param_list *params)
 {
 	if (params->nr_params == 0 || check_expr_param(params, 0) == 0) {
-		while (input_keywait() != INPUT_ACTIVATE)
-			;
+		while (true) {
+			if (input_down(INPUT_CTRL)) {
+				vm_peek();
+				vm_delay(16);
+				return;
+			}
+			if (input_down(INPUT_ACTIVATE)) {
+				input_wait_until_up(INPUT_ACTIVATE);
+				return;
+			}
+			vm_peek();
+			vm_delay(16);
+		}
 	} else {
 		vm_timer_t timer = vm_timer_create();
 		uint32_t target_t = timer + params->params[0].val;
 		while (timer < target_t && !input_down(INPUT_SHIFT)) {
 			vm_timer_tick(&timer, 16);
 		}
-		input_clear();
 	}
 }
 
