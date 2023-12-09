@@ -31,6 +31,7 @@ void gfx_init(const char *name);
 void gfx_update(void);
 void gfx_dirty(void);
 void gfx_set_window_size(unsigned w, unsigned h);
+unsigned gfx_current_surface(void);
 void gfx_hide_screen(void);
 void gfx_unhide_screen(void);
 void gfx_palette_set(const uint8_t *data);
@@ -59,6 +60,7 @@ void gfx_pixelate(int x, int y, int w, int h, unsigned dst_i, unsigned mag);
 void gfx_fade_progressive(int x, int y, int w, int h, unsigned dst_i);
 void gfx_copy_progressive(int src_x, int src_y, int w, int h, unsigned src_i, int dst_x,
 		int dst_y, unsigned dst_i);
+void gfx_scale_h(unsigned i, int mag);
 
 #define DEFAULT_FONT_SIZE 16
 

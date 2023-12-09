@@ -30,11 +30,18 @@
 #define GFX_LOG(...)
 #endif
 
+struct gfx_surface {
+	SDL_Surface *s;
+	SDL_Rect src;   // source rectangle for BlitScaled
+	SDL_Rect dst;   // destination rectangle for BlitScaled
+	bool scaled;    // if true, `src` and `rect` differ
+};
+
 struct gfx {
 	SDL_Window *window;
 	SDL_Renderer *renderer;
 
-	SDL_Surface *surface[GFX_NR_SURFACES];
+	struct gfx_surface surface[GFX_NR_SURFACES];
 
 	// index of the currently displayed surface
 	unsigned screen;
@@ -42,6 +49,7 @@ struct gfx {
 	// XXX: we need a non-indexed surface because textures can't be created
 	//      directly from indexed surfaces (...why?)
 	SDL_Surface *display;
+	SDL_Surface *scaled_display;
 	SDL_Texture *texture;
 	struct {
 		uint8_t bg;

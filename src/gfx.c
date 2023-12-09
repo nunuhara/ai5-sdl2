@@ -40,12 +40,17 @@ SDL_Surface *gfx_get_surface(unsigned i)
 		WARNING("Invalid surface index: %u", i);
 		i = 0;
 	}
-	return gfx.surface[i];
+	return gfx.surface[i].s;
 }
 
 static SDL_Surface *gfx_screen(void)
 {
-	return gfx.surface[gfx.screen];
+	return gfx.surface[gfx.screen].s;
+}
+
+unsigned gfx_current_surface(void)
+{
+	return gfx.screen;
 }
 
 static void _gfx_set_window_size(unsigned w, unsigned h)
@@ -58,20 +63,26 @@ static void _gfx_set_window_size(unsigned w, unsigned h)
 
 	// free old surfaces/texture
 	for (int i = 0; i < GFX_NR_SURFACES; i++) {
-		SDL_FreeSurface(gfx.surface[i]);
+		SDL_FreeSurface(gfx.surface[i].s);
 	}
 	SDL_FreeSurface(gfx.display);
+	SDL_FreeSurface(gfx.scaled_display);
 	SDL_DestroyTexture(gfx.texture);
 
 	// recreate and initialize surfaces/texture
 	for (int i = 0; i < GFX_NR_SURFACES; i++) {
-		SDL_CTOR(SDL_CreateRGBSurfaceWithFormat, gfx.surface[i], 0, w, h, 8,
+		SDL_CTOR(SDL_CreateRGBSurfaceWithFormat, gfx.surface[i].s, 0, w, h, 8,
 				SDL_PIXELFORMAT_INDEX8);
-		SDL_CALL(SDL_FillRect, gfx.surface[i], NULL, 0);
+		SDL_CALL(SDL_FillRect, gfx.surface[i].s, NULL, 0);
+		gfx.surface[i].src = (SDL_Rect) { 0, 0, w, h };
+		gfx.surface[i].dst = (SDL_Rect) { 0, 0, w, h };
+		gfx.surface[i].scaled = false;
 	}
 
 	SDL_CTOR(SDL_CreateRGBSurfaceWithFormat, gfx.display, 0, w, h, 32, SDL_PIXELFORMAT_RGB888);
+	SDL_CTOR(SDL_CreateRGBSurfaceWithFormat, gfx.scaled_display, 0, w, h, 32, SDL_PIXELFORMAT_RGB888);
 	SDL_CALL(SDL_FillRect, gfx.display, NULL, SDL_MapRGB(gfx.display->format, 0, 0, 0));
+	SDL_CALL(SDL_FillRect, gfx.scaled_display, NULL, SDL_MapRGB(gfx.scaled_display->format, 0, 0, 0));
 
 	SDL_CTOR(SDL_CreateTexture, gfx.texture, gfx.renderer, gfx.display->format->format,
 			SDL_TEXTUREACCESS_STATIC, w, h);
@@ -88,9 +99,10 @@ static void gfx_fini(void)
 {
 	if (gfx.display) {
 		for (int i = 0; i < GFX_NR_SURFACES; i++) {
-			SDL_FreeSurface(gfx.surface[i]);
+			SDL_FreeSurface(gfx.surface[i].s);
 		}
 		SDL_FreeSurface(gfx.display);
+		SDL_FreeSurface(gfx.scaled_display);
 		SDL_DestroyTexture(gfx.texture);
 		SDL_DestroyRenderer(gfx.renderer);
 		SDL_DestroyWindow(gfx.window);
@@ -122,9 +134,18 @@ void gfx_update(void)
 {
 	if (gfx.hidden || !gfx.dirty)
 		return;
-	SDL_Rect rect = { 0, 0, gfx_view.w, gfx_view.h };
-	SDL_CALL(SDL_BlitSurface, gfx_screen(), &rect, gfx.display, &rect);
-	SDL_CALL(SDL_UpdateTexture, gfx.texture, NULL, gfx.display->pixels, gfx.display->pitch);
+	struct gfx_surface *screen = &gfx.surface[gfx.screen];
+	SDL_Rect r = { 0, 0, gfx_view.w, gfx_view.h };
+	SDL_CALL(SDL_BlitSurface, screen->s, &r, gfx.display, &r);
+	if (screen->scaled) {
+		SDL_Rect src = screen->src;
+		SDL_Rect dst = screen->dst;
+		SDL_CALL(SDL_BlitScaled, gfx.display, &src, gfx.scaled_display, &dst);
+		SDL_CALL(SDL_UpdateTexture, gfx.texture, NULL, gfx.scaled_display->pixels,
+				gfx.scaled_display->pitch);
+	} else {
+		SDL_CALL(SDL_UpdateTexture, gfx.texture, NULL, gfx.display->pixels, gfx.display->pitch);
+	}
 	SDL_CALL(SDL_RenderClear, gfx.renderer);
 	SDL_CALL(SDL_RenderCopy, gfx.renderer, gfx.texture, NULL, NULL);
 	SDL_RenderPresent(gfx.renderer);
@@ -375,10 +396,8 @@ void gfx_copy(int src_x, int src_y, int src_w, int src_h, unsigned src_i, int ds
 {
 	GFX_LOG("gfx_copy %u(%d,%d) -> %u(%d,%d) @ (%d,%d)",
 			src_i, src_x, src_y, dst_i, dst_x, dst_y, src_w, src_h);
-	assert(src_i < GFX_NR_SURFACES);
-	assert(dst_i < GFX_NR_SURFACES);
-	SDL_Surface *src = gfx.surface[src_i];
-	SDL_Surface *dst = gfx.surface[dst_i];
+	SDL_Surface *src = gfx_get_surface(src_i);
+	SDL_Surface *dst = gfx_get_surface(dst_i);
 	SDL_Rect src_r = { src_x, src_y, src_w, src_h };
 	SDL_Point dst_p = { dst_x, dst_y };
 	foreach_pixel2(src, &src_r, dst, &dst_p, gfx_copy_cb, NULL);
@@ -397,10 +416,8 @@ void gfx_copy_masked(int src_x, int src_y, int src_w, int src_h, unsigned src_i,
 {
 	GFX_LOG("gfx_copy_masked[%u] %u(%d,%d) -> %u(%d,%d) @ (%d,%d)", mask_color,
 			src_i, src_x, src_y, dst_i, dst_x, dst_y, src_w, src_h);
-	assert(src_i < GFX_NR_SURFACES);
-	assert(dst_i < GFX_NR_SURFACES);
-	SDL_Surface *src = gfx.surface[src_i];
-	SDL_Surface *dst = gfx.surface[dst_i];
+	SDL_Surface *src = gfx_get_surface(src_i);
+	SDL_Surface *dst = gfx_get_surface(dst_i);
 	SDL_Rect src_r = { src_x, src_y, src_w, src_h };
 	SDL_Point dst_p = { dst_x, dst_y };
 	foreach_pixel2(src, &src_r, dst, &dst_p, gfx_copy_masked_cb, (void*)(uintptr_t)mask_color);
@@ -419,11 +436,8 @@ void gfx_copy_swap(int src_x, int src_y, int src_w, int src_h, unsigned src_i, i
 {
 	GFX_LOG("gfx_copy_swap %u(%d,%d) -> %u(%d,%d) @ (%d,%d)",
 			src_i, src_x, src_y, dst_i, dst_x, dst_y, src_w, src_h);
-
-	assert(src_i < GFX_NR_SURFACES);
-	assert(dst_i < GFX_NR_SURFACES);
-	SDL_Surface *src = gfx.surface[src_i];
-	SDL_Surface *dst = gfx.surface[dst_i];
+	SDL_Surface *src = gfx_get_surface(src_i);
+	SDL_Surface *dst = gfx_get_surface(dst_i);
 	SDL_Rect src_r = { src_x, src_y, src_w, src_h };
 	SDL_Point dst_p = { dst_x, dst_y };
 	foreach_pixel2(src, &src_r, dst, &dst_p, gfx_copy_swap_cb, NULL);
@@ -435,12 +449,9 @@ void gfx_compose(int fg_x, int fg_y, int w, int h, unsigned fg_i, int bg_x, int 
 {
 	GFX_LOG("gfx_compose[%u] %u(%d,%d) + %u(%d,%d) -> %u(%d,%d) @ (%d,%d)", mask_color,
 			fg_i, fg_x, fg_y, bg_i, bg_x, bg_y, dst_i, dst_x, dst_y, w, h);
-	assert(fg_i < GFX_NR_SURFACES);
-	assert(bg_i < GFX_NR_SURFACES);
-	assert(dst_i < GFX_NR_SURFACES);
-	SDL_Surface *fg = gfx.surface[fg_i];
-	SDL_Surface *bg = gfx.surface[bg_i];
-	SDL_Surface *dst = gfx.surface[dst_i];
+	SDL_Surface *fg = gfx_get_surface(fg_i);
+	SDL_Surface *bg = gfx_get_surface(bg_i);
+	SDL_Surface *dst = gfx_get_surface(dst_i);
 	SDL_Rect fg_r = { fg_x, fg_y, w, h };
 	SDL_Rect bg_r = { bg_x, bg_y, w, h };
 	SDL_Point dst_p = { dst_x, dst_y };
@@ -502,8 +513,7 @@ static void gfx_invert_colors_cb(uint8_t *p, void *_)
 void gfx_invert_colors(int x, int y, int w, int h, unsigned i)
 {
 	GFX_LOG("gfx_invert_colors %u(%d,%d) @ (%d,%d)", i, x, y, w, h);
-	assert(i < GFX_NR_SURFACES);
-	SDL_Surface *s = gfx.surface[i];
+	SDL_Surface *s = gfx_get_surface(i);
 	SDL_Rect r = { x, y, w, h };
 	foreach_pixel(s, &r, gfx_invert_colors_cb, NULL);
 	gfx.dirty = true;

@@ -906,7 +906,7 @@ static void stmt_sys_wait(struct param_list *params)
 		}
 	} else {
 		vm_timer_t timer = vm_timer_create();
-		uint32_t target_t = timer + params->params[0].val;
+		uint32_t target_t = timer + params->params[0].val * 4;
 		while (timer < target_t && !input_down(INPUT_SHIFT)) {
 			vm_timer_tick(&timer, 16);
 		}
@@ -1120,6 +1120,18 @@ static void stmt_util_get_text_colors(void)
 	usr_var32[18] = (bg << 4) | fg;
 }
 
+static void stmt_util_scale_h(struct param_list *params)
+{
+	union {
+		uint16_t u;
+		int16_t i;
+	} cast = {
+		.u = check_expr_param(params, 1)
+	};
+
+	gfx_scale_h(gfx_current_surface(), cast.i);
+}
+
 static void stmt_util_invert_colors(struct param_list *params)
 {
 	int x = check_expr_param(params, 1);
@@ -1285,6 +1297,7 @@ static void stmt_util(void)
 	case 1:   stmt_util_get_text_colors(); break;
 	case 3:   break; // noop
 	case 5:   gfx_blink_fade(64, 0, 512, 288, 0); break;
+	case 6:   stmt_util_scale_h(&params); break;
 	case 8:   stmt_util_invert_colors(&params); break;
 	case 10:  stmt_util_fade(&params); break;
 	case 11:  savedata_stash_name(); break;

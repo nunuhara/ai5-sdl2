@@ -416,3 +416,37 @@ void gfx_copy_progressive(int src_x, int src_y, int w, int h, unsigned src_i, in
 		progressive_update(&timer);
 	}
 }
+
+void gfx_scale_h(unsigned i, int mag)
+{
+	if (unlikely(i >= GFX_NR_SURFACES)) {
+		WARNING("Invalid surface index: %u", i);
+		i = 0;
+	}
+
+	struct gfx_surface *s = &gfx.surface[i];
+	if (mag == 0) {
+		s->src.y = 0;
+		s->src.h = s->s->h;
+		s->dst.y = 0;
+		s->scaled = !SDL_RectEquals(&s->src, &s->dst);
+		if (s->scaled) {
+			ERROR("wtf: {%d,%d,%d,%d} {%d,%d,%d,%d}", s->src.x, s->src.y,
+					s->src.w, s->src.h, s->dst.x, s->dst.y, s->dst.w,
+					s->dst.h);
+		}
+	} else if (mag < 0) {
+		s->src.y = 0;
+		s->src.h = s->s->h + mag;
+		s->dst.y = mag;
+		s->scaled = true;
+	} else {
+		s->src.y = 0;
+		s->src.h = s->s->h - mag;
+		s->dst.y = mag;
+		s->scaled = true;
+	}
+
+	gfx.dirty = true;
+	gfx_update();
+}
