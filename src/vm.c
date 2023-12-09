@@ -1014,6 +1014,7 @@ static void stmt_sys(void)
 	case 15: menu_get_no(check_expr_param(&params, 0)); break;
 	case 18: stmt_sys_check_input(&params); break;
 	case 21: stmt_sys_strlen(&params); break;
+	case 22: WARNING("System.function[22] not implemented"); break;
 	case 23: stmt_sys_set_screen_surface(&params); break;
 	default: VM_ERROR("System.function[%d] not implemented", no);
 	}
@@ -1308,6 +1309,7 @@ static void stmt_util(void)
 	case 21:  stmt_util_fade_progressive(&params); break;
 	case 22:  usr_var16[18] = anim_running(); break;
 	case 100: WARNING("Util.set_monochrome not implemented"); break;
+	case 101: WARNING("Util.function[101] not implemented"); break;
 	case 200: stmt_util_copy(&params); break;
 	case 201: audio_bgm_play(check_string_param(&params, 1), false); break;
 	case 202: usr_var16[18] = audio_bgm_is_playing(); break;
@@ -1322,7 +1324,6 @@ static void stmt_util(void)
 	case 27:
 	case 28:
 	case 29:
-	case 101:
 	default: VM_ERROR("Util.function[%u] not implemented", params.params[0].val);
 	}
 }
