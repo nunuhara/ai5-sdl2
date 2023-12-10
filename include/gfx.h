@@ -29,7 +29,8 @@ extern struct gfx_view gfx_view;
 
 void gfx_init(const char *name);
 void gfx_update(void);
-void gfx_dirty(void);
+void gfx_dirty(unsigned surface);
+void gfx_screen_dirty(void);
 void gfx_set_window_size(unsigned w, unsigned h);
 unsigned gfx_current_surface(void);
 void gfx_hide_screen(void);

@@ -309,10 +309,12 @@ static char *check_string_param(struct param_list *params, int i)
 
 static uint32_t check_expr_param(struct param_list *params, int i)
 {
-	if (params->nr_params < i)
-		VM_ERROR("Too few parameters");
+	if (i >= params->nr_params) {
+		WARNING("Too few parameters");
+		return 0;
+	}
 	if (params->params[i].type != MES_PARAM_EXPRESSION)
-		VM_ERROR("Expected expression parameter");
+		VM_ERROR("Expected expression parameter %d / %d", i, params->nr_params);
 	return params->params[i].val;
 }
 
@@ -702,6 +704,24 @@ static void check_rgb_param(struct param_list *params, unsigned i, uint8_t *r, u
 	*b = (c & 0xf) * 17;
 }
 
+static void stmt_sys_palette_set(struct param_list *params)
+{
+	if (params->nr_params > 1) {
+		uint8_t r, g, b;
+		uint8_t pal[256*4];
+		check_rgb_param(params, 1, &r, &g, &b);
+		for (int i = 0; i < 256; i += 4) {
+			pal[i+0] = b;
+			pal[i+1] = g;
+			pal[i+2] = r;
+			pal[i+3] = 0;
+		}
+		gfx_palette_set(pal);
+	} else {
+		gfx_palette_set(memory.palette);
+	}
+}
+
 static void stmt_sys_palette_crossfade1(struct param_list *params)
 {
 	if (params->nr_params > 1) {
@@ -731,7 +751,7 @@ static void stmt_sys_palette(struct param_list *params)
 {
 	check_expr_param(params, 0);
 	switch (params->params[0].val) {
-	case 0:  gfx_palette_set(memory.palette); break;
+	case 0:  stmt_sys_palette_set(params); break;
 	case 1:  stmt_sys_palette_crossfade1(params); break;
 	case 2:  stmt_sys_palette_crossfade2(params); break;
 	case 3:  gfx_hide_screen(); break;

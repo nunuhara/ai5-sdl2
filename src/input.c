@@ -86,7 +86,7 @@ void handle_events(void)
 			sys_exit(0);
 			break;
 		case SDL_WINDOWEVENT:
-			gfx_dirty();
+			gfx_screen_dirty();
 			break;
 		case SDL_KEYDOWN:
 			key_event(&e.key, true);

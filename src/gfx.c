@@ -26,7 +26,13 @@
 struct gfx gfx = { .dirty = true };
 struct gfx_view gfx_view = { 640, 400 };
 
-void gfx_dirty(void)
+void gfx_dirty(unsigned surface)
+{
+	if (surface == gfx.screen)
+		gfx.dirty = true;
+}
+
+void gfx_screen_dirty(void)
 {
 	gfx.dirty = true;
 }
@@ -184,7 +190,7 @@ static void read_palette(SDL_Color *dst, const uint8_t *src)
 static void update_palette(void)
 {
 	SDL_CALL(SDL_SetPaletteColors, gfx_screen()->format->palette, palette, 0, 256);
-	gfx.dirty = true;
+	gfx_dirty(gfx.screen);
 }
 
 void gfx_palette_set(const uint8_t *data)
@@ -401,7 +407,7 @@ void gfx_copy(int src_x, int src_y, int src_w, int src_h, unsigned src_i, int ds
 	SDL_Rect src_r = { src_x, src_y, src_w, src_h };
 	SDL_Point dst_p = { dst_x, dst_y };
 	foreach_pixel2(src, &src_r, dst, &dst_p, gfx_copy_cb, NULL);
-	gfx.dirty = true;
+	gfx_dirty(dst_i);
 }
 
 static void gfx_copy_masked_cb(uint8_t *src, uint8_t *dst, void *_mask)
@@ -421,7 +427,7 @@ void gfx_copy_masked(int src_x, int src_y, int src_w, int src_h, unsigned src_i,
 	SDL_Rect src_r = { src_x, src_y, src_w, src_h };
 	SDL_Point dst_p = { dst_x, dst_y };
 	foreach_pixel2(src, &src_r, dst, &dst_p, gfx_copy_masked_cb, (void*)(uintptr_t)mask_color);
-	gfx.dirty = true;
+	gfx_dirty(dst_i);
 }
 
 static void gfx_copy_swap_cb(uint8_t *src, uint8_t *dst, void *_)
@@ -441,7 +447,7 @@ void gfx_copy_swap(int src_x, int src_y, int src_w, int src_h, unsigned src_i, i
 	SDL_Rect src_r = { src_x, src_y, src_w, src_h };
 	SDL_Point dst_p = { dst_x, dst_y };
 	foreach_pixel2(src, &src_r, dst, &dst_p, gfx_copy_swap_cb, NULL);
-	gfx.dirty = true;
+	gfx_dirty(dst_i);
 }
 
 void gfx_compose(int fg_x, int fg_y, int w, int h, unsigned fg_i, int bg_x, int bg_y,
@@ -457,7 +463,7 @@ void gfx_compose(int fg_x, int fg_y, int w, int h, unsigned fg_i, int bg_x, int 
 	SDL_Point dst_p = { dst_x, dst_y };
 	foreach_pixel2(bg, &bg_r, dst, &dst_p, gfx_copy_cb, NULL);
 	foreach_pixel2(fg, &fg_r, dst, &dst_p, gfx_copy_masked_cb, (void*)(uintptr_t)mask_color);
-	gfx.dirty = true;
+	gfx_dirty(dst_i);
 }
 
 /*
@@ -516,7 +522,7 @@ void gfx_invert_colors(int x, int y, int w, int h, unsigned i)
 	SDL_Surface *s = gfx_get_surface(i);
 	SDL_Rect r = { x, y, w, h };
 	foreach_pixel(s, &r, gfx_invert_colors_cb, NULL);
-	gfx.dirty = true;
+	gfx_dirty(i);
 }
 
 void gfx_fill(int x, int y, int w, int h, unsigned i, uint8_t c)
@@ -524,7 +530,7 @@ void gfx_fill(int x, int y, int w, int h, unsigned i, uint8_t c)
 	GFX_LOG("gfx_fill[%u] %u(%d,%d) @ (%d,%d)", c, i, x, y, w, h);
 	SDL_Rect rect = { x, y, w, h };
 	SDL_CALL(SDL_FillRect, gfx_get_surface(i), &rect, c);
-	gfx.dirty = true;
+	gfx_dirty(i);
 }
 
 struct swap_colors_data {
@@ -547,7 +553,7 @@ void gfx_swap_colors(int x, int y, int w, int h, unsigned i, uint8_t c1, uint8_t
 	SDL_Rect r = { x, y, w, h };
 	struct swap_colors_data colors = { c1, c2 };
 	foreach_pixel(s, &r, gfx_swap_colors_cb, &colors);
-	gfx.dirty = true;
+	gfx_dirty(i);
 }
 
 void gfx_draw_cg(unsigned i, struct cg *cg)
@@ -577,5 +583,5 @@ void gfx_draw_cg(unsigned i, struct cg *cg)
 	if (SDL_MUSTLOCK(s))
 		SDL_UnlockSurface(s);
 
-	gfx.dirty = true;
+	gfx_dirty(i);
 }

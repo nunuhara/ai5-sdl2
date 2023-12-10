@@ -193,7 +193,7 @@ void gfx_fade_down(int x, int y, int w, int h, unsigned dst_i, int src_i)
 		}
 
 		// update
-		gfx.dirty = true;
+		gfx_dirty(dst_i);
 		vm_peek();
 
 		// wait until next frame
@@ -250,7 +250,7 @@ void gfx_fade_right(int x, int y, int w, int h, unsigned dst_i, int src_i)
 		}
 
 		// update
-		gfx.dirty = true;
+		gfx_dirty(dst_i);
 		vm_peek();
 
 		// wait until next frame
@@ -284,7 +284,7 @@ void gfx_pixelate(int x, int y, int w, int h, unsigned dst_i, unsigned mag)
 			memset(p, c, min(band_size, r.w - col));
 		}
 	}
-	gfx.dirty = true;
+	gfx_dirty(dst_i);
 }
 
 static unsigned progressive_frame_time = 8;
@@ -302,9 +302,9 @@ static void fade_row(uint8_t *base, unsigned row, unsigned w, unsigned h, unsign
 	memset(dst, 0, w);
 }
 
-void progressive_update(vm_timer_t *timer)
+void progressive_update(vm_timer_t *timer, unsigned dst_i)
 {
-	gfx.dirty = true;
+	gfx_dirty(dst_i);
 	vm_peek();
 	vm_timer_tick(timer, progressive_frame_time);
 }
@@ -328,7 +328,7 @@ void gfx_blink_fade(int x, int y, int w, int h, unsigned dst_i)
 		uint8_t *dst = base + row * s->pitch;
 		memset(dst, 7, r.w);
 	}
-	progressive_update(&timer);
+	progressive_update(&timer, dst_i);
 
 	unsigned logical_h = ((unsigned)r.h + 3u) & ~3u;
 	for (int row = 0; row < logical_h / 2; row += 4) {
@@ -341,7 +341,7 @@ void gfx_blink_fade(int x, int y, int w, int h, unsigned dst_i)
 			if (row_bot + i < r.h)
 				memset(bot + i * s->pitch, 0, r.w);
 		}
-		progressive_update(&timer);
+		progressive_update(&timer, dst_i);
 	}
 }
 
@@ -361,13 +361,13 @@ void gfx_fade_progressive(int x, int y, int w, int h, unsigned dst_i)
 	for (int row = 0; row <= logical_h; row += 4) {
 		fade_row(base, row, r.w, r.h, s->pitch);
 		fade_row(base, (logical_h - row) + 2, r.w, r.h, s->pitch);
-		progressive_update(&timer);
+		progressive_update(&timer, dst_i);
 	}
 
 	for (int row = 0; row <= logical_h; row += 4) {
 		fade_row(base, row + 1, r.w, r.h, s->pitch);
 		fade_row(base, (logical_h - row) + 3, r.w, r.h, s->pitch);
-		progressive_update(&timer);
+		progressive_update(&timer, dst_i);
 	}
 }
 
@@ -405,7 +405,7 @@ void gfx_copy_progressive(int src_x, int src_y, int w, int h, unsigned src_i, in
 		unsigned row_bot = (logical_h - row) + 2;
 		copy_row(src_base, dst_base, row_top, src_r.w, src_r.h, src->pitch, dst->pitch);
 		copy_row(src_base, dst_base, row_bot, src_r.w, src_r.h, src->pitch, dst->pitch);
-		progressive_update(&timer);
+		progressive_update(&timer, dst_i);
 	}
 
 	for (int row = 0; row <= logical_h; row += 4) {
@@ -413,7 +413,7 @@ void gfx_copy_progressive(int src_x, int src_y, int w, int h, unsigned src_i, in
 		unsigned row_bot = (logical_h - row) + 3;
 		copy_row(src_base, dst_base, row_top, src_r.w, src_r.h, src->pitch, dst->pitch);
 		copy_row(src_base, dst_base, row_bot, src_r.w, src_r.h, src->pitch, dst->pitch);
-		progressive_update(&timer);
+		progressive_update(&timer, dst_i);
 	}
 }
 
@@ -447,6 +447,6 @@ void gfx_scale_h(unsigned i, int mag)
 		s->scaled = true;
 	}
 
-	gfx.dirty = true;
+	gfx_dirty(i);
 	gfx_update();
 }

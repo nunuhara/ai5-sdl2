@@ -157,7 +157,7 @@ unsigned gfx_text_draw_glyph(int x, int y, unsigned i, uint32_t ch)
 	unsigned w = s->w;
 	glyph_blit(s, x, y, dst);
 	SDL_FreeSurface(s);
-	gfx_dirty();
+	gfx_dirty(i);
 	return w;
 }
 

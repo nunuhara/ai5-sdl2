@@ -66,6 +66,9 @@ void vm_delay(int ms);
 uint32_t vm_get_ticks(void);
 
 enum vm_flag {
+	// XXX: YU-NO specific: when this flag is set, the light on the reflector (bottom
+	//      right corner) flashes -- seems to be hardcoded
+	VM_FLAG_REFLECTOR    = 0x0002,
 	VM_FLAG_MENU_RETURN  = 0x0008,
 	VM_FLAG_RETURN       = 0x0010,
 	VM_FLAG_LOG          = 0x0080,
