@@ -109,8 +109,11 @@ void vm_load_mes(char *name)
 	for (int i = 0; memory_raw[i]; i++) {
 		memory_raw[i] = toupper(memory_raw[i]);
 	}
-	if (!asset_mes_load(name, memory.file_data))
+	struct archive_data *file = asset_mes_load(name);
+	if (!file)
 		VM_ERROR("Failed to load MES file \"%s\"", name);
+	memcpy(memory.file_data, file->data, file->size);
+	archive_data_release(file);
 }
 
 static uint32_t vm_eval(void)

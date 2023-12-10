@@ -34,7 +34,7 @@ enum asset_type {
 void asset_init(void);
 void asset_fini(void);
 
-bool asset_mes_load(const char *name, uint8_t *dst);
+struct archive_data *asset_mes_load(const char *name);
 struct archive_data *asset_cg_load(const char *name);
 struct archive_data *asset_bgm_load(const char *name);
 struct archive_data *asset_effect_load(const char *name);

@@ -14,10 +14,12 @@
  * along with this program; if not, see <http://gnu.org/licenses/>.
  */
 
-#include "ai5.h"
+#include "nulib.h"
+#include "nulib/file.h"
 #include "ai5/arc.h"
 #include "ai5/cg.h"
 
+#include "ai5.h"
 #include "asset.h"
 
 static struct {
@@ -67,24 +69,62 @@ void asset_fini(void)
 #undef ARC_CLOSE
 }
 
-bool asset_mes_load(const char *name, uint8_t *dst)
+struct archive_data *asset_fs_load(const char *_name)
+{
+	// convert to *nix path
+	char *name = xstrdup(_name);
+	for (char *p = name; *p; p++) {
+		if (*p == '\\')
+			*p = '/';
+	}
+
+	// get case-insensitive path
+	char *path = path_get_icase(name);
+	// XXX: hack for YU-NO Eng TL: load .ogg file if .wav not found
+	if (!path && !strcasecmp(file_extension(name), "wav")) {
+		char *ext = (char*)file_extension(name);
+		ext[0] = 'o';
+		ext[1] = 'g';
+		ext[2] = 'g';
+		path = path_get_icase(name);
+	}
+	free(name);
+	if (!path)
+		return NULL;
+
+	// read data
+	size_t size;
+	uint8_t *data = file_read(path, &size);
+	free(path);
+	if (!data)
+		return NULL;
+
+	// create fake archive_data
+	struct archive_data *file = xcalloc(1, sizeof(struct archive_data));
+	file->size = size;
+	file->name = "<none>";
+	file->data = data;
+	file->ref = 1;
+	file->allocated = true;
+	return file;
+}
+
+struct archive_data *asset_mes_load(const char *name)
 {
 	if (!arc.mes)
-		return false;
+		return asset_fs_load(name);
 	struct archive_data *file = archive_get(arc.mes, name);
 	if (!file)
-		return false;
-	memcpy(dst, file->data, file->size);
-	archive_data_release(file);
+		return NULL;
 	free(asset_mes_name);
 	asset_mes_name = xstrdup(name);
-	return true;
+	return file;
 }
 
 struct archive_data *asset_cg_load(const char *name)
 {
 	if (!arc.bg)
-		return NULL;
+		return asset_fs_load(name);
 	struct archive_data *file = archive_get(arc.bg, name);
 	if (!file)
 		return NULL;
@@ -96,7 +136,7 @@ struct archive_data *asset_cg_load(const char *name)
 struct archive_data *asset_bgm_load(const char *name)
 {
 	if (!arc.bgm)
-		return NULL;
+		return asset_fs_load(name);
 	struct archive_data *file = archive_get(arc.bgm, name);
 	if (!file)
 		return NULL;
@@ -108,7 +148,7 @@ struct archive_data *asset_bgm_load(const char *name)
 struct archive_data *asset_effect_load(const char *name)
 {
 	if (!arc.effect)
-		return NULL;
+		return asset_fs_load(name);
 	struct archive_data *file = archive_get(arc.effect, name);
 	if (!file)
 		return NULL;
@@ -120,7 +160,7 @@ struct archive_data *asset_effect_load(const char *name)
 struct archive_data *asset_data_load(const char *name)
 {
 	if (!arc.data)
-		return NULL;
+		return asset_fs_load(name);
 	struct archive_data *file = archive_get(arc.data, name);
 	if (!file)
 		return NULL;
