@@ -29,6 +29,7 @@
 #include "ai5/mes.h"
 #include "ai5/s4.h"
 
+#include "ai5.h"
 #include "anim.h"
 #include "asset.h"
 #include "audio.h"
@@ -318,15 +319,45 @@ static uint32_t check_expr_param(struct param_list *params, int i)
 	return params->params[i].val;
 }
 
-#define TXT_BUF_SIZE 4096
+static void draw_text_eng(const char *text)
+{
+	const unsigned surface = sys_var16[MES_SYS_VAR_DST_SURFACE];
+	uint16_t x = sys_var16[MES_SYS_VAR_TEXT_CURSOR_X] * 8;
+	uint16_t y = sys_var16[MES_SYS_VAR_TEXT_CURSOR_Y];
+	while (*text) {
+		int ch;
+		bool zenkaku = SJIS_2BYTE(*text);
+		text = sjis_char2unicode(text, &ch);
+		unsigned char_size = gfx_text_size_char(ch);
+		uint16_t next_x = x + char_size;
+		// XXX: hack for spacing of zenkaku characters
+		if (zenkaku) {
+			x -= 2;
+			next_x -= 4;
+		}
+		if (next_x > sys_var16[MES_SYS_VAR_TEXT_END_X] * 8) {
+			y += sys_var16[MES_SYS_VAR_LINE_SPACE];
+			x = sys_var16[MES_SYS_VAR_TEXT_START_X] * 8;
+			next_x = x + char_size;
+		}
+		gfx_text_draw_glyph(x, y, surface, ch);
+		x = next_x;
+	}
+	sys_var16[MES_SYS_VAR_TEXT_CURSOR_X] = ((x+7u) & ~7u) / 8;
+	sys_var16[MES_SYS_VAR_TEXT_CURSOR_Y] = y;
+}
 
 static void draw_text(const char *text)
 {
-#if 1
+#if 0
 	string u = sjis_cstring_to_utf8(text, strlen(text));
 	NOTICE("%s", u);
 	string_free(u);
 #endif
+	if (yuno_eng) {
+		draw_text_eng(text);
+		return;
+	}
 	const unsigned surface = sys_var16[MES_SYS_VAR_DST_SURFACE];
 	const uint16_t char_space = sys_var16[MES_SYS_VAR_CHAR_SPACE];
 	uint16_t *x = &sys_var16[MES_SYS_VAR_TEXT_CURSOR_X];
@@ -343,13 +374,10 @@ static void draw_text(const char *text)
 		text = sjis_char2unicode(text, &ch);
 		gfx_text_draw_glyph(*x * 8, *y, surface, ch);
 		*x = next_x;
-		// TODO: YU-NO Eng TL doesnt' wrap the same way -- text can overflow the
-		//       text area, and if it overflows the screen, it wraps around to the
-		//       left side of the screen (with no y-increment)
-		// TODO: YU-NO Eng TL uses patched executable with kerning
-		//       ---but char space is still used in some way...
 	}
 }
+
+#define TXT_BUF_SIZE 4096
 
 static void stmt_txt(void)
 {
@@ -359,7 +387,8 @@ static void stmt_txt(void)
 	uint8_t c;
 	while ((c = vm_peek_byte())) {
 		if (unlikely(!mes_char_is_zenkaku(c))) {
-			WARNING("Invalid byte in TXT statement: %02x", (unsigned)c);
+			if (!yuno_eng)
+				WARNING("Invalid byte in TXT statement: %02x", (unsigned)c);
 			goto unterminated;
 		}
 		str[str_i++] = vm_read_byte();
@@ -379,7 +408,8 @@ static void stmt_str(void)
 	uint8_t c;
 	while ((c = vm_peek_byte())) {
 		if (unlikely(!mes_char_is_hankaku(c))) {
-			WARNING("Invalid byte in STR statement: %02x", (unsigned)c);
+			if (!yuno_eng)
+				WARNING("Invalid byte in STR statement: %02x", (unsigned)c);
 			goto unterminated;
 		}
 		str[str_i++] = c;

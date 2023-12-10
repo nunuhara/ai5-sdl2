@@ -74,4 +74,6 @@ struct config {
 
 extern struct config config;
 
+extern bool yuno_eng;
+
 #endif // AI5_H

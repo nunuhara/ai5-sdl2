@@ -19,6 +19,7 @@
 #include "nulib.h"
 #include "ai5/mes.h"
 
+#include "ai5.h"
 #include "gfx_private.h"
 #include "gfx.h"
 #include "memory.h"
@@ -166,7 +167,9 @@ void gfx_text_set_size(int size)
 	struct font *font = font_lookup(size);
 	if (!font) {
 		TTF_Font *f;
-		if (size <= 18) {
+		if (yuno_eng) {
+			f = TTF_OpenFont(AI5_DATA_DIR "/fonts/NotoSansJP-Thin.ttf", size);
+		} else if (size <= 18) {
 			f = TTF_OpenFont(AI5_DATA_DIR "/fonts/DotGothic16-Regular.ttf", size);
 		} else {
 			f = TTF_OpenFont(AI5_DATA_DIR "/fonts/Kosugi-Regular.ttf", size);
@@ -176,4 +179,11 @@ void gfx_text_set_size(int size)
 		font = font_insert(size, f);
 	}
 	cur_font = font;
+}
+
+unsigned gfx_text_size_char(uint32_t ch)
+{
+	int minx, maxx, miny, maxy, advance;
+	TTF_GlyphMetrics32(cur_font->id, ch, &minx, &maxx, &miny, &maxy, &advance);
+	return advance;
 }

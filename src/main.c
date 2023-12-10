@@ -37,6 +37,7 @@
 #include "vm.h"
 
 struct config config = {0};
+bool yuno_eng = false;
 
 static int cfg_handler(void *user, const char *section, const char *name, const char *value)
 {
@@ -144,8 +145,12 @@ static _Noreturn void _usage_error(const char *fmt, ...)
 }
 #define usage_error(fmt, ...) _usage_error("Error: " fmt "\n", ##__VA_ARGS__)
 
-void set_game(const char *name)
+static void set_game(const char *name)
 {
+	if (!strcmp(name, "yuno-eng")) {
+		yuno_eng = true;
+		name = "yuno";
+	}
 	ai5_set_game(name);
 	switch (ai5_target_game) {
 	case GAME_ELF_CLASSICS:
@@ -187,7 +192,7 @@ int main(int argc, char *argv[])
 			usage();
 			return 0;
 		case LOPT_GAME:
-			ai5_set_game(optarg);
+			set_game(optarg);
 			have_game = true;
 			break;
 		case LOPT_CG_LOAD_FRAME_TIME:
@@ -208,6 +213,7 @@ int main(int argc, char *argv[])
 		for (unsigned i = 0; i < ARRAY_SIZE(ai5_games); i++) {
 			printf("    %-11s - %s\n", ai5_games[i].name, ai5_games[i].description);
 		}
+		printf("    %-11s - %s\n", "yuno-eng", "English translation of YU-NO");
 		puts("");
 		sys_error("Error: No game specified");
 	}
