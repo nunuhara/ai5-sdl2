@@ -19,13 +19,13 @@
 
 void anim_execute(void);
 bool anim_running(void);
-bool anim_stream_running(unsigned stream);
-void anim_init_stream(unsigned stream);
-void anim_start(unsigned stream);
-void anim_stop(unsigned stream);
-void anim_halt(unsigned stream);
+bool anim_stream_running(unsigned slot);
+void anim_init_stream(unsigned slot, unsigned stream);
+void anim_start(unsigned slot);
+void anim_stop(unsigned slot);
+void anim_halt(unsigned slot);
 void anim_stop_all(void);
 void anim_halt_all(void);
-void anim_set_offset(unsigned stream, unsigned x, unsigned y);
+void anim_set_offset(unsigned slot, unsigned x, unsigned y);
 
 #endif // AI5_ANIM_H

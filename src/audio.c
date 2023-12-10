@@ -111,7 +111,7 @@ bool audio_bgm_is_fading(void)
 	return false;
 }
 
-void audio_se_stop(uint32_t uk)
+void audio_se_stop(void)
 {
 	Mix_HaltChannel(1);
 	if (se) {
@@ -120,9 +120,9 @@ void audio_se_stop(uint32_t uk)
 	}
 }
 
-void audio_se_play(const char *name, uint32_t uk)
+void audio_se_play(const char *name)
 {
-	audio_se_stop(uk);
+	audio_se_stop();
 	struct archive_data *data = asset_effect_load(name);
 	if (!data) {
 		WARNING("Failed to load sound effect \"%s\"", name);

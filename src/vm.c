@@ -590,7 +590,7 @@ static void stmt_sys_cursor(struct param_list *params)
 static void stmt_sys_anim(struct param_list *params)
 {
 	switch (check_expr_param(params, 0)) {
-	case 0:  anim_init_stream(check_expr_param(params, 1)); break;
+	case 0:  anim_init_stream(check_expr_param(params, 1), check_expr_param(params, 2)); break;
 	case 1:  anim_start(check_expr_param(params, 1)); break;
 	case 2:  anim_stop(check_expr_param(params, 1)); break;
 	case 3:  anim_halt(check_expr_param(params, 1)); break;
@@ -598,7 +598,7 @@ static void stmt_sys_anim(struct param_list *params)
 	case 4:  WARNING("System.Anim.function[4] not implemented"); break;
 	case 5:  anim_stop_all(); break;
 	case 6:  anim_halt_all(); break;
-	case 20: anim_set_offset(check_expr_param(params, 1), check_expr_param(params, 2),
+	case 20: anim_set_offset(check_expr_param(params, 1), check_expr_param(params, 2) * 8,
 				check_expr_param(params, 3)); break;
 	default: VM_ERROR("System.Anim.function[%u] not implemented", params->params[0].val);
 	}
@@ -645,7 +645,7 @@ static void stmt_sys_audio(struct param_list *params)
 	switch (check_expr_param(params, 0)) {
 	case 0:  audio_bgm_play(check_string_param(params, 1), true); break;
 	case 2:  audio_bgm_stop(); break;
-	case 3:  audio_se_play(check_string_param(params, 1), check_expr_param(params, 2)); break;
+	case 3:  audio_se_play(check_string_param(params, 1)); break;
 	case 4:  audio_bgm_fade(check_expr_param(params, 1), check_expr_param(params, 2),
 				check_expr_param(params, 3), true); break;
 	case 5:  audio_bgm_set_volume(check_expr_param(params, 1)); break;
@@ -655,7 +655,7 @@ static void stmt_sys_audio(struct param_list *params)
 				true, true); break;
 	case 10: audio_bgm_fade(check_expr_param(params, 1), check_expr_param(params, 2),
 				true, false); break;
-	case 12: audio_se_stop(check_expr_param(params, 1)); break;
+	case 12: audio_se_stop(); break;
 	case 18: audio_bgm_stop(); break;
 	default: VM_ERROR("System.Audio.function[%d] not implemented", params->params[0].val);
 	}
@@ -1267,7 +1267,7 @@ static void stmt_util_restore_animation(void)
 	vm_read_file(saved_data_name, sys_var32[MES_SYS_VAR_DATA_OFFSET]);
 	for (int i = 0; i < S4_MAX_STREAMS; i++) {
 		if (saved_anim_running[i]) {
-			anim_init_stream(i);
+			anim_init_stream(i, i);
 			anim_start(i);
 		}
 	}

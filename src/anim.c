@@ -26,6 +26,14 @@
 #include "memory.h"
 #include "vm.h"
 
+#if 0
+#define ANIM_LOG(...) NOTICE(__VA_ARGS__)
+#else
+#define ANIM_LOG(...)
+#endif
+
+#define ANIM_NR_SLOTS S4_MAX_STREAMS
+
 struct anim_stream {
 	uint8_t cmd;
 	// pointer to S4 file in memory
@@ -57,44 +65,51 @@ enum anim_command {
 	ANIM_CMD_HALT_NEXT,
 };
 
-static void check_stream_index(unsigned i)
+static void check_slot(unsigned i)
 {
-	if (i >= S4_MAX_STREAMS)
-		VM_ERROR("Invalid animation stream index: %u", i);
+	if (i >= ANIM_NR_SLOTS)
+		VM_ERROR("Invalid animation slot index: %u", i);
 }
 
-void anim_init_stream(unsigned stream)
+void anim_init_stream(unsigned slot, unsigned stream)
 {
-	check_stream_index(stream);
-	struct anim_stream *anim = &streams[stream];
+	ANIM_LOG("anim_init_stream(%u,%u)", slot, stream);
+	check_slot(slot);
+	if (stream >= S4_MAX_STREAMS)
+		VM_ERROR("Invalid S4 animation stream index: %u", stream);
 
+	struct anim_stream *anim = &streams[slot];
 	memset(anim, 0, sizeof(struct anim_stream));
 	anim->file_data = memory.file_data + memory_system_var32()[MES_SYS_VAR_DATA_OFFSET];
 	anim->bytecode = anim->file_data + le_get16(anim->file_data, 1 + stream * 2);
 }
 
-void anim_start(unsigned stream)
+void anim_start(unsigned slot)
 {
-	check_stream_index(stream);
-	streams[stream].cmd = ANIM_CMD_RUN;
-	streams[stream].ip = 0;
+	ANIM_LOG("anim_start(%u)", slot);
+	check_slot(slot);
+	streams[slot].cmd = ANIM_CMD_RUN;
+	streams[slot].ip = 0;
 }
 
-void anim_stop(unsigned stream)
+void anim_stop(unsigned slot)
 {
-	check_stream_index(stream);
-	streams[stream].cmd = ANIM_CMD_STOP;
+	ANIM_LOG("anim_stop(%u)", slot);
+	check_slot(slot);
+	streams[slot].cmd = ANIM_CMD_STOP;
 }
 
-void anim_halt(unsigned stream)
+void anim_halt(unsigned slot)
 {
-	check_stream_index(stream);
-	streams[stream].cmd = ANIM_CMD_HALTED;
+	ANIM_LOG("anim_halt(%u)", slot);
+	check_slot(slot);
+	streams[slot].cmd = ANIM_CMD_HALTED;
 }
 
 void anim_stop_all(void)
 {
-	for (int i = 0; i < S4_MAX_STREAMS; i++) {
+	ANIM_LOG("anim_stop_all()");
+	for (int i = 0; i < ANIM_NR_SLOTS; i++) {
 		if (streams[i].cmd != ANIM_CMD_HALTED)
 			streams[i].cmd = ANIM_CMD_STOP;
 	}
@@ -102,16 +117,18 @@ void anim_stop_all(void)
 
 void anim_halt_all(void)
 {
+	ANIM_LOG("anim_halt_all()");
 	for (int i = 0; i < S4_MAX_STREAMS; i++) {
 		streams[i].cmd = ANIM_CMD_HALTED;
 	}
 }
 
-void anim_set_offset(unsigned stream, unsigned x, unsigned y)
+void anim_set_offset(unsigned slot, unsigned x, unsigned y)
 {
-	check_stream_index(stream);
-	streams[stream].off.x = x;
-	streams[stream].off.y = y;
+	ANIM_LOG("anim_set_offset(%u,%u,%u)", slot, x, y);
+	check_slot(slot);
+	streams[slot].off.x = x;
+	streams[slot].off.y = y;
 }
 
 static uint8_t read_byte(struct anim_stream *anim)
@@ -135,30 +152,34 @@ static bool anim_stream_draw(struct anim_stream *anim, uint8_t i)
 
 	switch (call.op) {
 	case S4_DRAW_OP_FILL:
-		gfx_fill(call.fill.dst.x, call.fill.dst.y, call.fill.dim.w, call.fill.dim.h,
-				call.fill.dst.i, 8);
+		gfx_fill(call.fill.dst.x + anim->off.x, call.fill.dst.y + anim->off.y,
+				call.fill.dim.w, call.fill.dim.h, call.fill.dst.i, 8);
 		break;
 	case S4_DRAW_OP_COPY:
 		gfx_copy(call.copy.src.x, call.copy.src.y, call.copy.dim.w, call.copy.dim.h,
-				call.copy.src.i, call.copy.dst.x, call.copy.dst.y,
-				call.copy.dst.i);
+				call.copy.src.i, call.copy.dst.x + anim->off.x,
+				call.copy.dst.y + anim->off.y, call.copy.dst.i);
 		break;
 	case S4_DRAW_OP_COPY_MASKED:
 		gfx_copy_masked(call.copy.src.x, call.copy.src.y, call.copy.dim.w,
-				call.copy.dim.h, call.copy.src.i, call.copy.dst.x,
-				call.copy.dst.y, call.copy.dst.i,
+				call.copy.dim.h, call.copy.src.i,
+				call.copy.dst.x + anim->off.x, call.copy.dst.y + anim->off.y,
+				call.copy.dst.i,
 				memory_system_var16()[MES_SYS_VAR_MASK_COLOR]);
 		break;
 	case S4_DRAW_OP_SWAP:
 		gfx_copy_swap(call.copy.src.x, call.copy.src.y, call.copy.dim.w,
-				call.copy.dim.h, call.copy.src.i, call.copy.dst.x,
-				call.copy.dst.y, call.copy.dst.i);
+				call.copy.dim.h, call.copy.src.i,
+				call.copy.dst.x + anim->off.x, call.copy.dst.y + anim->off.y,
+				call.copy.dst.i);
 		break;
 	case S4_DRAW_OP_COMPOSE:
 		gfx_compose(call.compose.fg.x, call.compose.fg.y, call.compose.dim.w,
 				call.compose.dim.h, call.compose.fg.i, call.compose.bg.x,
-				call.compose.bg.y, call.compose.bg.i, call.compose.dst.x,
-				call.compose.dst.y, call.compose.dst.i,
+				call.compose.bg.y, call.compose.bg.i,
+				call.compose.dst.x + anim->off.x,
+				call.compose.dst.y + anim->off.y,
+				call.compose.dst.i,
 				memory_system_var16()[MES_SYS_VAR_MASK_COLOR]);
 		break;
 	case S4_DRAW_OP_SET_COLOR:

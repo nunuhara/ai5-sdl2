@@ -28,8 +28,8 @@ void audio_bgm_fade(uint32_t uk, uint8_t vol, bool stop, bool sync);
 bool audio_bgm_is_playing(void);
 bool audio_bgm_is_fading(void);
 
-void audio_se_play(const char *name, uint32_t uk);
-void audio_se_stop(uint32_t uk);
+void audio_se_play(const char *name);
+void audio_se_stop(void);
 bool audio_se_is_playing(void);
 
 #endif // AI5_AUDIO_H
