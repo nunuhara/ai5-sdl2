@@ -126,6 +126,9 @@ void gfx_init(const char *name)
 		strcpy(title, "AI5-SDL2");
 	}
 	SDL_CALL(SDL_Init, SDL_INIT_VIDEO | SDL_INIT_TIMER);
+#ifndef USE_SDL_MIXER
+	SDL_CALL(SDL_InitSubSystem, SDL_INIT_AUDIO);
+#endif
 	SDL_CTOR(SDL_CreateWindow, gfx.window, title,
 			SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, gfx_view.w, gfx_view.h,
 			SDL_WINDOW_RESIZABLE);

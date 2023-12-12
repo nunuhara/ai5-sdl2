@@ -9,8 +9,9 @@ endif
 
 libm = meson.get_compiler('c').find_library('m', required: false)
 sdl2 = dependency('sdl2', static : static_libs)
-sdl2_mixer = dependency('SDL2_mixer', static : static_libs)
 sdl2_ttf = dependency('SDL2_ttf', static : static_libs)
+sdl2_mixer = dependency('SDL2_mixer', static : static_libs)
+sndfile = dependency('sndfile', static : static_libs)
 
 libai5_proj = subproject('libai5')
 libai5_dep = libai5_proj.get_variable('libai5_dep')
@@ -20,7 +21,6 @@ incdirs = include_directories('include')
 sources = [
   'src/anim.c',
   'src/asset.c',
-  'src/audio.c',
   'src/cursor.c',
   'src/effect.c',
   'src/gfx.c',
@@ -34,10 +34,22 @@ sources = [
   'src/vm.c',
 ]
 
+deps = [libai5_dep, libm, sdl2, sdl2_ttf]
+
+if get_option('sdl_mixer').allowed()
+  add_project_arguments('-DUSE_SDL_MIXER', language : 'c')
+  deps += dependency('SDL2_mixer', static : static_libs)
+  sources += 'src/audio_sdl_mixer.c'
+else
+  deps += dependency('sndfile', static : static_libs)
+  sources += 'src/audio.c'
+  sources += 'src/audio_mixer.c'
+endif
+
 install_subdir('fonts', install_dir : get_option('datadir') / 'ai5-sdl2')
 
 executable('ai5', sources,
-  dependencies : [libai5_dep, libm, sdl2, sdl2_mixer, sdl2_ttf],
+  dependencies : deps,
   c_args : ['-Wno-unused-parameter'],
   include_directories : incdirs,
   install : true)

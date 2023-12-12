@@ -656,7 +656,7 @@ static void stmt_sys_audio(struct param_list *params)
 	case 10: audio_bgm_fade(check_expr_param(params, 1), check_expr_param(params, 2),
 				true, false); break;
 	case 12: audio_se_stop(); break;
-	case 18: audio_bgm_stop(); break;
+	case 18: audio_bgm_restore_volume(); break;
 	default: VM_ERROR("System.Audio.function[%d] not implemented", params->params[0].val);
 	}
 }
@@ -1449,6 +1449,9 @@ void vm_peek(void)
 {
 	handle_events();
 	anim_execute();
+#ifdef USE_SDL_MIXER
+	audio_update();
+#endif
 	gfx_update();
 }
 
