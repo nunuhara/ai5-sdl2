@@ -28,6 +28,7 @@ void audio_bgm_play(const char *name, bool check_playing);
 void audio_bgm_stop(void);
 void audio_bgm_set_volume(uint8_t vol);
 void audio_bgm_fade(uint32_t uk, uint8_t vol, bool stop, bool sync);
+void audio_bgm_fade_out(uint32_t uk, uint8_t vol, bool sync);
 void audio_bgm_restore_volume(void);
 bool audio_bgm_is_playing(void);
 bool audio_bgm_is_fading(void);

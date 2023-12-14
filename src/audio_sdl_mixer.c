@@ -155,13 +155,28 @@ static unsigned fade_time(uint8_t vol)
 	return diff * 100 + 50;
 }
 
+void audio_bgm_fade_out(uint32_t uk, uint8_t vol, bool sync)
+{
+	if (vol == bgm_volume) {
+		_audio_bgm_stop();
+		return;
+	}
+	audio_bgm_fade(uk, vol, true, sync);
+}
+
 void audio_bgm_fade(uint32_t uk, uint8_t vol, bool stop, bool sync)
 {
 	AUDIO_LOG("audio_bgm_fade(%u, %u, %s, %s)", uk, vol, stop ? "true" : "false",
 			sync ? "true" : "false");
 	if (fade.fading) {
 		Mix_Volume(0, fade.end_vol);
+		fade.fading = false;
 	}
+
+	if (vol > bgm_volume)
+		stop = false;
+	else if (vol == bgm_volume)
+		return;
 
 	fade.fading = true;
 	fade.start_t = vm_get_ticks();

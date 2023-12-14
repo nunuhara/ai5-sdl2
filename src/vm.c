@@ -651,10 +651,10 @@ static void stmt_sys_audio(struct param_list *params)
 	case 5:  audio_bgm_set_volume(check_expr_param(params, 1)); break;
 	case 7:  audio_bgm_fade(check_expr_param(params, 1), check_expr_param(params, 2),
 				check_expr_param(params, 3), false); break;
-	case 9:  audio_bgm_fade(check_expr_param(params, 1), check_expr_param(params, 1),
-				true, true); break;
-	case 10: audio_bgm_fade(check_expr_param(params, 1), check_expr_param(params, 2),
-				true, false); break;
+	case 9:  audio_bgm_fade_out(check_expr_param(params, 1), check_expr_param(params, 1),
+				true); break;
+	case 10: audio_bgm_fade_out(check_expr_param(params, 1), check_expr_param(params, 2),
+				false); break;
 	case 12: audio_se_stop(); break;
 	case 18: audio_bgm_restore_volume(); break;
 	default: VM_ERROR("System.Audio.function[%d] not implemented", params->params[0].val);

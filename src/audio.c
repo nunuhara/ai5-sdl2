@@ -83,7 +83,7 @@ void audio_bgm_play(const char *name, bool check_playing)
 
 	if ((bgm = channel_open(name, MIXER_MUSIC))) {
 		if (bgm_volume != 31)
-			mixer_set_volume(MIXER_MUSIC, get_linear_volume(bgm_volume));
+			channel_fade(bgm, 0, get_linear_volume(bgm_volume), false);
 		channel_play(bgm);
 		bgm_name = strdup(name);
 	}
@@ -104,16 +104,26 @@ static unsigned fade_time(uint8_t vol)
 	return diff * 100 + 50;
 }
 
+void audio_bgm_fade_out(uint32_t uk, uint8_t vol, bool sync)
+{
+	if (vol == bgm_volume) {
+		_audio_bgm_stop();
+		return;
+	}
+	audio_bgm_fade(uk, vol, true, sync);
+}
+
 void audio_bgm_fade(uint32_t uk, uint8_t vol, bool stop, bool sync)
 {
 	AUDIO_LOG("audio_bgm_fade(%u,%u,%s,%s)", uk, vol, stop ? "true" : "false",
 			sync ? "true" : "false");
 	if (!bgm)
 		return;
-	if (vol == 31) {
-		_audio_bgm_stop();
+	// XXX: a bit strange, but this is how it works...
+	if (vol > bgm_volume)
+		stop = false;
+	else if (vol == bgm_volume)
 		return;
-	}
 
 	channel_fade(bgm, fade_time(vol), get_linear_volume(vol), stop);
 	while (channel_is_fading(bgm)) {
