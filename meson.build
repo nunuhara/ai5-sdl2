@@ -32,6 +32,7 @@ sources = [
   'src/savedata.c',
   'src/text.c',
   'src/vm.c',
+  'src/yuno.c',
 ]
 
 deps = [libai5_dep, libm, sdl2, sdl2_ttf]

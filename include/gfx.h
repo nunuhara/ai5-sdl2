@@ -63,6 +63,9 @@ void gfx_copy_progressive(int src_x, int src_y, int w, int h, unsigned src_i, in
 		int dst_y, unsigned dst_i);
 void gfx_scale_h(unsigned i, int mag);
 
+// yuno.c
+void gfx_yuno_reflector_animation(void);
+
 #define DEFAULT_FONT_SIZE 16
 
 void gfx_text_init(void);

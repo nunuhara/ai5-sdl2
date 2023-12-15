@@ -1452,6 +1452,11 @@ void vm_peek(void)
 #ifdef USE_SDL_MIXER
 	audio_update();
 #endif
+	// FIXME: specific to YU-NO, not Classics
+	if (ai5_target_game == GAME_ELF_CLASSICS && vm_flag_is_on(VM_FLAG_REFLECTOR)) {
+		if (gfx_current_surface() != 1 || usr_var4[21] != 1)
+			gfx_yuno_reflector_animation();
+	}
 	gfx_update();
 }
 
