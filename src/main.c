@@ -26,10 +26,12 @@
 #include "ai5/game.h"
 #include "nulib/file.h"
 #include "nulib/string.h"
+#include "nulib/utfsjis.h"
 
 #include "asset.h"
 #include "audio.h"
 #include "cursor.h"
+#include "game.h"
 #include "gfx.h"
 #include "ini.h"
 #include "input.h"
@@ -46,7 +48,7 @@ static int cfg_handler(void *user, const char *section, const char *name, const 
 #define MATCH(s, n) (!strcasecmp(section, s) && !strcasecmp(name, n))
 	// [CONFIG]
 	if (MATCH("CONFIG", "TITLE")) {
-		config->title = string_new(value);
+		config->title = sjis_cstring_to_utf8(value, strlen(value));
 	} else if (MATCH("CONFIG", "STARTMES")) {
 		config->start_mes = string_new(value);
 	} else if (MATCH("CONFIG", "VOICE")) {
@@ -153,9 +155,11 @@ static void set_game(const char *name)
 	}
 	ai5_set_game(name);
 	switch (ai5_target_game) {
-	case GAME_ELF_CLASSICS:
-		gfx_view.w = 640;
-		gfx_view.h = 400;
+	case GAME_SHANGRLIA:
+		game = &game_shangrlia;
+		break;
+	case GAME_YUNO:
+		game = &game_yuno;
 		break;
 	default:
 		sys_error("Game \"%s\" not supported", name);
@@ -271,7 +275,7 @@ int main(int argc, char *argv[])
 	// intitialize subsystems
 	srand(time(NULL));
 	asset_init();
-	memory_init();
+	game->mem_init();
 	gfx_init(config.title);
 	input_init();
 	cursor_init(exe_path);

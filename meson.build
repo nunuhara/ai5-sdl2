@@ -27,10 +27,12 @@ sources = [
   'src/ini.c',
   'src/input.c',
   'src/main.c',
-  'src/memory.c',
   'src/menu.c',
   'src/savedata.c',
+  'src/shangrlia.c',
+  'src/sys.c',
   'src/text.c',
+  'src/util.c',
   'src/vm.c',
   'src/yuno.c',
 ]

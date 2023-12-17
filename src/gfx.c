@@ -20,6 +20,7 @@
 #include "nulib.h"
 #include "ai5/cg.h"
 
+#include "game.h"
 #include "gfx_private.h"
 #include "vm.h"
 
@@ -59,13 +60,12 @@ unsigned gfx_current_surface(void)
 	return gfx.screen;
 }
 
-static void _gfx_set_window_size(unsigned w, unsigned h)
+static void gfx_init_window(void)
 {
+	gfx_view.w = game->surface_sizes[0].w;
+	gfx_view.h = game->surface_sizes[0].h;
 
-	gfx_view.w = w;
-	gfx_view.h = h;
-
-	SDL_CALL(SDL_RenderSetLogicalSize, gfx.renderer, w, h);
+	SDL_CALL(SDL_RenderSetLogicalSize, gfx.renderer, gfx_view.w, gfx_view.h);
 
 	// free old surfaces/texture
 	for (int i = 0; i < GFX_NR_SURFACES; i++) {
@@ -77,6 +77,8 @@ static void _gfx_set_window_size(unsigned w, unsigned h)
 
 	// recreate and initialize surfaces/texture
 	for (int i = 0; i < GFX_NR_SURFACES; i++) {
+		unsigned w = game->surface_sizes[i].w;
+		unsigned h = game->surface_sizes[i].h;
 		SDL_CTOR(SDL_CreateRGBSurfaceWithFormat, gfx.surface[i].s, 0, w, h, 8,
 				SDL_PIXELFORMAT_INDEX8);
 		SDL_CALL(SDL_FillRect, gfx.surface[i].s, NULL, 0);
@@ -85,20 +87,16 @@ static void _gfx_set_window_size(unsigned w, unsigned h)
 		gfx.surface[i].scaled = false;
 	}
 
-	SDL_CTOR(SDL_CreateRGBSurfaceWithFormat, gfx.display, 0, w, h, 32, SDL_PIXELFORMAT_RGB888);
-	SDL_CTOR(SDL_CreateRGBSurfaceWithFormat, gfx.scaled_display, 0, w, h, 32, SDL_PIXELFORMAT_RGB888);
+	SDL_CTOR(SDL_CreateRGBSurfaceWithFormat, gfx.display, 0, gfx_view.w, gfx_view.h, 32,
+			SDL_PIXELFORMAT_RGB888);
+	SDL_CTOR(SDL_CreateRGBSurfaceWithFormat, gfx.scaled_display, 0, gfx_view.w,
+			gfx_view.h, 32, SDL_PIXELFORMAT_RGB888);
 	SDL_CALL(SDL_FillRect, gfx.display, NULL, SDL_MapRGB(gfx.display->format, 0, 0, 0));
-	SDL_CALL(SDL_FillRect, gfx.scaled_display, NULL, SDL_MapRGB(gfx.scaled_display->format, 0, 0, 0));
+	SDL_CALL(SDL_FillRect, gfx.scaled_display, NULL,
+			SDL_MapRGB(gfx.scaled_display->format, 0, 0, 0));
 
 	SDL_CTOR(SDL_CreateTexture, gfx.texture, gfx.renderer, gfx.display->format->format,
-			SDL_TEXTUREACCESS_STATIC, w, h);
-}
-
-void gfx_set_window_size(unsigned w, unsigned h)
-{
-	if (w == gfx_view.w && h == gfx_view.h)
-		return;
-	_gfx_set_window_size(w, h);
+			SDL_TEXTUREACCESS_STATIC, gfx_view.w, gfx_view.h);
 }
 
 static void gfx_fini(void)
@@ -134,7 +132,7 @@ void gfx_init(const char *name)
 			SDL_WINDOW_RESIZABLE);
 	SDL_CTOR(SDL_CreateRenderer, gfx.renderer, gfx.window, -1, 0);
 	SDL_CALL(SDL_SetRenderDrawColor, gfx.renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
-	_gfx_set_window_size(gfx_view.w, gfx_view.h);
+	gfx_init_window();
 	gfx_text_init();
 	atexit(gfx_fini);
 }
@@ -200,6 +198,14 @@ void gfx_palette_set(const uint8_t *data)
 {
 	GFX_LOG("gfx_palette_set (...)");
 	read_palette(palette, data);
+	update_palette();
+}
+
+void gfx_palette_set_color(uint8_t c, uint8_t r, uint8_t g, uint8_t b)
+{
+	palette[c].r = r;
+	palette[c].g = g;
+	palette[c].b = b;
 	update_palette();
 }
 

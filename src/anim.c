@@ -50,6 +50,8 @@ struct anim_stream {
 	struct { unsigned start, count; } loop2;
 	// offset into animation CG
 	struct { unsigned x, y; } off;
+	// animation initialized
+	bool initialized;
 };
 
 static struct anim_stream streams[S4_MAX_STREAMS] = {0};
@@ -80,16 +82,19 @@ void anim_init_stream(unsigned slot, unsigned stream)
 
 	struct anim_stream *anim = &streams[slot];
 	memset(anim, 0, sizeof(struct anim_stream));
-	anim->file_data = memory.file_data + memory_system_var32()[MES_SYS_VAR_DATA_OFFSET];
+	anim->file_data = memory.file_data + mem_get_sysvar32(MES_SYS_VAR_DATA_OFFSET);
 	anim->bytecode = anim->file_data + le_get16(anim->file_data, 1 + stream * 2);
+	anim->initialized = true;
 }
 
 void anim_start(unsigned slot)
 {
 	ANIM_LOG("anim_start(%u)", slot);
 	check_slot(slot);
-	streams[slot].cmd = ANIM_CMD_RUN;
-	streams[slot].ip = 0;
+	if (streams[slot].initialized) {
+		streams[slot].cmd = ANIM_CMD_RUN;
+		streams[slot].ip = 0;
+	}
 }
 
 void anim_stop(unsigned slot)
@@ -104,6 +109,7 @@ void anim_halt(unsigned slot)
 	ANIM_LOG("anim_halt(%u)", slot);
 	check_slot(slot);
 	streams[slot].cmd = ANIM_CMD_HALTED;
+	streams[slot].initialized = false;
 }
 
 void anim_stop_all(void)
@@ -120,6 +126,7 @@ void anim_halt_all(void)
 	ANIM_LOG("anim_halt_all()");
 	for (int i = 0; i < S4_MAX_STREAMS; i++) {
 		streams[i].cmd = ANIM_CMD_HALTED;
+		streams[i].initialized = false;
 	}
 }
 
@@ -143,7 +150,7 @@ static bool anim_stream_draw(struct anim_stream *anim, uint8_t i)
 		return false;
 	}
 
-	unsigned off = 1 + anim->file_data[0] * 2 + (i - 20) * S4_DRAW_CALL_SIZE;
+	unsigned off = 1 + anim->file_data[0] * 2 + (i - 20) * s4_draw_call_size;
 	struct s4_draw_call call;
 	if (!s4_parse_draw_call(anim->file_data + off, &call)) {
 		WARNING("Failed to parse draw call %u", i);
@@ -165,7 +172,7 @@ static bool anim_stream_draw(struct anim_stream *anim, uint8_t i)
 				call.copy.dim.h, call.copy.src.i,
 				call.copy.dst.x + anim->off.x, call.copy.dst.y + anim->off.y,
 				call.copy.dst.i,
-				memory_system_var16()[MES_SYS_VAR_MASK_COLOR]);
+				mem_get_sysvar16(MES_SYS_VAR_MASK_COLOR));
 		break;
 	case S4_DRAW_OP_SWAP:
 		gfx_copy_swap(call.copy.src.x, call.copy.src.y, call.copy.dim.w,
@@ -180,7 +187,7 @@ static bool anim_stream_draw(struct anim_stream *anim, uint8_t i)
 				call.compose.dst.x + anim->off.x,
 				call.compose.dst.y + anim->off.y,
 				call.compose.dst.i,
-				memory_system_var16()[MES_SYS_VAR_MASK_COLOR]);
+				mem_get_sysvar16(MES_SYS_VAR_MASK_COLOR));
 		break;
 	case S4_DRAW_OP_SET_COLOR:
 		break;

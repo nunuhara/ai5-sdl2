@@ -22,24 +22,14 @@
 #include "nulib/file.h"
 #include "nulib/little_endian.h"
 
+#include "game.h"
 #include "memory.h"
 #include "savedata.h"
 #include "vm.h"
 
-/*
- * FIXME: We read and write saves in host endianness, which means existing save
- *        files will be broken on big endian systems. There is no way to fix it
- *        here, because we can't determine word/dword boundaries on the heap.
- *
- *        The interpreter will have to encode/decode values as little endian
- *        when accessing memory, to ensure that the memory image is always
- *        little endian.
- */
-
 static uint32_t savedata_size(void)
 {
-	// TODO: varies by game
-	return 0x2000;
+	return game->mem16_size;
 }
 
 static void close_save(FILE *f)
@@ -109,8 +99,8 @@ static void write_save(const char *save_name, const uint8_t *buf, uint32_t off, 
 void savedata_resume_load(const char *save_name)
 {
 	read_save(save_name, memory_raw, 0, savedata_size());
-	memory_restore();
-	vm_load_mes(memory_mes_name());
+	game->mem_restore();
+	vm_load_mes(mem_mes_name());
 	vm_flag_on(VM_FLAG_RETURN);
 }
 
@@ -124,7 +114,7 @@ void savedata_load(const char *save_name)
 	// load except mes name
 	read_save(save_name, memory_raw, MEMORY_MES_NAME_SIZE,
 			savedata_size() - MEMORY_MES_NAME_SIZE);
-	memory_restore();
+	game->mem_restore();
 }
 
 void savedata_save(const char *save_name)
@@ -136,18 +126,18 @@ void savedata_save(const char *save_name)
 
 void savedata_load_var4(const char *save_name)
 {
-	read_save(save_name, memory_raw, MEMORY_VAR4_OFFSET, memory_var4_size());
+	read_save(save_name, memory_raw, MEMORY_VAR4_OFFSET, game->var4_size);
 }
 
 void savedata_save_var4(const char *save_name)
 {
-	write_save(save_name, memory_raw, MEMORY_VAR4_OFFSET, memory_var4_size());
+	write_save(save_name, memory_raw, MEMORY_VAR4_OFFSET, game->var4_size);
 }
 
 void savedata_save_union_var4(const char *save_name)
 {
 	uint8_t buf[MEMORY_VAR4_MAX_SIZE];
-	unsigned var4_size = memory_var4_size();
+	unsigned var4_size = game->var4_size;
 	FILE *f = open_save(save_name, "r+b");
 	if (!f) {
 		WARNING("Failed to open save file \"%s\": %s", save_name, strerror(errno));
@@ -162,7 +152,7 @@ void savedata_save_union_var4(const char *save_name)
 		goto end;
 	}
 
-	uint8_t *var4 = memory_var4();
+	uint8_t *var4 = mem_var4();
 	for (unsigned i = 0; i < var4_size; i++) {
 		buf[i] |= var4[i];
 	}
@@ -204,20 +194,20 @@ void savedata_f11(const char *save_name)
 {
 	uint8_t buf[MEMORY_MEM16_MAX_SIZE];
 	uint8_t *load_var4 = buf + MEMORY_MES_NAME_SIZE;
-	uint8_t *mem_var4 = memory_var4();
-	read_save(save_name, buf, 0, MEMORY_VAR4_OFFSET + memory_var4_size());
+	uint8_t *cur_var4 = mem_var4();
+	read_save(save_name, buf, 0, MEMORY_VAR4_OFFSET + game->var4_size);
 	memcpy(memory_raw, buf, MEMORY_MES_NAME_SIZE);
-	mem_var4[18] = load_var4[18];
-	mem_var4[21] = load_var4[21];
-	mem_var4[29] = load_var4[29];
+	cur_var4[18] = load_var4[18];
+	cur_var4[21] = load_var4[21];
+	cur_var4[29] = load_var4[29];
 	for (int i = 50; i < 90; i++) {
-		mem_var4[i] = load_var4[i];
+		cur_var4[i] = load_var4[i];
 	}
 	for (int i = 96; i < 2000; i++) {
-		mem_var4[i] = load_var4[i];
+		cur_var4[i] = load_var4[i];
 	}
-	memory_restore();
-	vm_load_mes(memory_mes_name());
+	game->mem_restore();
+	vm_load_mes(mem_mes_name());
 	vm_flag_on(VM_FLAG_RETURN);
 }
 
@@ -232,16 +222,16 @@ void savedata_f12(const char *save_name)
 {
 	uint8_t buf[MEMORY_MEM16_MAX_SIZE];
 	uint8_t *out_var4 = buf + MEMORY_MES_NAME_SIZE;
-	uint8_t *mem_var4 = memory_var4();
-	read_save(save_name, buf, 0, MEMORY_VAR4_OFFSET + memory_var4_size());
+	uint8_t *cur_var4 = mem_var4();
+	read_save(save_name, buf, 0, MEMORY_VAR4_OFFSET + game->var4_size);
 	memcpy(buf, stashed_mes_name, MEMORY_MES_NAME_SIZE);
 	for (int i = 50; i < 90; i++) {
-		out_var4[i] = mem_var4[i];
+		out_var4[i] = cur_var4[i];
 	}
 	for (int i = 96; i < 2000; i++) {
-		out_var4[i] = mem_var4[i];
+		out_var4[i] = cur_var4[i];
 	}
-	write_save(save_name, buf, 0, MEMORY_VAR4_OFFSET + memory_var4_size());
+	write_save(save_name, buf, 0, MEMORY_VAR4_OFFSET + game->var4_size);
 }
 
 void savedata_set_mes_name(const char *save_name, const char *mes_name)

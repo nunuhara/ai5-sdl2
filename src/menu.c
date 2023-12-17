@@ -81,7 +81,7 @@ void menu_exec(void)
 			VM_ERROR("Procedure %d is undefined in menuexec", i);
 	}
 
-	memory_system_var16()[MES_SYS_VAR_NR_MENU_ENTRIES] = count_entries();
+	mem_set_sysvar16(MES_SYS_VAR_NR_MENU_ENTRIES, count_entries());
 
 	// initialize menu
 	vm_call_procedure(38);
@@ -123,9 +123,9 @@ void menu_get_no(unsigned index)
 {
 	for (int no = 0; no < MEMORY_MENU_ENTRY_MAX; no++) {
 		if (menu_no_to_index_table[no] == index) {
-			memory_system_var16()[22] = no;
+			mem_set_sysvar16(22, no);
 			return;
 		}
 	}
-	memory_system_var16()[22] = 200;
+	mem_set_sysvar16(22, 200);
 }

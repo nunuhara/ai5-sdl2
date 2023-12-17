@@ -19,6 +19,8 @@
 
 #include <stdint.h>
 
+#include "nulib/little_endian.h"
+
 #define MEMORY_MES_NAME_SIZE 128
 #define MEMORY_VAR4_OFFSET MEMORY_MES_NAME_SIZE
 #define MEMORY_FILE_DATA_SIZE 0x200000
@@ -54,65 +56,80 @@ struct memory {
 };
 
 struct memory_ptr {
-	uint32_t *system_var16_ptr;
-	uint16_t *var16;
-	uint16_t *system_var16;
-	uint32_t *var32;
-	uint32_t *system_var32;
+	uint8_t *system_var16_ptr;
+	uint8_t *var16;
+	uint8_t *system_var16;
+	uint8_t *var32;
+	uint8_t *system_var32;
 };
 
 extern struct memory memory;
 #define memory_raw ((uint8_t*)&memory)
 extern struct memory_ptr memory_ptr;
 
-static inline uint32_t memory_var4_size(void)
+static inline void mem_set_sysvar16_ptr(uint32_t ptr)
 {
-	// TODO: varies by game
-	return 4096;
+	le_put32(memory_ptr.system_var16_ptr, 0, ptr);
 }
 
-static inline uint16_t *memory_system_var16_ptr(void)
-{
-	return (uint16_t*)(memory_raw + *(memory_ptr.system_var16_ptr));
-}
-
-static inline void memory_system_var16_ptr_set(uint32_t ptr)
-{
-	uint32_t *p = (uint32_t*)(memory_raw + MEMORY_MES_NAME_SIZE + memory_var4_size());
-	*p = ptr;
-}
-
-static inline char *memory_mes_name(void)
+static inline char *mem_mes_name(void)
 {
 	return (char*)memory_raw;
 }
 
-static inline uint8_t *memory_var4(void)
+static inline uint8_t *mem_var4(void)
 {
 	return (uint8_t*)(memory_raw + MEMORY_MES_NAME_SIZE);
 }
 
-static inline uint16_t *memory_var16(void)
+static inline uint8_t mem_get_var4(unsigned i)
 {
-	return memory_ptr.var16;
+	return (memory_raw + MEMORY_MES_NAME_SIZE)[i];
 }
 
-static inline uint16_t *memory_system_var16(void)
+static inline void mem_set_var4(unsigned i, uint8_t v)
 {
-	return memory_ptr.system_var16;
+	(memory_raw + MEMORY_MES_NAME_SIZE)[i] = v & 0xf;
 }
 
-static inline uint32_t *memory_var32(void)
+static inline uint16_t mem_get_var16(unsigned i)
 {
-	return memory_ptr.var32;
+	return le_get16(memory_ptr.var16, i*2);
 }
 
-static inline uint32_t *memory_system_var32(void)
+static inline void mem_set_var16(unsigned i, uint16_t v)
 {
-	return memory_ptr.system_var32;
+	le_put16(memory_ptr.var16, i*2, v);
 }
 
-void memory_init(void);
-void memory_restore(void);
+static inline uint16_t mem_get_sysvar16(unsigned i)
+{
+	return le_get16(memory_ptr.system_var16, i*2);
+}
+
+static inline void mem_set_sysvar16(unsigned i, uint16_t v)
+{
+	le_put16(memory_ptr.system_var16, i*2, v);
+}
+
+static inline uint32_t mem_get_var32(unsigned i)
+{
+	return le_get32(memory_ptr.var32, i*4);
+}
+
+static inline void mem_set_var32(unsigned i, uint32_t v)
+{
+	le_put32(memory_ptr.var32, i*4, v);
+}
+
+static inline uint32_t mem_get_sysvar32(unsigned i)
+{
+	return le_get32(memory_ptr.system_var32, i*4);
+}
+
+static inline void mem_set_sysvar32(unsigned i, uint32_t v)
+{
+	le_put32(memory_ptr.system_var32, i*4, v);
+}
 
 #endif // AI5_MEMORY_H

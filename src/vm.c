@@ -24,30 +24,24 @@
 #include "nulib/string.h"
 #include "nulib/utfsjis.h"
 #include "ai5/arc.h"
-#include "ai5/cg.h"
 #include "ai5/game.h"
 #include "ai5/mes.h"
-#include "ai5/s4.h"
 
 #include "ai5.h"
 #include "anim.h"
 #include "asset.h"
 #include "audio.h"
-#include "cursor.h"
+#include "game.h"
 #include "gfx.h"
 #include "input.h"
 #include "memory.h"
 #include "menu.h"
-#include "savedata.h"
-#include "vm.h"
-
-#define usr_var4  memory_var4()
-#define usr_var16 memory_var16()
-#define usr_var32 memory_var32()
-#define sys_var16 memory_system_var16()
-#define sys_var32 memory_system_var32()
+#include "vm_private.h"
 
 struct vm vm = {0};
+struct memory memory = {0};
+struct memory_ptr memory_ptr = {0};
+struct game *game = NULL;
 
 void vm_print_state(void)
 {
@@ -105,7 +99,7 @@ uint32_t vm_stack_pop(void)
 
 void vm_load_mes(char *name)
 {
-	strcpy(memory_mes_name(), name);
+	strcpy(mem_mes_name(), name);
 	for (int i = 0; memory_raw[i]; i++) {
 		memory_raw[i] = toupper(memory_raw[i]);
 	}
@@ -130,21 +124,23 @@ static uint32_t vm_eval(void)
 			vm_stack_push(op);
 			break;
 		case MES_EXPR_VAR:
-			vm_stack_push(usr_var16[vm_read_byte()]);
+			vm_stack_push(mem_get_var16(vm_read_byte()));
 			break;
 		case MES_EXPR_ARRAY16_GET16: {
 			uint32_t i = vm_stack_pop();
 			uint8_t var = vm_read_byte();
-			uint16_t *src = memory_system_var16();
+			uint16_t v;
 			if (var)
-				src = (uint16_t*)(memory_raw + usr_var16[var - 1]);
-			vm_stack_push(src[i]);
+				v = le_get16(memory_raw + mem_get_var16(var - 1), i * 2);
+			else
+				v = mem_get_sysvar16(i);
+			vm_stack_push(v);
 			break;
 		}
 		case MES_EXPR_ARRAY16_GET8: {
 			uint32_t i = vm_stack_pop();
 			uint8_t var = vm_read_byte();
-			uint8_t *src = memory_raw + usr_var16[var];
+			uint8_t *src = memory_raw + mem_get_var16(var);
 			vm_stack_push(src[i]);
 			break;
 		}
@@ -213,36 +209,38 @@ static uint32_t vm_eval(void)
 			vm_stack_push(vm_read_dword());
 			break;
 		case MES_EXPR_REG16:
-			vm_stack_push(usr_var4[vm_read_word()]);
+			vm_stack_push(mem_get_var4(vm_read_word()));
 			break;
 		case MES_EXPR_REG8:
-			vm_stack_push(usr_var4[vm_stack_pop()]);
+			vm_stack_push(mem_get_var4(vm_stack_pop()));
 			break;
 		case MES_EXPR_ARRAY32_GET32: {
 			uint32_t i = vm_stack_pop();
 			uint8_t var = vm_read_byte();
-			uint32_t *src = sys_var32;
+			uint32_t v;
 			if (var)
-				src = (uint32_t*)(memory_raw + usr_var32[var - 1]);
-			vm_stack_push(src[i]);
+				v = le_get32(memory_raw + mem_get_var32(var - 1), i * 4);
+			else
+				v = mem_get_sysvar32(i);
+			vm_stack_push(v);
 			break;
 		}
 		case MES_EXPR_ARRAY32_GET16: {
 			uint32_t i = vm_stack_pop();
 			uint8_t var = vm_read_byte();
-			uint16_t *src = (uint16_t*)(memory_raw + usr_var32[var - 1]);
-			vm_stack_push(src[i]);
+			uint16_t v = le_get16(memory_raw + mem_get_var32(var - 1), i * 2);
+			vm_stack_push(v);
 			break;
 		}
 		case MES_EXPR_ARRAY32_GET8: {
 			uint32_t i = vm_stack_pop();
 			uint8_t var = vm_read_byte();
-			uint8_t *src = memory_raw + usr_var32[var - 1];
+			uint8_t *src = memory_raw + mem_get_var32(var - 1);
 			vm_stack_push(src[i]);
 			break;
 		}
 		case MES_EXPR_VAR32:
-			vm_stack_push(usr_var32[vm_read_byte()]);
+			vm_stack_push(mem_get_var32(vm_read_byte()));
 			break;
 		case MES_EXPR_END: {
 			uint32_t r = vm_stack_pop();
@@ -255,23 +253,6 @@ static uint32_t vm_eval(void)
 #undef OPERATOR
 	return 0;
 }
-
-#define STRING_PARAM_SIZE 64
-
-struct param {
-	enum mes_parameter_type type;
-	union {
-		char str[STRING_PARAM_SIZE];
-		uint32_t val;
-	};
-};
-
-#define MAX_PARAMS 30
-
-struct param_list {
-	struct param params[MAX_PARAMS];
-	unsigned nr_params;
-};
 
 static void read_string_param(char *str)
 {
@@ -302,7 +283,7 @@ void read_params(struct param_list *params)
 	params->nr_params = i;
 }
 
-static char *check_string_param(struct param_list *params, int i)
+char *vm_string_param(struct param_list *params, int i)
 {
 	if (params->nr_params < i)
 		VM_ERROR("Too few parameters");
@@ -311,7 +292,7 @@ static char *check_string_param(struct param_list *params, int i)
 	return params->params[i].str;
 }
 
-static uint32_t check_expr_param(struct param_list *params, int i)
+uint32_t vm_expr_param(struct param_list *params, int i)
 {
 	if (i >= params->nr_params) {
 		WARNING("Too few parameters");
@@ -324,9 +305,9 @@ static uint32_t check_expr_param(struct param_list *params, int i)
 
 static void draw_text_eng(const char *text)
 {
-	const unsigned surface = sys_var16[MES_SYS_VAR_DST_SURFACE];
-	uint16_t x = sys_var16[MES_SYS_VAR_TEXT_CURSOR_X] * 8;
-	uint16_t y = sys_var16[MES_SYS_VAR_TEXT_CURSOR_Y];
+	const unsigned surface = mem_get_sysvar16(MES_SYS_VAR_DST_SURFACE);
+	uint16_t x = mem_get_sysvar16(MES_SYS_VAR_TEXT_CURSOR_X) * game->x_mult;
+	uint16_t y = mem_get_sysvar16(MES_SYS_VAR_TEXT_CURSOR_Y);
 	while (*text) {
 		int ch;
 		bool zenkaku = SJIS_2BYTE(*text);
@@ -338,19 +319,19 @@ static void draw_text_eng(const char *text)
 			x -= 2;
 			next_x -= 4;
 		}
-		if (next_x > sys_var16[MES_SYS_VAR_TEXT_END_X] * 8) {
-			y += sys_var16[MES_SYS_VAR_LINE_SPACE];
-			x = sys_var16[MES_SYS_VAR_TEXT_START_X] * 8;
+		if (next_x > mem_get_sysvar16(MES_SYS_VAR_TEXT_END_X) * game->x_mult) {
+			y += mem_get_sysvar16(MES_SYS_VAR_LINE_SPACE);
+			x = mem_get_sysvar16(MES_SYS_VAR_TEXT_START_X) * game->x_mult;
 			next_x = x + char_size;
 		}
 		gfx_text_draw_glyph(x, y, surface, ch);
 		x = next_x;
 	}
-	sys_var16[MES_SYS_VAR_TEXT_CURSOR_X] = ((x+7u) & ~7u) / 8;
-	sys_var16[MES_SYS_VAR_TEXT_CURSOR_Y] = y;
+	mem_set_sysvar16(MES_SYS_VAR_TEXT_CURSOR_X, ((x+7u) & ~7u) / 8);
+	mem_set_sysvar16(MES_SYS_VAR_TEXT_CURSOR_Y, y);
 }
 
-static void draw_text(const char *text)
+void vm_draw_text(const char *text)
 {
 #if 0
 	string u = sjis_cstring_to_utf8(text, strlen(text));
@@ -361,23 +342,30 @@ static void draw_text(const char *text)
 		draw_text_eng(text);
 		return;
 	}
-	const unsigned surface = sys_var16[MES_SYS_VAR_DST_SURFACE];
-	const uint16_t char_space = sys_var16[MES_SYS_VAR_CHAR_SPACE];
-	uint16_t *x = &sys_var16[MES_SYS_VAR_TEXT_CURSOR_X];
-	uint16_t *y = &sys_var16[MES_SYS_VAR_TEXT_CURSOR_Y];
+	const uint16_t surface = mem_get_sysvar16(MES_SYS_VAR_DST_SURFACE);
+	const uint16_t start_x = mem_get_sysvar16(MES_SYS_VAR_TEXT_START_X);
+	const uint16_t end_x = mem_get_sysvar16(MES_SYS_VAR_TEXT_END_X);
+	const uint16_t char_space = mem_get_sysvar16(MES_SYS_VAR_CHAR_SPACE);
+	const uint16_t line_space = mem_get_sysvar16(MES_SYS_VAR_LINE_SPACE);
+	uint16_t x = mem_get_sysvar16(MES_SYS_VAR_TEXT_CURSOR_X);
+	uint16_t y = mem_get_sysvar16(MES_SYS_VAR_TEXT_CURSOR_Y);
 	while (*text) {
 		int ch;
 		bool zenkaku = SJIS_2BYTE(*text);
-		uint16_t next_x = *x + (zenkaku ? char_space / 8 : char_space / 16);
-		if (next_x > sys_var16[MES_SYS_VAR_TEXT_END_X]) {
-			*y += sys_var16[MES_SYS_VAR_LINE_SPACE];
-			*x = sys_var16[MES_SYS_VAR_TEXT_START_X];
-			next_x = *x + (zenkaku ? char_space / 8 : char_space / 16);
+		uint16_t next_x = x + (zenkaku ? char_space / game->x_mult
+				: char_space / (game->x_mult * 2));
+		if (next_x > end_x) {
+			y += line_space;
+			x = start_x;
+			next_x = x + (zenkaku ? char_space / game->x_mult
+					: char_space / (game->x_mult * 2));
 		}
 		text = sjis_char2unicode(text, &ch);
-		gfx_text_draw_glyph(*x * 8, *y, surface, ch);
-		*x = next_x;
+		gfx_text_draw_glyph(x * game->x_mult, y, surface, ch);
+		x = next_x;
 	}
+	mem_set_sysvar16(MES_SYS_VAR_TEXT_CURSOR_X, x);
+	mem_set_sysvar16(MES_SYS_VAR_TEXT_CURSOR_Y, y);
 }
 
 #define TXT_BUF_SIZE 4096
@@ -400,7 +388,7 @@ static void stmt_txt(void)
 	vm_read_byte();
 unterminated:
 	str[str_i] = 0;
-	draw_text(str);
+	vm_draw_text(str);
 }
 
 static void stmt_str(void)
@@ -421,14 +409,14 @@ static void stmt_str(void)
 	vm_read_byte();
 unterminated:
 	str[str_i] = 0;
-	draw_text(str);
+	vm_draw_text(str);
 }
 
 static void stmt_setrbc(void)
 {
 	uint16_t i = vm_read_word();
 	do {
-		usr_var4[i++] = vm_eval() & 0xf;
+		mem_set_var4(i++, vm_eval());
 	} while (vm_read_byte());
 }
 
@@ -436,7 +424,7 @@ static void stmt_setv(void)
 {
 	uint8_t i = vm_read_byte();
 	do {
-		usr_var16[i++] = vm_eval();
+		mem_set_var16(i++, vm_eval());
 	} while (vm_read_byte());
 }
 
@@ -444,7 +432,7 @@ static void stmt_setrbe(void)
 {
 	uint32_t i = vm_eval();
 	do {
-		usr_var4[i++] = vm_eval() & 0xf;
+		mem_set_var4(i++, vm_eval());
 	} while (vm_read_byte());
 }
 
@@ -452,7 +440,7 @@ static void stmt_setrd(void)
 {
 	uint32_t i = vm_read_byte();
 	do {
-		usr_var32[i++] = vm_eval();
+		mem_set_var32(i++, vm_eval());
 	} while (vm_read_byte());
 }
 
@@ -460,7 +448,7 @@ static void stmt_setac(void)
 {
 	uint32_t i = vm_eval();
 	uint8_t var = vm_read_byte();
-	uint8_t *dst = memory_raw + usr_var4[var] + i;
+	uint8_t *dst = memory_raw + mem_get_var4(var) + i;
 
 	do {
 		*dst++ = vm_eval();
@@ -471,14 +459,13 @@ static void stmt_seta_at(void)
 {
 	uint32_t i = vm_eval();
 	uint8_t var = vm_read_byte();
-	uint16_t *dst = memory_system_var16();
-	if (var) {
-		dst = (uint16_t*)(memory_raw + usr_var16[var - 1]);
-	}
-	dst += i;
+	uint8_t *dst = memory_ptr.system_var16;
+	if (var)
+		dst = memory_raw + mem_get_var16(var - 1);
 
 	do {
-		*dst++ = vm_eval();
+		le_put16(dst, i * 2, vm_eval());
+		i++;
 	} while (vm_read_byte());
 }
 
@@ -486,13 +473,13 @@ static void stmt_setad(void)
 {
 	uint32_t i = vm_eval();
 	uint8_t var = vm_read_byte();
-	uint32_t *dst = sys_var32;
+	uint8_t *dst = memory_ptr.system_var32;
 	if (var)
-		dst = (uint32_t*)(memory_raw + usr_var32[var - 1]);
-	dst += i;
+		dst = memory_raw + mem_get_var32(var - 1);
 
 	do {
-		*dst++ = vm_eval();
+		le_put32(dst, i * 4, vm_eval());
+		i++;
 	} while (vm_read_byte());
 }
 
@@ -500,10 +487,11 @@ static void stmt_setaw(void)
 {
 	uint32_t i = vm_eval();
 	uint8_t var = vm_read_byte();
-	uint16_t *dst = (uint16_t*)(memory_raw + usr_var32[var - 1]) + i;
+	uint8_t *dst = memory_raw + mem_get_var32(var - 1);
 
 	do {
-		*dst++ = vm_eval();
+		le_put16(dst, i * 2, vm_eval());
+		i++;
 	} while (vm_read_byte());
 }
 
@@ -511,7 +499,7 @@ static void stmt_setab(void)
 {
 	uint32_t i = vm_eval();
 	uint8_t var = vm_read_byte();
-	uint8_t *dst = memory_raw + usr_var32[var - 1] + i;
+	uint8_t *dst = memory_raw + mem_get_var32(var - 1) + i;
 
 	do {
 		*dst++ = vm_eval();
@@ -532,545 +520,18 @@ static void stmt_jmp(void)
 	vm.ip.ptr = le_get32(vm.ip.code, vm.ip.ptr);
 }
 
-static void stmt_sys_set_font_size(struct param_list *params)
-{
-	gfx_text_set_size(sys_var16[MES_SYS_VAR_FONT_HEIGHT]);
-}
-
-#define MAX_DIGITS 10
-static void stmt_sys_display_number(struct param_list *params)
-{
-	uint32_t n = check_expr_param(params, 0);
-	uint8_t buf[MAX_DIGITS * 2 + 1];
-
-	// count digits
-	unsigned digits = 0;
-	for (uint32_t i = n; i > 0; i /= 10, digits++)
-		;
-
-	// write digits into buffer
-	if (!digits) {
-		buf[0] = 0x82;
-		buf[1] = 0x4f;
-		buf[2] = 0;
-	} else {
-		for (int i = 0; n > 0; i++, n /= 10) {
-			int off = (digits - (i + 1)) * 2;
-			buf[off+0] = 0x82;
-			buf[off+1] = 0x4f + n % 10;
-		}
-		buf[digits * 2] = 0;
-	}
-
-	draw_text((char*)buf);
-}
-
-static void stmt_sys_cursor_save_pos(void)
-{
-	unsigned x, y;
-	cursor_get_pos(&x, &y);
-	sys_var16[3] = x;
-	sys_var16[4] = y;
-}
-
-static void stmt_sys_cursor(struct param_list *params)
-{
-	switch (check_expr_param(params, 0)) {
-	case 0: cursor_reload(); break;
-	case 1: cursor_unload(); break;
-	case 2: stmt_sys_cursor_save_pos(); break;
-	case 3: cursor_set_pos(check_expr_param(params, 1), check_expr_param(params, 2)); break;
-	case 4: cursor_load(check_expr_param(params, 1)); break;
-	case 5: cursor_show(); break;
-	case 6: cursor_hide(); break;
-	default: VM_ERROR("System.Cursor.function[%u] not implemented", params->params[0].val);
-	}
-}
-
-static void stmt_sys_anim(struct param_list *params)
-{
-	switch (check_expr_param(params, 0)) {
-	case 0:  anim_init_stream(check_expr_param(params, 1), check_expr_param(params, 2)); break;
-	case 1:  anim_start(check_expr_param(params, 1)); break;
-	case 2:  anim_stop(check_expr_param(params, 1)); break;
-	case 3:  anim_halt(check_expr_param(params, 1)); break;
-	// TODO
-	case 4:  WARNING("System.Anim.function[4] not implemented"); break;
-	case 5:  anim_stop_all(); break;
-	case 6:  anim_halt_all(); break;
-	case 20: anim_set_offset(check_expr_param(params, 1), check_expr_param(params, 2) * 8,
-				check_expr_param(params, 3)); break;
-	default: VM_ERROR("System.Anim.function[%u] not implemented", params->params[0].val);
-	}
-}
-
-static void stmt_sys_savedata(struct param_list *params)
-{
-	char save_name[7];
-	uint32_t save_no = check_expr_param(params, 1);
-	if (save_no > 99)
-		VM_ERROR("Invalid save number: %u", save_no);
-	sprintf(save_name, "FLAG%02u", save_no);
-
-	switch (check_expr_param(params, 0)) {
-	case 0: savedata_resume_load(save_name); break;
-	case 1: savedata_resume_save(save_name); break;
-	case 2: savedata_load(save_name); break;
-	case 3: savedata_save(save_name); break;
-	case 4: savedata_load_var4(save_name); break;
-	case 5: savedata_save_var4(save_name); break;
-	case 6: savedata_save_union_var4(save_name); break;
-	case 7: savedata_load_var4_slice(save_name, check_expr_param(params, 2),
-				check_expr_param(params, 3)); break;
-	case 8: savedata_save_var4_slice(save_name, check_expr_param(params, 2),
-				check_expr_param(params, 3)); break;
-	case 9: {
-		char save_name2[7];
-		uint32_t save_no2 = check_expr_param(params, 2);
-		if (save_no2 > 99)
-			VM_ERROR("Invalid save number: %u", save_no2);
-		sprintf(save_name2, "FLAG%02u", save_no2);
-		savedata_copy(save_name, save_name2);
-		break;
-	}
-	case 11: savedata_f11(save_name); break;
-	case 12: savedata_f12(save_name); break;
-	case 13: savedata_set_mes_name(save_name, check_string_param(params, 2)); break;
-	default: VM_ERROR("System.savedata.function[%u] not implemented", params->params[0].val);
-	}
-}
-
-static void stmt_sys_audio(struct param_list *params)
-{
-	switch (check_expr_param(params, 0)) {
-	case 0:  audio_bgm_play(check_string_param(params, 1), true); break;
-	case 2:  audio_bgm_stop(); break;
-	case 3:  audio_se_play(check_string_param(params, 1)); break;
-	case 4:  audio_bgm_fade(check_expr_param(params, 1), check_expr_param(params, 2),
-				check_expr_param(params, 3), true); break;
-	case 5:  audio_bgm_set_volume(check_expr_param(params, 1)); break;
-	case 7:  audio_bgm_fade(check_expr_param(params, 1), check_expr_param(params, 2),
-				check_expr_param(params, 3), false); break;
-	case 9:  audio_bgm_fade_out(check_expr_param(params, 1), check_expr_param(params, 1),
-				true); break;
-	case 10: audio_bgm_fade_out(check_expr_param(params, 1), check_expr_param(params, 2),
-				false); break;
-	case 12: audio_se_stop(); break;
-	case 18: audio_bgm_restore_volume(); break;
-	default: VM_ERROR("System.Audio.function[%d] not implemented", params->params[0].val);
-	}
-}
-
-static void vm_read_file(const char *name, uint32_t offset)
-{
-	struct archive_data *data = asset_data_load(name);
-	if (!data) {
-		WARNING("Failed to read data file \"%s\"", name);
-		return;
-	}
-	if (offset + data->size > MEMORY_FILE_DATA_SIZE) {
-		WARNING("Tried to read file beyond end of buffer");
-		goto end;
-	}
-	memcpy(memory.file_data + offset, data->data, data->size);
-end:
-	archive_data_release(data);
-}
-
-static void stmt_sys_file(struct param_list *params)
-{
-	// TODO: on older games there is no File.write, and this call doesn't take
-	//       a cmd parameter
-	switch (check_expr_param(params, 0)) {
-	case 0:  vm_read_file(check_string_param(params, 1), check_expr_param(params, 2)); break;
-	case 1:  // TODO: File.write
-	default: VM_ERROR("System.File.function[%d] not implemented", params->params[0].val);
-	}
-}
-
-static void vm_load_image(const char *name, unsigned i)
-{
-	struct archive_data *data = asset_cg_load(name);
-	if (!data) {
-		WARNING("Failed to load CG \"%s\"", name);
-		return;
-	}
-
-	// copy CG data into file_data
-	uint32_t off = sys_var32[MES_SYS_VAR_CG_OFFSET];
-	if (off + data->size > MEMORY_FILE_DATA_SIZE)
-		VM_ERROR("CG data would exceed buffer size");
-	memcpy(memory.file_data + off, data->data, data->size);
-
-	// decode CG
-	struct cg *cg = cg_load_arcdata(data);
-	archive_data_release(data);
-	if (!cg) {
-		WARNING("Failed to decode CG \"%s\"", name);
-		return;
-	}
-
-	sys_var16[MES_SYS_VAR_CG_X] = cg->metrics.x / 8;
-	sys_var16[MES_SYS_VAR_CG_Y] = cg->metrics.y;
-	sys_var16[MES_SYS_VAR_CG_W] = cg->metrics.w / 8;
-	sys_var16[MES_SYS_VAR_CG_H] = cg->metrics.h;
-
-	// draw CG
-	gfx_draw_cg(i, cg);
-	if (cg->palette && vm_flag_is_on(VM_FLAG_LOAD_PALETTE)) {
-		memcpy(memory.palette, cg->palette, 256 * 4);
-	}
-	cg_free(cg);
-}
-
-static void stmt_sys_load_image(struct param_list *params)
-{
-	vm_load_image(check_string_param(params, 0), sys_var16[MES_SYS_VAR_DST_SURFACE]);
-}
-
-static void check_rgb_param(struct param_list *params, unsigned i, uint8_t *r, uint8_t *g,
-		uint8_t *b)
-{
-	uint32_t c = check_expr_param(params, i);
-	*r = ((c >> 4) & 0xf) * 17;
-	*g = ((c >> 8) & 0xf) * 17;
-	*b = (c & 0xf) * 17;
-}
-
-static void stmt_sys_palette_set(struct param_list *params)
-{
-	if (params->nr_params > 1) {
-		uint8_t r, g, b;
-		uint8_t pal[256*4];
-		check_rgb_param(params, 1, &r, &g, &b);
-		for (int i = 0; i < 256; i += 4) {
-			pal[i+0] = b;
-			pal[i+1] = g;
-			pal[i+2] = r;
-			pal[i+3] = 0;
-		}
-		gfx_palette_set(pal);
-	} else {
-		gfx_palette_set(memory.palette);
-	}
-}
-
-static void stmt_sys_palette_crossfade1(struct param_list *params)
-{
-	if (params->nr_params > 1) {
-		uint8_t r, g, b;
-		check_rgb_param(params, 1, &r, &g, &b);
-		gfx_palette_crossfade_to(r, g, b, 240);
-	} else {
-		gfx_palette_crossfade(memory.palette, 240);
-	}
-}
-
-static void stmt_sys_palette_crossfade2(struct param_list *params)
-{
-	// XXX: t is a value from 0-15 corresponding to the interval [0-3600]
-	//      in increments of 240
-	uint32_t t = check_expr_param(params, 1);
-	if (params->nr_params > 2) {
-		uint8_t r, g, b;
-		check_rgb_param(params, 2, &r, &g, &b);
-		gfx_palette_crossfade_to(r, g, b, (t & 0xf) * 240);
-	} else {
-		gfx_palette_crossfade(memory.palette, (t & 0xf) * 240);
-	}
-}
-
-static void stmt_sys_palette(struct param_list *params)
-{
-	check_expr_param(params, 0);
-	switch (params->params[0].val) {
-	case 0:  stmt_sys_palette_set(params); break;
-	case 1:  stmt_sys_palette_crossfade1(params); break;
-	case 2:  stmt_sys_palette_crossfade2(params); break;
-	case 3:  gfx_hide_screen(); break;
-	case 4:  gfx_unhide_screen(); break;
-	default: VM_ERROR("System.Palette.function[%d] not implemented",
-				 params->params[0].val);
-	}
-}
-
-static void stmt_sys_graphics_copy(struct param_list *params)
-{
-	// System.Grahpics.copy(src_x, src_y, src_br_x, src_br_y, src_i, dst_x, dst_y, dst_i)
-	int src_x = check_expr_param(params, 1);
-	int src_y = check_expr_param(params, 2);
-	int src_w = (check_expr_param(params, 3) - src_x) + 1;
-	int src_h = (check_expr_param(params, 4) - src_y) + 1;
-	unsigned src_i = check_expr_param(params, 5);
-	int dst_x = check_expr_param(params, 6);
-	int dst_y = check_expr_param(params, 7);
-	unsigned dst_i = check_expr_param(params, 8);
-	gfx_copy(src_x * 8, src_y, src_w * 8, src_h, src_i, dst_x * 8, dst_y, dst_i);
-}
-
-static void stmt_sys_graphics_copy_masked(struct param_list *params)
-{
-	// System.Grahpics.copy_masked(src_x, src_y, src_br_x, src_br_y, src_i, dst_x, dst_y, dst_i)
-	int src_x = check_expr_param(params, 1);
-	int src_y = check_expr_param(params, 2);
-	int src_w = (check_expr_param(params, 3) - src_x) + 1;
-	int src_h = (check_expr_param(params, 4) - src_y) + 1;
-	unsigned src_i = check_expr_param(params, 5);
-	int dst_x = check_expr_param(params, 6);
-	int dst_y = check_expr_param(params, 7);
-	unsigned dst_i = check_expr_param(params, 8);
-	gfx_copy_masked(src_x * 8, src_y, src_w * 8, src_h, src_i, dst_x * 8, dst_y, dst_i,
-			sys_var16[MES_SYS_VAR_MASK_COLOR]);
-}
-
-static void stmt_sys_graphics_fill_bg(struct param_list *params)
-{
-	// System.Graphics.fill_bg(x, y, br_x, br_y)
-	int x = check_expr_param(params, 1);
-	int y = check_expr_param(params, 2);
-	int w = (check_expr_param(params, 3) - x) + 1;
-	int h = (check_expr_param(params, 4) - y) + 1;
-	gfx_text_fill(x * 8, y, w * 8, h, sys_var16[MES_SYS_VAR_DST_SURFACE]);
-}
-
-static void stmt_sys_graphics_copy_swap(struct param_list *params)
-{
-	// System.Grahpics.copy_swap(src_x, src_y, src_br_x, src_br_y, src_i, dst_x, dst_y, dst_i)
-	int src_x = check_expr_param(params, 1);
-	int src_y = check_expr_param(params, 2);
-	int src_w = (check_expr_param(params, 3) - src_x) + 1;
-	int src_h = (check_expr_param(params, 4) - src_y) + 1;
-	unsigned src_i = check_expr_param(params, 5);
-	int dst_x = check_expr_param(params, 6);
-	int dst_y = check_expr_param(params, 7);
-	unsigned dst_i = check_expr_param(params, 8);
-	gfx_copy_swap(src_x * 8, src_y, src_w * 8, src_h, src_i, dst_x * 8, dst_y, dst_i);
-}
-
-static void stmt_sys_graphics_swap_bg_fg(struct param_list *params)
-{
-	// System.Graphics.swap_bg_fg(x, y, br_x, br_y)
-	int x = check_expr_param(params, 1);
-	int y = check_expr_param(params, 2);
-	int w = (check_expr_param(params, 3) - x) + 1;
-	int h = (check_expr_param(params, 4) - y) + 1;
-	gfx_text_swap_colors(x * 8, y, w * 8, h, sys_var16[MES_SYS_VAR_DST_SURFACE]);
-}
-
-static void stmt_sys_graphics_compose(struct param_list *params)
-{
-	// System.Grahpics.compose(src_x, src_y, src_br_x, src_br_y, src_i, dst_x, dst_y, dst_i)
-	int fg_x = check_expr_param(params, 1);
-	int fg_y = check_expr_param(params, 2);
-	int w = (check_expr_param(params, 3) - fg_x) + 1;
-	int h = (check_expr_param(params, 4) - fg_y) + 1;
-	unsigned fg_i = check_expr_param(params, 5);
-	int bg_x = check_expr_param(params, 6);
-	int bg_y = check_expr_param(params, 7);
-	unsigned bg_i = check_expr_param(params, 8);
-	int dst_x = check_expr_param(params, 9);
-	int dst_y = check_expr_param(params, 10);
-	unsigned dst_i = check_expr_param(params, 11);
-	gfx_compose(fg_x * 8, fg_y, w * 8, h, fg_i, bg_x * 8, bg_y, bg_i, dst_x * 8,
-			dst_y, dst_i, sys_var16[MES_SYS_VAR_MASK_COLOR]);
-}
-
-static void stmt_sys_graphics_invert_colors(struct param_list *params)
-{
-	// System.Grahpics.invert_colors(x, y, br_x, br_y)
-	int x = check_expr_param(params, 1);
-	int y = check_expr_param(params, 2);
-	int w = (check_expr_param(params, 3) - x) + 1;
-	int h = (check_expr_param(params, 4) - y) + 1;
-	unsigned i = sys_var16[MES_SYS_VAR_DST_SURFACE];
-	gfx_invert_colors(x * 8, y, w * 8, h, i);
-}
-
-static void stmt_sys_graphics_copy_progressive(struct param_list *params)
-{
-	// System.Grahpics.copy(src_x, src_y, src_br_x, src_br_y, src_i, dst_x, dst_y, dst_i)
-	int src_x = check_expr_param(params, 1);
-	int src_y = check_expr_param(params, 2);
-	int src_w = (check_expr_param(params, 3) - src_x) + 1;
-	int src_h = (check_expr_param(params, 4) - src_y) + 1;
-	unsigned src_i = check_expr_param(params, 5);
-	int dst_x = check_expr_param(params, 6);
-	int dst_y = check_expr_param(params, 7);
-	unsigned dst_i = check_expr_param(params, 8);
-	gfx_copy_progressive(src_x * 8, src_y, src_w * 8, src_h, src_i, dst_x * 8, dst_y, dst_i);
-}
-
-static void stmt_sys_graphics(struct param_list *params)
-{
-	check_expr_param(params, 0);
-	switch (params->params[0].val) {
-	case 0:  stmt_sys_graphics_copy(params); break;
-	case 1:  stmt_sys_graphics_copy_masked(params); break;
-	case 2:  stmt_sys_graphics_fill_bg(params); break;
-	case 3:  stmt_sys_graphics_copy_swap(params); break;
-	case 4:  stmt_sys_graphics_swap_bg_fg(params); break;
-	case 5:  stmt_sys_graphics_compose(params); break;
-	case 6:  stmt_sys_graphics_invert_colors(params); break;
-	case 20: stmt_sys_graphics_copy_progressive(params); break;
-	default: VM_ERROR("System.Image.function[%d] not implemented",
-				 params->params[0].val);
-	}
-}
-
-static void stmt_sys_wait(struct param_list *params)
-{
-	if (params->nr_params == 0 || check_expr_param(params, 0) == 0) {
-		while (true) {
-			if (input_down(INPUT_CTRL)) {
-				vm_peek();
-				vm_delay(16);
-				return;
-			}
-			if (input_down(INPUT_ACTIVATE)) {
-				input_wait_until_up(INPUT_ACTIVATE);
-				return;
-			}
-			vm_peek();
-			vm_delay(16);
-		}
-	} else {
-		vm_timer_t timer = vm_timer_create();
-		uint32_t target_t = timer + params->params[0].val * 4;
-		while (timer < target_t && !input_down(INPUT_SHIFT)) {
-			vm_timer_tick(&timer, 16);
-		}
-	}
-}
-
-static void stmt_sys_set_text_colors(struct param_list *params)
-{
-	check_expr_param(params, 0);
-	uint32_t colors = params->params[0].val;
-	gfx_text_set_colors((colors >> 4) & 0xf, colors & 0xf);
-}
-
-static bool farcall_addr_valid(uint32_t addr)
-{
-	return addr < sizeof(struct memory);
-}
-
-static void stmt_sys_farcall(struct param_list *params)
-{
-	uint32_t addr = check_expr_param(params, 0);
-	if (unlikely(!farcall_addr_valid(addr)))
-		VM_ERROR("Tried to farcall to invalid address");
-
-	struct vm_pointer saved_ip = vm.ip;
-	vm.ip.ptr = 0;
-	vm.ip.code = memory_raw + addr;
-	vm_exec();
-	vm.ip = saved_ip;
-}
-
-/*
- * This is essentially an array lookup based on cursor position.
- * It reads an array of the following structures:
- *
- *     struct a6_entry {
- *         unsigned id;
- *         struct { unsigned x, y; } top_left;
- *         struct { unsigned x, y; } bot_right;
- *     };
- *
- * If the cursor position is between `top_left` and `bot_right`, then `id` is returned.
- * If no match is found, then 0xFFFF is returned.
- */
-static void stmt_sys_check_cursor_pos(struct param_list *params)
-{
-	unsigned x = check_expr_param(params, 0);
-	unsigned y = check_expr_param(params, 1);
-	if (x >= gfx_view.w || y >= gfx_view.h) {
-		WARNING("Invalid argument to System.check_cursor_pos: (%u,%u)", x, y);
-		return;
-	}
-
-	uint8_t *a = memory.file_data + check_expr_param(params, 2);
-	while (a < memory.file_data + MEMORY_FILE_DATA_SIZE - 10) {
-		uint16_t id = le_get16(a, 0);
-		if (id == 0xffff) {
-			usr_var16[18] = 0xffff;
-			return;
-		}
-		uint16_t x_left = le_get16(a, 2);
-		uint16_t y_top = le_get16(a, 4);
-		uint16_t x_right = le_get16(a, 6);
-		uint16_t y_bot = le_get16(a, 8);
-		if (x >= x_left && x <= x_right && y >= y_top && y <= y_bot) {
-			usr_var16[18] = id;
-			return;
-		}
-
-		a += 10;
-	}
-	WARNING("Read past end of buffer in System.check_cursor_pos");
-	usr_var16[18] = 0;
-}
-
-static void stmt_sys_check_input(struct param_list *params)
-{
-	unsigned input = check_expr_param(params, 0);
-	bool value = check_expr_param(params, 1);
-	if (input >= INPUT_NR_INPUTS) {
-		WARNING("Invalid input number: %u", input);
-		sys_var32[18] = false;
-		return;
-	}
-
-	bool is_down = input_down(input);
-	usr_var32[18] = value && is_down;
-}
-
-static void stmt_sys_strlen(struct param_list *params)
-{
-	uint32_t ptr = check_expr_param(params, 0);
-	if (unlikely(ptr >= sizeof(struct memory)))
-		VM_ERROR("Invalid pointer: %u", ptr);
-	uint8_t *str = memory_raw + ptr;
-	usr_var32[18] = strnlen((char*)str, sizeof(struct memory) - ptr);
-}
-
-static void stmt_sys_set_screen_surface(struct param_list *params)
-{
-	unsigned i = check_expr_param(params, 0);
-	if (i >= GFX_NR_SURFACES)
-		VM_ERROR("Invalid surface number: %u", i);
-	gfx_set_screen_surface(i);
-}
-
 static void stmt_sys(void)
 {
-	int32_t no = vm_eval();
-
+	uint32_t no = vm_eval();
 	struct param_list params = {0};
 	read_params(&params);
 
-	switch (no) {
-	case 0:  stmt_sys_set_font_size(&params); break;
-	case 1:  stmt_sys_display_number(&params); break;
-	case 2:  stmt_sys_cursor(&params); break;
-	case 3:  stmt_sys_anim(&params); break;
-	case 4:  stmt_sys_savedata(&params); break;
-	case 5:  stmt_sys_audio(&params); break;
-	case 7:  stmt_sys_file(&params); break;
-	case 8:  stmt_sys_load_image(&params); break;
-	case 9:  stmt_sys_palette(&params); break;
-	case 10: stmt_sys_graphics(&params); break;
-	case 11: stmt_sys_wait(&params); break;
-	case 12: stmt_sys_set_text_colors(&params); break;
-	case 13: stmt_sys_farcall(&params); break;
-	case 14: stmt_sys_check_cursor_pos(&params); break;
-	case 15: menu_get_no(check_expr_param(&params, 0)); break;
-	case 18: stmt_sys_check_input(&params); break;
-	case 21: stmt_sys_strlen(&params); break;
-	case 22: WARNING("System.function[22] not implemented"); break;
-	case 23: stmt_sys_set_screen_surface(&params); break;
-	default: VM_ERROR("System.function[%d] not implemented", no);
-	}
+	if (unlikely(no >= GAME_MAX_SYS))
+		VM_ERROR("Invalid System call number: %u", no);
+	if (unlikely(!game->sys[no]))
+		VM_ERROR("System.function[%u] not implemented", no);
+
+	game->sys[no](&params);
 }
 
 static void stmt_goto(void)
@@ -1078,7 +539,7 @@ static void stmt_goto(void)
 	struct param_list params = {0};
 	read_params(&params);
 
-	check_string_param(&params, 0);
+	vm_string_param(&params, 0);
 	vm_load_mes(params.params[0].str);
 
 	vm_flag_on(VM_FLAG_RETURN);
@@ -1088,12 +549,12 @@ static void stmt_call(void)
 {
 	struct param_list params = {0};
 	read_params(&params);
-	check_string_param(&params, 0);
+	vm_string_param(&params, 0);
 
 	// save current VM state
 	struct vm_mes_call *frame = &vm.mes_call_stack[vm.mes_call_stack_ptr++];
 	frame->ip = vm.ip;
-	memcpy(frame->mes_name, memory_mes_name(), 12);
+	memcpy(frame->mes_name, mem_mes_name(), 12);
 	frame->mes_name[12] = '\0';
 	memcpy(frame->procedures, vm.procedures, sizeof(vm.procedures));
 
@@ -1121,7 +582,7 @@ static void stmt_menui(void)
 	struct param_list params = {0};
 	read_params(&params);
 	uint32_t addr = vm_read_dword();
-	menu_define(check_expr_param(&params, 0), addr == vm.ip.ptr + 1);
+	menu_define(vm_expr_param(&params, 0), addr == vm.ip.ptr + 1);
 	vm.ip.ptr = addr;
 }
 
@@ -1140,245 +601,21 @@ static void stmt_proc(void)
 {
 	struct param_list params = {0};
 	read_params(&params);
-	vm_call_procedure(check_expr_param(&params, 0));
-}
-
-static void stmt_util_get_text_colors(void)
-{
-	uint8_t bg, fg;
-	gfx_text_get_colors(&bg, &fg);
-	usr_var32[18] = (bg << 4) | fg;
-}
-
-static void stmt_util_scale_h(struct param_list *params)
-{
-	union {
-		uint16_t u;
-		int16_t i;
-	} cast = {
-		.u = check_expr_param(params, 1)
-	};
-
-	gfx_scale_h(gfx_current_surface(), cast.i);
-}
-
-static void stmt_util_invert_colors(struct param_list *params)
-{
-	int x = check_expr_param(params, 1);
-	int y = check_expr_param(params, 2);
-	int w = (check_expr_param(params, 3) - x) + 1;
-	int h = (check_expr_param(params, 4) - y) + 1;
-	gfx_invert_colors(x, y, w, h, 0);
-}
-
-static void stmt_util_fade(struct param_list *params)
-{
-	int x = check_expr_param(params, 1);
-	int y = check_expr_param(params, 2);
-	int w = (check_expr_param(params, 3) - x) + 1;
-	int h = (check_expr_param(params, 4) - y) + 1;
-	unsigned dst_i = check_expr_param(params, 5);
-	bool down = check_expr_param(params, 6) == 1;
-	int src_i = check_expr_param(params, 7) == 0 ? -1 : 2;
-
-	if (down)
-		gfx_fade_down(x * 8, y, w * 8, h, dst_i, src_i);
-	else
-		gfx_fade_right(x * 8, y, w * 8, h, dst_i, src_i);
-}
-
-static void stmt_util_pixelate(struct param_list *params)
-{
-	int x = check_expr_param(params, 1);
-	int y = check_expr_param(params, 2);
-	int w = (check_expr_param(params, 3) - x) + 1;
-	int h = (check_expr_param(params, 4) - y) + 1;
-	unsigned dst_i = check_expr_param(params, 5);
-	unsigned mag = check_expr_param(params, 6);
-
-	gfx_pixelate(x * 8, y, w * 8, h, dst_i, mag);
-}
-
-static void stmt_util_get_time(struct param_list *params)
-{
-	static uint32_t start_t = 0;
-	if (!check_expr_param(params, 1)) {
-		start_t = vm_get_ticks();
-		return;
-	}
-
-	// return hours:minutes:seconds
-	uint32_t elapsed = (vm_get_ticks() - start_t) / 1000;
-	usr_var16[7] = elapsed / 3600;
-	usr_var16[12] = (elapsed % 3600) / 60;
-	usr_var16[18] = elapsed % 60;
-}
-
-// wait for cursor to rest for a given interval
-static void stmt_util_check_cursor(struct param_list *params)
-{
-	static uint32_t start_t = 0, wait_t = 0;
-	static int cursor_x = 0, cursor_y = 0;
-	if (!check_expr_param(params, 1)) {
-		start_t = vm_get_ticks();
-		wait_t = check_expr_param(params, 2);
-		input_get_cursor_pos(&cursor_x, &cursor_y);
-		return;
-	}
-
-	// check timer
-	uint32_t current_t = vm_get_ticks();
-	usr_var16[18] = 0;
-	if (current_t < start_t + wait_t)
-		return;
-
-	// return TRUE if cursor didn't move
-	int x, y;
-	input_get_cursor_pos(&x, &y);
-	if (x == cursor_x && y == cursor_y) {
-		usr_var16[18] = 1;
-		return;
-	}
-
-	// otherwise restart timer
-	start_t = current_t;
-	cursor_x = x;
-	cursor_y = y;
-}
-
-static char *saved_cg_name = NULL;
-static char *saved_data_name = NULL;
-
-static bool saved_anim_running[S4_MAX_STREAMS] = {0};
-
-static void stmt_util_save_animation(void)
-{
-	free(saved_cg_name);
-	free(saved_data_name);
-	saved_cg_name = asset_cg_name ? xstrdup(asset_cg_name) : NULL;
-	saved_data_name = asset_data_name ? xstrdup(asset_data_name) : NULL;
-}
-
-static void stmt_util_restore_animation(void)
-{
-	if (!saved_cg_name || !saved_data_name)
-		VM_ERROR("No saved animation in Util.restore_animation");
-	vm_load_image(saved_cg_name, 1);
-	vm_read_file(saved_data_name, sys_var32[MES_SYS_VAR_DATA_OFFSET]);
-	for (int i = 0; i < S4_MAX_STREAMS; i++) {
-		if (saved_anim_running[i]) {
-			anim_init_stream(i, i);
-			anim_start(i);
-		}
-	}
-}
-
-static void stmt_util_anim_save_running(void)
-{
-	bool running = false;
-	for (int i = 0; i < S4_MAX_STREAMS; i++) {
-		saved_anim_running[i] = anim_stream_running(i);
-		running |= saved_anim_running[i];
-	}
-	usr_var16[18] = running;
-}
-
-static void stmt_util_copy_progressive(struct param_list *params)
-{
-	unsigned dst_i = check_expr_param(params, 1);
-	gfx_copy_progressive(64, 0, 512, 288, 2, 64, 0, dst_i);
-}
-
-static void stmt_util_fade_progressive(struct param_list *params)
-{
-	unsigned dst_i = check_expr_param(params, 1);
-	gfx_fade_progressive(64, 0, 512, 288, dst_i);
-}
-
-static void stmt_util_copy(struct param_list *params)
-{
-	int src_x = check_expr_param(params, 1);
-	int src_y = check_expr_param(params, 2);
-	int w = (check_expr_param(params, 3) - src_x) + 1;
-	int h = (check_expr_param(params, 4) - src_y) + 1;
-	unsigned src_i = check_expr_param(params, 5);
-	int dst_x = check_expr_param(params, 6);
-	int dst_y = check_expr_param(params, 7);
-	unsigned dst_i = check_expr_param(params, 8);
-	gfx_copy(src_x, src_y, w, h, src_i, dst_x, dst_y, dst_i);
-}
-
-static void stmt_util_wait_until(struct param_list *params)
-{
-	if (!vm.procedures[110].code || !vm.procedures[111].code)
-		VM_ERROR("procedures 110-111 not defined in Util.wait_until");
-
-	uint32_t stop_t = check_expr_param(params, 1);
-	vm_timer_t t = vm_timer_create();
-	do {
-		vm_peek();
-		if (input_down(INPUT_ACTIVATE)) {
-			vm_call_procedure(110);
-			return;
-		} else if (input_down(INPUT_CANCEL)) {
-			vm_call_procedure(111);
-			return;
-		}
-
-		vm_timer_tick(&t, 16);
-	} while (t < stop_t);
-}
-
-static void stmt_util_wait_until2(struct param_list *params)
-{
-	uint32_t stop_t = check_expr_param(params, 1);
-	vm_timer_t t = vm_timer_create();
-	while (t < stop_t) {
-		vm_peek();
-		vm_timer_tick(&t, 16);
-	}
+	vm_call_procedure(vm_expr_param(&params, 0));
 }
 
 static void stmt_util(void)
 {
 	struct param_list params = {0};
 	read_params(&params);
-	switch (check_expr_param(&params, 0)) {
-	case 1:   stmt_util_get_text_colors(); break;
-	case 3:   break; // noop
-	case 5:   gfx_blink_fade(64, 0, 512, 288, 0); break;
-	case 6:   stmt_util_scale_h(&params); break;
-	case 8:   stmt_util_invert_colors(&params); break;
-	case 10:  stmt_util_fade(&params); break;
-	case 11:  savedata_stash_name(); break;
-	case 12:  stmt_util_pixelate(&params); break;
-	case 14:  stmt_util_get_time(&params); break;
-	case 15:  stmt_util_check_cursor(&params); break;
-	case 16:  vm_delay(check_expr_param(&params, 1) * 15); break;
-	case 17:  stmt_util_save_animation(); break;
-	case 18:  stmt_util_restore_animation(); break;
-	case 19:  stmt_util_anim_save_running(); break;
-	case 20:  stmt_util_copy_progressive(&params); break;
-	case 21:  stmt_util_fade_progressive(&params); break;
-	case 22:  usr_var16[18] = anim_running(); break;
-	case 100: WARNING("Util.set_monochrome not implemented"); break;
-	case 101: WARNING("Util.function[101] not implemented"); break;
-	case 200: stmt_util_copy(&params); break;
-	case 201: audio_bgm_play(check_string_param(&params, 1), false); break;
-	case 202: usr_var16[18] = audio_bgm_is_playing(); break;
-	case 203: usr_var16[18] = audio_se_is_playing(); break;
-	case 210: usr_var32[16] = vm_get_ticks(); break;
-	case 211: stmt_util_wait_until(&params); break;
-	case 212: stmt_util_wait_until2(&params); break;
-	case 213: WARNING("Util.function[213] not implemented"); break;
-	case 214: usr_var32[13] = audio_bgm_is_fading(); break;
-	// XXX: 26 - 29 are only used in SP disk contents
-	case 26:
-	case 27:
-	case 28:
-	case 29:
-	default: VM_ERROR("Util.function[%u] not implemented", params.params[0].val);
-	}
+	if (unlikely(params.nr_params < 1))
+		VM_ERROR("Util without parameters");
+	uint32_t no = vm_expr_param(&params, 0);
+	if (unlikely(no >= 256))
+		VM_ERROR("Invalid Util number: %u", no);
+	if (unlikely(!game->util[no]))
+		VM_ERROR("Util.function[%u] not implemented", no);
+	game->util[no](&params);
 }
 
 static void stmt_line(void)
@@ -1387,8 +624,11 @@ static void stmt_line(void)
 	if (vm_read_byte())
 		return;
 
-	sys_var16[MES_SYS_VAR_TEXT_CURSOR_X] = sys_var16[MES_SYS_VAR_TEXT_START_X];
-	sys_var16[MES_SYS_VAR_TEXT_CURSOR_Y] += sys_var16[MES_SYS_VAR_LINE_SPACE];
+	uint16_t start_x = mem_get_sysvar16(MES_SYS_VAR_TEXT_START_X);
+	uint16_t cur_y = mem_get_sysvar16(MES_SYS_VAR_TEXT_CURSOR_Y);
+	uint16_t line_space = mem_get_sysvar16(MES_SYS_VAR_LINE_SPACE);
+	mem_set_sysvar16(MES_SYS_VAR_TEXT_CURSOR_X, start_x);
+	mem_set_sysvar16(MES_SYS_VAR_TEXT_CURSOR_Y, cur_y + line_space);
 }
 
 static void stmt_procd(void)
@@ -1452,9 +692,8 @@ void vm_peek(void)
 #ifdef USE_SDL_MIXER
 	audio_update();
 #endif
-	// FIXME: specific to YU-NO, not Classics
-	if (ai5_target_game == GAME_ELF_CLASSICS && vm_flag_is_on(VM_FLAG_REFLECTOR)) {
-		if (gfx_current_surface() != 1 || usr_var4[21] != 1)
+	if (ai5_target_game == GAME_YUNO && vm_flag_is_on(VM_FLAG_REFLECTOR)) {
+		if (gfx_current_surface() != 1 || mem_get_var4(21) != 1)
 			gfx_yuno_reflector_animation();
 	}
 	gfx_update();
