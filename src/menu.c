@@ -81,7 +81,7 @@ void menu_exec(void)
 			VM_ERROR("Procedure %d is undefined in menuexec", i);
 	}
 
-	mem_set_sysvar16(MES_SYS_VAR_NR_MENU_ENTRIES, count_entries());
+	mem_set_sysvar16(mes_sysvar16_nr_menu_entries, count_entries());
 
 	// initialize menu
 	vm_call_procedure(38);

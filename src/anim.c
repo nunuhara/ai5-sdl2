@@ -82,7 +82,7 @@ void anim_init_stream(unsigned slot, unsigned stream)
 
 	struct anim_stream *anim = &streams[slot];
 	memset(anim, 0, sizeof(struct anim_stream));
-	anim->file_data = memory.file_data + mem_get_sysvar32(MES_SYS_VAR_DATA_OFFSET);
+	anim->file_data = memory.file_data + mem_get_sysvar32(mes_sysvar32_data_offset);
 	anim->bytecode = anim->file_data + le_get16(anim->file_data, 1 + stream * 2);
 	anim->initialized = true;
 }
@@ -172,7 +172,7 @@ static bool anim_stream_draw(struct anim_stream *anim, uint8_t i)
 				call.copy.dim.h, call.copy.src.i,
 				call.copy.dst.x + anim->off.x, call.copy.dst.y + anim->off.y,
 				call.copy.dst.i,
-				mem_get_sysvar16(MES_SYS_VAR_MASK_COLOR));
+				mem_get_sysvar16(mes_sysvar16_mask_color));
 		break;
 	case S4_DRAW_OP_SWAP:
 		gfx_copy_swap(call.copy.src.x, call.copy.src.y, call.copy.dim.w,
@@ -187,7 +187,7 @@ static bool anim_stream_draw(struct anim_stream *anim, uint8_t i)
 				call.compose.dst.x + anim->off.x,
 				call.compose.dst.y + anim->off.y,
 				call.compose.dst.i,
-				mem_get_sysvar16(MES_SYS_VAR_MASK_COLOR));
+				mem_get_sysvar16(mes_sysvar16_mask_color));
 		break;
 	case S4_DRAW_OP_SET_COLOR:
 		break;

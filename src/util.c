@@ -178,7 +178,7 @@ void util_restore_animation(struct param_list *params)
 	if (!saved_cg_name || !saved_data_name)
 		VM_ERROR("No saved animation in Util.restore_animation");
 	vm_load_image(saved_cg_name, 1);
-	vm_read_file(saved_data_name, mem_get_sysvar32(MES_SYS_VAR_DATA_OFFSET));
+	vm_read_file(saved_data_name, mem_get_sysvar32(mes_sysvar32_data_offset));
 	for (int i = 0; i < S4_MAX_STREAMS; i++) {
 		if (saved_anim_running[i]) {
 			anim_init_stream(i, i);

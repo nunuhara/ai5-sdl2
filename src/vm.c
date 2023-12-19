@@ -305,9 +305,9 @@ uint32_t vm_expr_param(struct param_list *params, int i)
 
 static void draw_text_eng(const char *text)
 {
-	const unsigned surface = mem_get_sysvar16(MES_SYS_VAR_DST_SURFACE);
-	uint16_t x = mem_get_sysvar16(MES_SYS_VAR_TEXT_CURSOR_X) * game->x_mult;
-	uint16_t y = mem_get_sysvar16(MES_SYS_VAR_TEXT_CURSOR_Y);
+	const unsigned surface = mem_get_sysvar16(mes_sysvar16_dst_surface);
+	uint16_t x = mem_get_sysvar16(mes_sysvar16_text_cursor_x) * game->x_mult;
+	uint16_t y = mem_get_sysvar16(mes_sysvar16_text_cursor_y);
 	while (*text) {
 		int ch;
 		bool zenkaku = SJIS_2BYTE(*text);
@@ -319,16 +319,16 @@ static void draw_text_eng(const char *text)
 			x -= 2;
 			next_x -= 4;
 		}
-		if (next_x > mem_get_sysvar16(MES_SYS_VAR_TEXT_END_X) * game->x_mult) {
-			y += mem_get_sysvar16(MES_SYS_VAR_LINE_SPACE);
-			x = mem_get_sysvar16(MES_SYS_VAR_TEXT_START_X) * game->x_mult;
+		if (next_x > mem_get_sysvar16(mes_sysvar16_text_end_x) * game->x_mult) {
+			y += mem_get_sysvar16(mes_sysvar16_line_space);
+			x = mem_get_sysvar16(mes_sysvar16_text_start_x) * game->x_mult;
 			next_x = x + char_size;
 		}
 		gfx_text_draw_glyph(x, y, surface, ch);
 		x = next_x;
 	}
-	mem_set_sysvar16(MES_SYS_VAR_TEXT_CURSOR_X, ((x+7u) & ~7u) / 8);
-	mem_set_sysvar16(MES_SYS_VAR_TEXT_CURSOR_Y, y);
+	mem_set_sysvar16(mes_sysvar16_text_cursor_x, ((x+7u) & ~7u) / 8);
+	mem_set_sysvar16(mes_sysvar16_text_cursor_y, y);
 }
 
 void vm_draw_text(const char *text)
@@ -342,13 +342,13 @@ void vm_draw_text(const char *text)
 		draw_text_eng(text);
 		return;
 	}
-	const uint16_t surface = mem_get_sysvar16(MES_SYS_VAR_DST_SURFACE);
-	const uint16_t start_x = mem_get_sysvar16(MES_SYS_VAR_TEXT_START_X);
-	const uint16_t end_x = mem_get_sysvar16(MES_SYS_VAR_TEXT_END_X);
-	const uint16_t char_space = mem_get_sysvar16(MES_SYS_VAR_CHAR_SPACE);
-	const uint16_t line_space = mem_get_sysvar16(MES_SYS_VAR_LINE_SPACE);
-	uint16_t x = mem_get_sysvar16(MES_SYS_VAR_TEXT_CURSOR_X);
-	uint16_t y = mem_get_sysvar16(MES_SYS_VAR_TEXT_CURSOR_Y);
+	const uint16_t surface = mem_get_sysvar16(mes_sysvar16_dst_surface);
+	const uint16_t start_x = mem_get_sysvar16(mes_sysvar16_text_start_x);
+	const uint16_t end_x = mem_get_sysvar16(mes_sysvar16_text_end_x);
+	const uint16_t char_space = mem_get_sysvar16(mes_sysvar16_char_space);
+	const uint16_t line_space = mem_get_sysvar16(mes_sysvar16_line_space);
+	uint16_t x = mem_get_sysvar16(mes_sysvar16_text_cursor_x);
+	uint16_t y = mem_get_sysvar16(mes_sysvar16_text_cursor_y);
 	while (*text) {
 		int ch;
 		bool zenkaku = SJIS_2BYTE(*text);
@@ -364,8 +364,8 @@ void vm_draw_text(const char *text)
 		gfx_text_draw_glyph(x * game->x_mult, y, surface, ch);
 		x = next_x;
 	}
-	mem_set_sysvar16(MES_SYS_VAR_TEXT_CURSOR_X, x);
-	mem_set_sysvar16(MES_SYS_VAR_TEXT_CURSOR_Y, y);
+	mem_set_sysvar16(mes_sysvar16_text_cursor_x, x);
+	mem_set_sysvar16(mes_sysvar16_text_cursor_y, y);
 }
 
 #define TXT_BUF_SIZE 4096
@@ -624,11 +624,11 @@ static void stmt_line(void)
 	if (vm_read_byte())
 		return;
 
-	uint16_t start_x = mem_get_sysvar16(MES_SYS_VAR_TEXT_START_X);
-	uint16_t cur_y = mem_get_sysvar16(MES_SYS_VAR_TEXT_CURSOR_Y);
-	uint16_t line_space = mem_get_sysvar16(MES_SYS_VAR_LINE_SPACE);
-	mem_set_sysvar16(MES_SYS_VAR_TEXT_CURSOR_X, start_x);
-	mem_set_sysvar16(MES_SYS_VAR_TEXT_CURSOR_Y, cur_y + line_space);
+	uint16_t start_x = mem_get_sysvar16(mes_sysvar16_text_start_x);
+	uint16_t cur_y = mem_get_sysvar16(mes_sysvar16_text_cursor_y);
+	uint16_t line_space = mem_get_sysvar16(mes_sysvar16_line_space);
+	mem_set_sysvar16(mes_sysvar16_text_cursor_x, start_x);
+	mem_set_sysvar16(mes_sysvar16_text_cursor_y, cur_y + line_space);
 }
 
 static void stmt_procd(void)
@@ -674,7 +674,7 @@ bool vm_exec_statement(void)
 	case MES_STMT_PROCD:   stmt_procd(); break;
 	case MES_STMT_MENUS:   menu_exec(); break;
 	case MES_STMT_SETRD:   stmt_setrd(); break;
-	case MES_STMT_INVALID:
+	case MES_CODE_INVALID:
 		vm_rewind_byte();
 		if (mes_char_is_hankaku(op))
 			stmt_str();

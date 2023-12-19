@@ -32,7 +32,7 @@
 
 void sys_set_font_size(struct param_list *params)
 {
-	gfx_text_set_size(mem_get_sysvar16(MES_SYS_VAR_FONT_HEIGHT));
+	gfx_text_set_size(mem_get_sysvar16(mes_sysvar16_font_height));
 }
 
 #define MAX_DIGITS 10
@@ -195,7 +195,7 @@ void vm_load_image(const char *name, unsigned i)
 	}
 
 	// copy CG data into file_data
-	uint32_t off = mem_get_sysvar32(MES_SYS_VAR_CG_OFFSET);
+	uint32_t off = mem_get_sysvar32(mes_sysvar32_cg_offset);
 	if (off + data->size > MEMORY_FILE_DATA_SIZE)
 		VM_ERROR("CG data would exceed buffer size");
 	memcpy(memory.file_data + off, data->data, data->size);
@@ -208,10 +208,10 @@ void vm_load_image(const char *name, unsigned i)
 		return;
 	}
 
-	mem_set_sysvar16(MES_SYS_VAR_CG_X, cg->metrics.x / game->x_mult);
-	mem_set_sysvar16(MES_SYS_VAR_CG_Y, cg->metrics.y);
-	mem_set_sysvar16(MES_SYS_VAR_CG_W, cg->metrics.w / game->x_mult);
-	mem_set_sysvar16(MES_SYS_VAR_CG_H, cg->metrics.h);
+	mem_set_sysvar16(mes_sysvar16_cg_x, cg->metrics.x / game->x_mult);
+	mem_set_sysvar16(mes_sysvar16_cg_y, cg->metrics.y);
+	mem_set_sysvar16(mes_sysvar16_cg_w, cg->metrics.w / game->x_mult);
+	mem_set_sysvar16(mes_sysvar16_cg_h, cg->metrics.h);
 
 	// draw CG
 	gfx_draw_cg(i, cg);
@@ -223,7 +223,7 @@ void vm_load_image(const char *name, unsigned i)
 
 void sys_load_image(struct param_list *params)
 {
-	vm_load_image(vm_string_param(params, 0), mem_get_sysvar16(MES_SYS_VAR_DST_SURFACE));
+	vm_load_image(vm_string_param(params, 0), mem_get_sysvar16(mes_sysvar16_dst_surface));
 }
 
 static void check_rgb_param(struct param_list *params, unsigned i, uint8_t *r, uint8_t *g,
@@ -320,7 +320,7 @@ void sys_graphics_copy_masked(struct param_list *params)
 	unsigned dst_i = vm_expr_param(params, 8);
 	gfx_copy_masked(src_x * game->x_mult, src_y, src_w * game->x_mult, src_h, src_i,
 			dst_x * game->x_mult, dst_y, dst_i,
-			mem_get_sysvar16(MES_SYS_VAR_MASK_COLOR));
+			mem_get_sysvar16(mes_sysvar16_mask_color));
 }
 
 void sys_graphics_fill_bg(struct param_list *params)
@@ -331,7 +331,7 @@ void sys_graphics_fill_bg(struct param_list *params)
 	int w = (vm_expr_param(params, 3) - x) + 1;
 	int h = (vm_expr_param(params, 4) - y) + 1;
 	gfx_text_fill(x * game->x_mult, y, w * game->x_mult, h,
-			mem_get_sysvar16(MES_SYS_VAR_DST_SURFACE));
+			mem_get_sysvar16(mes_sysvar16_dst_surface));
 }
 
 void sys_graphics_copy_swap(struct param_list *params)
@@ -357,7 +357,7 @@ void sys_graphics_swap_bg_fg(struct param_list *params)
 	int w = (vm_expr_param(params, 3) - x) + 1;
 	int h = (vm_expr_param(params, 4) - y) + 1;
 	gfx_text_swap_colors(x * game->x_mult, y, w * game->x_mult, h,
-			mem_get_sysvar16(MES_SYS_VAR_DST_SURFACE));
+			mem_get_sysvar16(mes_sysvar16_dst_surface));
 }
 
 void sys_graphics_compose(struct param_list *params)
@@ -376,7 +376,7 @@ void sys_graphics_compose(struct param_list *params)
 	unsigned dst_i = vm_expr_param(params, 11);
 	gfx_compose(fg_x * game->x_mult, fg_y, w * game->x_mult, h, fg_i, bg_x * game->x_mult,
 			bg_y, bg_i, dst_x * game->x_mult, dst_y, dst_i,
-			mem_get_sysvar16(MES_SYS_VAR_MASK_COLOR));
+			mem_get_sysvar16(mes_sysvar16_mask_color));
 }
 
 void sys_graphics_invert_colors(struct param_list *params)
@@ -386,7 +386,7 @@ void sys_graphics_invert_colors(struct param_list *params)
 	int y = vm_expr_param(params, 2);
 	int w = (vm_expr_param(params, 3) - x) + 1;
 	int h = (vm_expr_param(params, 4) - y) + 1;
-	unsigned i = mem_get_sysvar16(MES_SYS_VAR_DST_SURFACE);
+	unsigned i = mem_get_sysvar16(mes_sysvar16_dst_surface);
 	gfx_invert_colors(x * game->x_mult, y, w * game->x_mult, h, i);
 }
 

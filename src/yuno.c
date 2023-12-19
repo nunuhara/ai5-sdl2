@@ -38,12 +38,12 @@ static void yuno_mem_restore(void)
 	//      32-bit pointers as offsets into the `memory` struct (similar
 	//      to how AI5WIN.EXE treats 16-bit pointers).
 	mem_set_sysvar16_ptr(MEMORY_MES_NAME_SIZE + VAR4_SIZE + 56);
-	mem_set_sysvar32(MES_SYS_VAR_MEMORY, offsetof(struct memory, mem16));
-	mem_set_sysvar32(MES_SYS_VAR_PALETTE, offsetof(struct memory, palette));
-	mem_set_sysvar32(MES_SYS_VAR_FILE_DATA, offsetof(struct memory, file_data));
-	mem_set_sysvar32(MES_SYS_VAR_MENU_ENTRY_ADDRESSES,
+	mem_set_sysvar32(mes_sysvar32_memory, offsetof(struct memory, mem16));
+	mem_set_sysvar32(mes_sysvar32_palette, offsetof(struct memory, palette));
+	mem_set_sysvar32(mes_sysvar32_file_data, offsetof(struct memory, file_data));
+	mem_set_sysvar32(mes_sysvar32_menu_entry_addresses,
 		offsetof(struct memory, menu_entry_addresses));
-	mem_set_sysvar32(MES_SYS_VAR_MENU_ENTRY_NUMBERS,
+	mem_set_sysvar32(mes_sysvar32_menu_entry_numbers,
 		offsetof(struct memory, menu_entry_numbers));
 
 	// this value is restored when loading a save via System.SaveData.resume_load...
@@ -61,18 +61,18 @@ static void yuno_mem_init(void)
 	memory_ptr.var32 = memory_raw + off + 108;
 	memory_ptr.system_var32 = memory_raw + off + 212;
 
-	mem_set_sysvar16(MES_SYS_VAR_FLAGS, 0x260d);
-	mem_set_sysvar16(MES_SYS_VAR_TEXT_START_X, 0);
-	mem_set_sysvar16(MES_SYS_VAR_TEXT_START_Y, 0);
-	mem_set_sysvar16(MES_SYS_VAR_TEXT_END_X, game_yuno.surface_sizes[0].w);
-	mem_set_sysvar16(MES_SYS_VAR_TEXT_END_Y, game_yuno.surface_sizes[0].h);
-	mem_set_sysvar16(MES_SYS_VAR_FONT_WIDTH, DEFAULT_FONT_SIZE);
-	mem_set_sysvar16(MES_SYS_VAR_FONT_HEIGHT, DEFAULT_FONT_SIZE);
-	mem_set_sysvar16(MES_SYS_VAR_CHAR_SPACE, DEFAULT_FONT_SIZE);
-	mem_set_sysvar16(MES_SYS_VAR_LINE_SPACE, DEFAULT_FONT_SIZE);
-	mem_set_sysvar16(MES_SYS_VAR_MASK_COLOR, 0);
+	mem_set_sysvar16(mes_sysvar16_flags, 0x260d);
+	mem_set_sysvar16(mes_sysvar16_text_start_x, 0);
+	mem_set_sysvar16(mes_sysvar16_text_start_y, 0);
+	mem_set_sysvar16(mes_sysvar16_text_end_x, game_yuno.surface_sizes[0].w);
+	mem_set_sysvar16(mes_sysvar16_text_end_y, game_yuno.surface_sizes[0].h);
+	mem_set_sysvar16(mes_sysvar16_font_width, DEFAULT_FONT_SIZE);
+	mem_set_sysvar16(mes_sysvar16_font_height, DEFAULT_FONT_SIZE);
+	mem_set_sysvar16(mes_sysvar16_char_space, DEFAULT_FONT_SIZE);
+	mem_set_sysvar16(mes_sysvar16_line_space, DEFAULT_FONT_SIZE);
+	mem_set_sysvar16(mes_sysvar16_mask_color, 0);
 
-	mem_set_sysvar32(MES_SYS_VAR_CG_OFFSET, 0x20000);
+	mem_set_sysvar32(mes_sysvar32_cg_offset, 0x20000);
 	yuno_mem_restore();
 }
 

@@ -36,11 +36,11 @@ static void shangrlia_mem_restore(void)
 	//      32-bit pointers as offsets into the `memory` struct (similar
 	//      to how AI5WIN.EXE treats 16-bit pointers).
 	mem_set_sysvar16_ptr(MEMORY_MES_NAME_SIZE + VAR4_SIZE + 56);
-	mem_set_sysvar32(MES_SYS_VAR_MEMORY, offsetof(struct memory, mem16));
-	mem_set_sysvar32(MES_SYS_VAR_FILE_DATA, offsetof(struct memory, file_data));
-	mem_set_sysvar32(MES_SYS_VAR_MENU_ENTRY_ADDRESSES,
+	mem_set_sysvar32(mes_sysvar32_memory, offsetof(struct memory, mem16));
+	mem_set_sysvar32(mes_sysvar32_file_data, offsetof(struct memory, file_data));
+	mem_set_sysvar32(mes_sysvar32_menu_entry_addresses,
 			offsetof(struct memory, menu_entry_addresses));
-	mem_set_sysvar32(MES_SYS_VAR_MENU_ENTRY_NUMBERS,
+	mem_set_sysvar32(mes_sysvar32_menu_entry_numbers,
 			offsetof(struct memory, menu_entry_numbers));
 
 	// this value is restored when loading a save via System.SaveData.resume_load...
@@ -58,25 +58,25 @@ static void shangrlia_mem_init(void)
 	memory_ptr.var32 = memory_raw + off + 106;
 	memory_ptr.system_var32 = memory_raw + off + 210;
 
-	mem_set_sysvar16(MES_SYS_VAR_FLAGS, 0x260f);
-	mem_set_sysvar16(MES_SYS_VAR_TEXT_START_X, 0);
-	mem_set_sysvar16(MES_SYS_VAR_TEXT_START_Y, 0);
-	mem_set_sysvar16(MES_SYS_VAR_TEXT_END_X, game_shangrlia.surface_sizes[0].w);
-	mem_set_sysvar16(MES_SYS_VAR_TEXT_END_Y, game_shangrlia.surface_sizes[0].h);
-	mem_set_sysvar16(MES_SYS_VAR_FONT_WIDTH, 16);
-	mem_set_sysvar16(MES_SYS_VAR_FONT_HEIGHT, 16);
-	mem_set_sysvar16(MES_SYS_VAR_CHAR_SPACE, 16);
-	mem_set_sysvar16(MES_SYS_VAR_LINE_SPACE, 16);
-	mem_set_sysvar16(MES_SYS_VAR_MASK_COLOR, 0);
+	mem_set_sysvar16(mes_sysvar16_flags, 0x260f);
+	mem_set_sysvar16(mes_sysvar16_text_start_x, 0);
+	mem_set_sysvar16(mes_sysvar16_text_start_y, 0);
+	mem_set_sysvar16(mes_sysvar16_text_end_x, game_shangrlia.surface_sizes[0].w);
+	mem_set_sysvar16(mes_sysvar16_text_end_y, game_shangrlia.surface_sizes[0].h);
+	mem_set_sysvar16(mes_sysvar16_font_width, 16);
+	mem_set_sysvar16(mes_sysvar16_font_height, 16);
+	mem_set_sysvar16(mes_sysvar16_char_space, 16);
+	mem_set_sysvar16(mes_sysvar16_line_space, 16);
+	mem_set_sysvar16(mes_sysvar16_mask_color, 0);
 
-	mem_set_sysvar32(MES_SYS_VAR_CG_OFFSET, 0x20000);
+	mem_set_sysvar32(mes_sysvar32_cg_offset, 0x20000);
 	shangrlia_mem_restore();
 }
 
 static void sys_load_image_halt_anim(struct param_list *params)
 {
 	anim_halt_all();
-	vm_load_image(vm_string_param(params, 0), mem_get_sysvar16(MES_SYS_VAR_DST_SURFACE));
+	vm_load_image(vm_string_param(params, 0), mem_get_sysvar16(mes_sysvar16_dst_surface));
 }
 
 static void sys_22_warn(struct param_list *params)
