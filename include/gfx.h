@@ -22,7 +22,7 @@ struct cg;
 #define DEFAULT_VIEW_WIDTH 640
 #define DEFAULT_VIEW_HEIGHT 400
 
-#define GFX_NR_SURFACES 5
+#define GFX_NR_SURFACES 10
 
 struct gfx_view { unsigned w, h; };
 extern struct gfx_view gfx_view;
@@ -42,14 +42,14 @@ void gfx_set_screen_surface(unsigned i);
 void gfx_copy(int src_x, int src_y, int src_w, int src_h, unsigned src_i, int dst_x,
 		int dst_y, unsigned dst_i);
 void gfx_copy_masked(int src_x, int src_y, int src_w, int src_h, unsigned src_i, int dst_x,
-		int dst_y, unsigned dst_i, uint8_t mask_color);
+		int dst_y, unsigned dst_i, uint16_t mask_color);
 void gfx_copy_swap(int src_x, int src_y, int src_w, int src_h, unsigned src_i, int dst_x,
 		int dst_y, unsigned dst_i);
 void gfx_compose(int fg_x, int fg_y, int w, int h, unsigned fg_i, int bg_x, int bg_y,
-		unsigned bg_i, int dst_x, int dst_y, unsigned dst_i, uint8_t mask_color);
+		unsigned bg_i, int dst_x, int dst_y, unsigned dst_i, uint16_t mask_color);
 void gfx_invert_colors(int x, int y, int w, int h, unsigned i);
-void gfx_fill(int x, int y, int w, int h, unsigned i, uint8_t c);
-void gfx_swap_colors(int x, int y, int w, int h, unsigned i, uint8_t c1, uint8_t c2);
+void gfx_fill(int x, int y, int w, int h, unsigned i, uint16_t c);
+void gfx_swap_colors(int x, int y, int w, int h, unsigned i, uint16_t c1, uint16_t c2);
 void gfx_draw_cg(unsigned i, struct cg *cg);
 
 // effect.c
@@ -69,8 +69,8 @@ void gfx_yuno_reflector_animation(void);
 #define DEFAULT_FONT_SIZE 16
 
 void gfx_text_init(void);
-void gfx_text_set_colors(uint8_t bg, uint8_t fg);
-void gfx_text_get_colors(uint8_t *bg, uint8_t *fg);
+void gfx_text_set_colors(uint32_t bg, uint32_t fg);
+void gfx_text_get_colors(uint32_t *bg, uint32_t *fg);
 void gfx_text_set_size(int size);
 void gfx_text_fill(int x, int y, int w, int h, unsigned i);
 void gfx_text_swap_colors(int x, int y, int w, int h, unsigned i);

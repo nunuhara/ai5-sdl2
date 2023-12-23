@@ -405,7 +405,7 @@ void sys_graphics_copy_progressive(struct param_list *params)
 			dst_x * game->x_mult, dst_y, dst_i);
 }
 
-void sys_graphics(struct param_list *params)
+void sys_graphics_classics(struct param_list *params)
 {
 	vm_expr_param(params, 0);
 	switch (params->params[0].val) {
@@ -447,11 +447,15 @@ void sys_wait(struct param_list *params)
 	}
 }
 
-void sys_set_text_colors(struct param_list *params)
+void sys_set_text_colors_indexed(struct param_list *params)
 {
-	vm_expr_param(params, 0);
-	uint32_t colors = params->params[0].val;
+	uint32_t colors = vm_expr_param(params, 0);
 	gfx_text_set_colors((colors >> 4) & 0xf, colors & 0xf);
+}
+
+void sys_set_text_colors_direct(struct param_list *params)
+{
+	gfx_text_set_colors(vm_expr_param(params, 0), vm_expr_param(params, 1));
 }
 
 static bool farcall_addr_valid(uint32_t addr)
@@ -546,8 +550,5 @@ void sys_strlen(struct param_list *params)
 
 void sys_set_screen_surface(struct param_list *params)
 {
-	unsigned i = vm_expr_param(params, 0);
-	if (i >= GFX_NR_SURFACES)
-		VM_ERROR("Invalid surface number: %u", i);
-	gfx_set_screen_surface(i);
+	gfx_set_screen_surface(vm_expr_param(params, 0));
 }

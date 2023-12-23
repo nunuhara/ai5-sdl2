@@ -25,7 +25,8 @@
 struct param_list;
 
 struct game {
-	struct { uint16_t w, h; } surface_sizes[5];
+	struct { uint16_t w, h; } surface_sizes[10];
+	unsigned bpp;
 	unsigned x_mult;
 	uint32_t var4_size;
 	uint32_t mem16_size;
@@ -35,8 +36,9 @@ struct game {
 	void (*sys[GAME_MAX_SYS])(struct param_list*);
 };
 
-extern struct game game_yuno;
+extern struct game game_isaku;
 extern struct game game_shangrlia;
+extern struct game game_yuno;
 
 extern struct game *game;
 

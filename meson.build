@@ -26,6 +26,7 @@ sources = [
   'src/gfx.c',
   'src/ini.c',
   'src/input.c',
+  'src/isaku.c',
   'src/main.c',
   'src/menu.c',
   'src/savedata.c',

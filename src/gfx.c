@@ -24,6 +24,12 @@
 #include "gfx_private.h"
 #include "vm.h"
 
+#define INDEXED_BPP 8
+#define INDEXED_FORMAT SDL_PIXELFORMAT_INDEX8
+
+#define DIRECT_BPP 24
+#define DIRECT_FORMAT SDL_PIXELFORMAT_RGB24
+
 struct gfx gfx = { .dirty = true };
 struct gfx_view gfx_view = { 640, 400 };
 
@@ -38,12 +44,9 @@ void gfx_screen_dirty(void)
 	gfx.dirty = true;
 }
 
-// FIXME: AI5WIN.EXE can access 5 surfaces without crashing, but only
-//        surfaces 0 and 1 behave as expected... surfaces 2-3 seem to
-//        have the same behavior, and surface 4 is different again.
 SDL_Surface *gfx_get_surface(unsigned i)
 {
-	if (unlikely(i >= GFX_NR_SURFACES)) {
+	if (unlikely(i >= GFX_NR_SURFACES || !gfx.surface[i].s)) {
 		WARNING("Invalid surface index: %u", i);
 		i = 0;
 	}
@@ -68,7 +71,7 @@ static void gfx_init_window(void)
 	SDL_CALL(SDL_RenderSetLogicalSize, gfx.renderer, gfx_view.w, gfx_view.h);
 
 	// free old surfaces/texture
-	for (int i = 0; i < GFX_NR_SURFACES; i++) {
+	for (int i = 0; i < GFX_NR_SURFACES && gfx.surface[i].s; i++) {
 		SDL_FreeSurface(gfx.surface[i].s);
 	}
 	SDL_FreeSurface(gfx.display);
@@ -79,18 +82,30 @@ static void gfx_init_window(void)
 	for (int i = 0; i < GFX_NR_SURFACES; i++) {
 		unsigned w = game->surface_sizes[i].w;
 		unsigned h = game->surface_sizes[i].h;
-		SDL_CTOR(SDL_CreateRGBSurfaceWithFormat, gfx.surface[i].s, 0, w, h, 8,
-				SDL_PIXELFORMAT_INDEX8);
+		if (!w || !h) {
+			for (; i < GFX_NR_SURFACES; i++) {
+				gfx.surface[i].s = NULL;
+			}
+			break;
+		}
+
+		if (game->bpp == 8) {
+			SDL_CTOR(SDL_CreateRGBSurfaceWithFormat, gfx.surface[i].s, 0, w, h,
+					INDEXED_BPP, INDEXED_FORMAT);
+		} else {
+			SDL_CTOR(SDL_CreateRGBSurfaceWithFormat, gfx.surface[i].s, 0, w, h,
+					DIRECT_BPP, DIRECT_FORMAT);
+		}
 		SDL_CALL(SDL_FillRect, gfx.surface[i].s, NULL, 0);
 		gfx.surface[i].src = (SDL_Rect) { 0, 0, w, h };
 		gfx.surface[i].dst = (SDL_Rect) { 0, 0, w, h };
 		gfx.surface[i].scaled = false;
 	}
 
-	SDL_CTOR(SDL_CreateRGBSurfaceWithFormat, gfx.display, 0, gfx_view.w, gfx_view.h, 32,
-			SDL_PIXELFORMAT_RGB888);
+	SDL_CTOR(SDL_CreateRGBSurfaceWithFormat, gfx.display, 0, gfx_view.w, gfx_view.h,
+			DIRECT_BPP, DIRECT_FORMAT);
 	SDL_CTOR(SDL_CreateRGBSurfaceWithFormat, gfx.scaled_display, 0, gfx_view.w,
-			gfx_view.h, 32, SDL_PIXELFORMAT_RGB888);
+			gfx_view.h, DIRECT_BPP, DIRECT_FORMAT);
 	SDL_CALL(SDL_FillRect, gfx.display, NULL, SDL_MapRGB(gfx.display->format, 0, 0, 0));
 	SDL_CALL(SDL_FillRect, gfx.scaled_display, NULL,
 			SDL_MapRGB(gfx.scaled_display->format, 0, 0, 0));
@@ -102,7 +117,7 @@ static void gfx_init_window(void)
 static void gfx_fini(void)
 {
 	if (gfx.display) {
-		for (int i = 0; i < GFX_NR_SURFACES; i++) {
+		for (int i = 0; i < GFX_NR_SURFACES && gfx.surface[i].s; i++) {
 			SDL_FreeSurface(gfx.surface[i].s);
 		}
 		SDL_FreeSurface(gfx.display);
@@ -123,6 +138,8 @@ void gfx_init(const char *name)
 	} else {
 		strcpy(title, "AI5-SDL2");
 	}
+	gfx_view.w = game->surface_sizes[0].w;
+	gfx_view.h = game->surface_sizes[0].h;
 	SDL_CALL(SDL_Init, SDL_INIT_VIDEO | SDL_INIT_TIMER);
 #ifndef USE_SDL_MIXER
 	SDL_CALL(SDL_InitSubSystem, SDL_INIT_AUDIO);
@@ -190,6 +207,8 @@ static void read_palette(SDL_Color *dst, const uint8_t *src)
 
 static void update_palette(void)
 {
+	if (game->bpp != 8)
+		return;
 	SDL_CALL(SDL_SetPaletteColors, gfx_screen()->format->palette, palette, 0, 256);
 	gfx_dirty(gfx.screen);
 }
@@ -330,11 +349,16 @@ void gfx_palette_crossfade_to(uint8_t r, uint8_t g, uint8_t b, unsigned ms)
 void gfx_set_screen_surface(unsigned i)
 {
 	GFX_LOG("gfx_set_screen_surface %u", i);
-	assert(i < GFX_NR_SURFACES);
+	if (unlikely(i >= GFX_NR_SURFACES || !gfx.surface[i].s))
+		VM_ERROR("Invalid surface number: %u", i);
 	gfx.screen = i;
 	update_palette();
 }
 
+/*
+ * XXX: AI5WIN.EXE doesn't clip. If the rectangle exceeds the bounds of the destination
+ *      surface, it just writes to buggy addresses.
+ */
 bool gfx_copy_clip(SDL_Surface *src, SDL_Rect *src_r, SDL_Surface *dst, SDL_Point *dst_p)
 {
 	if (unlikely(src_r->x < 0)) {
@@ -372,113 +396,6 @@ bool gfx_copy_clip(SDL_Surface *src, SDL_Rect *src_r, SDL_Surface *dst, SDL_Poin
 	return src_r->w > 0 && src_r->h > 0;
 }
 
-static void foreach_pixel2(SDL_Surface *src, SDL_Rect *src_r, SDL_Surface *dst,
-		SDL_Point *dst_p, void (*f)(uint8_t*,uint8_t*,void*), void *data)
-{
-	if (!gfx_copy_clip(src, src_r, dst, dst_p)) {
-		WARNING("Invalid copy");
-		return;
-	}
-
-	if (SDL_MUSTLOCK(src))
-		SDL_CALL(SDL_LockSurface, src);
-	if (SDL_MUSTLOCK(dst))
-		SDL_CALL(SDL_LockSurface, dst);
-
-	uint8_t *src_base = src->pixels + src_r->y * src->pitch + src_r->x;
-	uint8_t *dst_base = dst->pixels + dst_p->y * dst->pitch + dst_p->x;
-	for (int row = 0; row < src_r->h; row++) {
-		uint8_t *src_px = src_base + row * src->pitch;
-		uint8_t *dst_px = dst_base + row * dst->pitch;
-		for (int col = 0; col < src_r->w; col++, src_px++, dst_px++) {
-			f(src_px, dst_px, data);
-		}
-	}
-
-	if (SDL_MUSTLOCK(src))
-		SDL_UnlockSurface(src);
-	if (SDL_MUSTLOCK(dst))
-		SDL_UnlockSurface(dst);
-}
-
-static void gfx_copy_cb(uint8_t *src, uint8_t *dst, void *_)
-{
-	*dst = *src;
-}
-
-void gfx_copy(int src_x, int src_y, int src_w, int src_h, unsigned src_i, int dst_x,
-		int dst_y, unsigned dst_i)
-{
-	GFX_LOG("gfx_copy %u(%d,%d) -> %u(%d,%d) @ (%d,%d)",
-			src_i, src_x, src_y, dst_i, dst_x, dst_y, src_w, src_h);
-	SDL_Surface *src = gfx_get_surface(src_i);
-	SDL_Surface *dst = gfx_get_surface(dst_i);
-	SDL_Rect src_r = { src_x, src_y, src_w, src_h };
-	SDL_Point dst_p = { dst_x, dst_y };
-	foreach_pixel2(src, &src_r, dst, &dst_p, gfx_copy_cb, NULL);
-	gfx_dirty(dst_i);
-}
-
-static void gfx_copy_masked_cb(uint8_t *src, uint8_t *dst, void *_mask)
-{
-	uint8_t mask = (uintptr_t)_mask;
-	if (*src != mask)
-		*dst = *src;
-}
-
-void gfx_copy_masked(int src_x, int src_y, int src_w, int src_h, unsigned src_i, int dst_x,
-		int dst_y, unsigned dst_i, uint8_t mask_color)
-{
-	GFX_LOG("gfx_copy_masked[%u] %u(%d,%d) -> %u(%d,%d) @ (%d,%d)", mask_color,
-			src_i, src_x, src_y, dst_i, dst_x, dst_y, src_w, src_h);
-	SDL_Surface *src = gfx_get_surface(src_i);
-	SDL_Surface *dst = gfx_get_surface(dst_i);
-	SDL_Rect src_r = { src_x, src_y, src_w, src_h };
-	SDL_Point dst_p = { dst_x, dst_y };
-	foreach_pixel2(src, &src_r, dst, &dst_p, gfx_copy_masked_cb, (void*)(uintptr_t)mask_color);
-	gfx_dirty(dst_i);
-}
-
-static void gfx_copy_swap_cb(uint8_t *src, uint8_t *dst, void *_)
-{
-	uint8_t tmp = *dst;
-	*dst = *src;
-	*src = tmp;
-}
-
-void gfx_copy_swap(int src_x, int src_y, int src_w, int src_h, unsigned src_i, int dst_x,
-		int dst_y, unsigned dst_i)
-{
-	GFX_LOG("gfx_copy_swap %u(%d,%d) -> %u(%d,%d) @ (%d,%d)",
-			src_i, src_x, src_y, dst_i, dst_x, dst_y, src_w, src_h);
-	SDL_Surface *src = gfx_get_surface(src_i);
-	SDL_Surface *dst = gfx_get_surface(dst_i);
-	SDL_Rect src_r = { src_x, src_y, src_w, src_h };
-	SDL_Point dst_p = { dst_x, dst_y };
-	foreach_pixel2(src, &src_r, dst, &dst_p, gfx_copy_swap_cb, NULL);
-	gfx_dirty(dst_i);
-}
-
-void gfx_compose(int fg_x, int fg_y, int w, int h, unsigned fg_i, int bg_x, int bg_y,
-		unsigned bg_i, int dst_x, int dst_y, unsigned dst_i, uint8_t mask_color)
-{
-	GFX_LOG("gfx_compose[%u] %u(%d,%d) + %u(%d,%d) -> %u(%d,%d) @ (%d,%d)", mask_color,
-			fg_i, fg_x, fg_y, bg_i, bg_x, bg_y, dst_i, dst_x, dst_y, w, h);
-	SDL_Surface *fg = gfx_get_surface(fg_i);
-	SDL_Surface *bg = gfx_get_surface(bg_i);
-	SDL_Surface *dst = gfx_get_surface(dst_i);
-	SDL_Rect fg_r = { fg_x, fg_y, w, h };
-	SDL_Rect bg_r = { bg_x, bg_y, w, h };
-	SDL_Point dst_p = { dst_x, dst_y };
-	foreach_pixel2(bg, &bg_r, dst, &dst_p, gfx_copy_cb, NULL);
-	foreach_pixel2(fg, &fg_r, dst, &dst_p, gfx_copy_masked_cb, (void*)(uintptr_t)mask_color);
-	gfx_dirty(dst_i);
-}
-
-/*
- * XXX: AI5WIN.EXE doesn't clip. If the rectangle exceeds the bounds of the destination
- *      surface, it just writes to buggy addresses.
- */
 bool gfx_fill_clip(SDL_Surface *s, SDL_Rect *r)
 {
 	if (unlikely(r->x < 0)) {
@@ -498,81 +415,374 @@ bool gfx_fill_clip(SDL_Surface *s, SDL_Rect *r)
 	return r->w > 0 && r->h > 0;
 }
 
-static void foreach_pixel(SDL_Surface *s, SDL_Rect *r, void (*f)(uint8_t*,void*), void *data)
+static bool gfx_copy_begin(SDL_Surface *src, SDL_Rect *src_r, SDL_Surface *dst,
+		SDL_Point *dst_p)
 {
-	if (!gfx_fill_clip(s, r)) {
-		WARNING("Invalid fill");
-		return;
+	if (!gfx_copy_clip(src, src_r, dst, dst_p)) {
+		WARNING("Invalid copy");
+		return false;
 	}
 
-	if (SDL_MUSTLOCK(s))
-		SDL_CALL(SDL_LockSurface, s);
-
-	uint8_t *base = s->pixels + r->y * s->pitch + r->x;
-	for (int row = 0; row < r->h; row++) {
-		uint8_t *p = base + row * s->pitch;
-		for (int col = 0; col < r->w; col++, p++) {
-			f(p, data);
-		}
-	}
-
-	if (SDL_MUSTLOCK(s))
-		SDL_UnlockSurface(s);
+	if (SDL_MUSTLOCK(src))
+		SDL_CALL(SDL_LockSurface, src);
+	if (SDL_MUSTLOCK(dst))
+		SDL_CALL(SDL_LockSurface, dst);
+	return true;
 }
 
-static void gfx_invert_colors_cb(uint8_t *p, void *_)
+static bool gfx_fill_begin(SDL_Surface *dst, SDL_Rect *r)
 {
-	*p ^= 0xf;
+	if (!gfx_fill_clip(dst, r)) {
+		WARNING("Invalid fill");
+		return false;
+	}
+
+	if (SDL_MUSTLOCK(dst))
+		SDL_CALL(SDL_LockSurface, dst);
+	return true;
+}
+
+static void gfx_copy_end(SDL_Surface *src, SDL_Surface *dst)
+{
+	if (SDL_MUSTLOCK(src))
+		SDL_UnlockSurface(src);
+	if (SDL_MUSTLOCK(dst))
+		SDL_UnlockSurface(dst);
+}
+
+static void gfx_fill_end(SDL_Surface *dst)
+{
+	if (SDL_MUSTLOCK(dst))
+		SDL_UnlockSurface(dst);
+}
+
+#define PIXEL_P(s, x, y, byte_pp) \
+	((s)->pixels + (y) * (s)->pitch + (x) * (byte_pp))
+#define INDEXED_PIXEL_P(s, x, y) PIXEL_P(s, x, y, 1)
+#define DIRECT_PIXEL_P(s, x, y) PIXEL_P(s, x, y, 3)
+
+#define indexed_foreach_row2(src_row, dst_row, src, src_r, dst, dst_p, ...) \
+	for (int ifer2_row = 0; ifer2_row < (src_r)->h; ifer2_row++) { \
+		uint8_t *src_row = INDEXED_PIXEL_P(src, (src_r)->x, (src_r)->y + ifer2_row); \
+		uint8_t *dst_row = INDEXED_PIXEL_P(dst, (dst_p)->x, (dst_p)->y + ifer2_row); \
+		__VA_ARGS__ \
+	}
+
+#define indexed_foreach_px2(src_px, dst_px, src, src_r, dst, dst_p, ...) \
+	for (int ifep2_row = 0; ifep2_row < (src_r)->h; ifep2_row++) { \
+		uint8_t *src_px = INDEXED_PIXEL_P(src, (src_r)->x, (src_r)->y + ifep2_row); \
+		uint8_t *dst_px = INDEXED_PIXEL_P(dst, (dst_p)->x, (dst_p)->y + ifep2_row); \
+		for (int ifep2_col = 0; ifep2_col < (src_r)->w; ifep2_col++, src_px++, dst_px++) { \
+			__VA_ARGS__ \
+		} \
+	}
+
+#define indexed_foreach_px(px, dst, dst_r, ...) \
+	for (int ifep_row = 0; ifep_row < (dst_r)->h; ifep_row++) { \
+		uint8_t *px = INDEXED_PIXEL_P(dst, (dst_r)->x, (dst_r)->y + ifep_row); \
+		for (int ifep_col = 0; ifep_col < (dst_r)->w; ifep_col++, px++) { \
+			__VA_ARGS__ \
+		} \
+	}
+
+#define direct_foreach_px2(src_px, dst_px, src, src_r, dst, dst_p, ...) \
+	for (int dfep2_row = 0; dfep2_row < (src_r)->h; dfep2_row++) { \
+		uint8_t *src_px = DIRECT_PIXEL_P(src, (src_r)->x, (src_r)->y + dfep2_row); \
+		uint8_t *dst_px = DIRECT_PIXEL_P(dst, (dst_p)->x, (dst_p)->y + dfep2_row); \
+		for (int dfep2_col = 0; dfep2_col < (src_r)->w; dfep2_col++, src_px += 3, dst_px += 3) { \
+			__VA_ARGS__ \
+		} \
+	}
+
+#define direct_foreach_px(px, dst, dst_r, ...) \
+	for (int dfep_row = 0; dfep_row < (dst_r)->h; dfep_row++) { \
+		uint8_t *px = DIRECT_PIXEL_P(dst, (dst_r)->x, (dst_r)->y + dfep_row); \
+		for (int dfep_col = 0; dfep_col < (dst_r)->w; dfep_col++, px += 3) { \
+			__VA_ARGS__ \
+		} \
+	}
+
+static void gfx_indexed_copy(int src_x, int src_y, int w, int h, SDL_Surface *src, int dst_x,
+		int dst_y, SDL_Surface *dst)
+{
+	SDL_Rect src_r = { src_x, src_y, w, h };
+	SDL_Point dst_p = { dst_x, dst_y };
+	if (!gfx_copy_begin(src, &src_r, dst, &dst_p))
+		return;
+
+	indexed_foreach_row2(src_row, dst_row, src, &src_r, dst, &dst_p,
+		memcpy(dst_row, src_row, src_r.w);
+	);
+
+	gfx_copy_end(src, dst);
+}
+
+static void gfx_direct_copy(int src_x, int src_y, int w, int h, SDL_Surface *src, int dst_x,
+		int dst_y, SDL_Surface *dst)
+{
+	SDL_Rect src_r = { src_x, src_y, w, h };
+	SDL_Rect dst_r = { dst_y, dst_y, w, h };
+	SDL_CALL(SDL_BlitSurface, src, &src_r, dst, &dst_r);
+}
+
+void gfx_copy(int src_x, int src_y, int w, int h, unsigned src_i, int dst_x, int dst_y,
+		unsigned dst_i)
+{
+	GFX_LOG("gfx_copy %u(%d,%d) -> %u(%d,%d) @ (%d,%d)",
+			src_i, src_x, src_y, dst_i, dst_x, dst_y, src_w, src_h);
+	SDL_Surface *src = gfx_get_surface(src_i);
+	SDL_Surface *dst = gfx_get_surface(dst_i);
+	if (game->bpp == 8)
+		gfx_indexed_copy(src_x, src_y, w, h, src, dst_x, dst_y, dst);
+	else
+		gfx_direct_copy(src_x, src_y, w, h, src, dst_x, dst_y, dst);
+	gfx_dirty(dst_i);
+}
+
+static void gfx_indexed_copy_masked(int src_x, int src_y, int w, int h, SDL_Surface *src,
+		int dst_x, int dst_y, SDL_Surface *dst, uint8_t mask_color)
+{
+	SDL_Rect src_r = { src_x, src_y, w, h };
+	SDL_Point dst_p = { dst_x, dst_y };
+	if (!gfx_copy_begin(src, &src_r, dst, &dst_p))
+		return;
+
+	indexed_foreach_px2(src_px, dst_px, src, &src_r, dst, &dst_p,
+		if (*src_px != mask_color)
+			*dst_px = *src_px;
+	);
+
+	gfx_copy_end(src, dst);
+}
+
+static void gfx_direct_copy_masked(int src_x, int src_y, int w, int h, SDL_Surface *src,
+		int dst_x, int dst_y, SDL_Surface *dst, uint16_t mask_color)
+{
+	SDL_Color mask;
+	if (game->bpp == 16)
+		mask = gfx_decode_bgr555(mask_color);
+	else
+		VM_ERROR("Unsupported bpp for gfx_direct_copy_masked");
+
+	SDL_Rect src_r = { src_x, src_y, w, h };
+	SDL_Rect dst_r = { dst_x, dst_y, w, h };
+	SDL_CALL(SDL_SetColorKey, src, SDL_TRUE, SDL_MapRGB(src->format, mask.r, mask.g, mask.b));
+	SDL_CALL(SDL_BlitSurface, src, &src_r, dst, &dst_r);
+	SDL_CALL(SDL_SetColorKey, src, SDL_FALSE, 0);
+}
+
+void gfx_copy_masked(int src_x, int src_y, int w, int h, unsigned src_i, int dst_x,
+		int dst_y, unsigned dst_i, uint16_t mask_color)
+{
+	GFX_LOG("gfx_copy_masked[%u] %u(%d,%d) -> %u(%d,%d) @ (%d,%d)", mask_color,
+			src_i, src_x, src_y, dst_i, dst_x, dst_y, src_w, src_h);
+	SDL_Surface *src = gfx_get_surface(src_i);
+	SDL_Surface *dst = gfx_get_surface(dst_i);
+	if (game->bpp == 8)
+		gfx_indexed_copy_masked(src_x, src_y, w, h, src, dst_x, dst_y, dst, mask_color);
+	else
+		gfx_direct_copy_masked(src_x, src_y, w, h, src, dst_x, dst_y, dst, mask_color);
+	gfx_dirty(dst_i);
+}
+
+static void gfx_indexed_copy_swap(int src_x, int src_y, int w, int h, SDL_Surface *src,
+		int dst_x, int dst_y, SDL_Surface *dst)
+{
+	SDL_Rect src_r = { src_x, src_y, w, h };
+	SDL_Point dst_p = { dst_x, dst_y };
+	if (!gfx_copy_begin(src, &src_r, dst, &dst_p))
+		return;
+
+	indexed_foreach_px2(src_px, dst_px, src, &src_r, dst, &dst_p,
+		uint8_t tmp = *dst_px;
+		*dst_px = *src_px;
+		*src_px = tmp;
+	);
+
+	gfx_copy_end(src, dst);
+}
+
+static void gfx_direct_copy_swap(int src_x, int src_y, int w, int h, SDL_Surface *src,
+		int dst_x, int dst_y, SDL_Surface *dst)
+{
+	SDL_Rect src_r = { src_x, src_y, w, h };
+	SDL_Point dst_p = { dst_x, dst_y };
+	if (!gfx_copy_begin(src, &src_r, dst, &dst_p))
+		return;
+
+	direct_foreach_px2(src_px, dst_px, src, &src_r, dst, &dst_p,
+		uint8_t c[DIRECT_BPP / 8];
+		memcpy(c, dst_px, DIRECT_BPP / 8);
+		memcpy(dst_px, src_px, DIRECT_BPP / 8);
+		memcpy(src_px, c, DIRECT_BPP / 8);
+	);
+
+	gfx_copy_end(src, dst);
+}
+
+void gfx_copy_swap(int src_x, int src_y, int w, int h, unsigned src_i, int dst_x,
+		int dst_y, unsigned dst_i)
+{
+	GFX_LOG("gfx_copy_swap %u(%d,%d) -> %u(%d,%d) @ (%d,%d)",
+			src_i, src_x, src_y, dst_i, dst_x, dst_y, src_w, src_h);
+	SDL_Surface *src = gfx_get_surface(src_i);
+	SDL_Surface *dst = gfx_get_surface(dst_i);
+	if (game->bpp == 8)
+		gfx_indexed_copy_swap(src_x, src_y, w, h, src, dst_x, dst_y, dst);
+	else
+		gfx_direct_copy_swap(src_x, src_y, w, h, src, dst_x, dst_y, dst);
+	gfx_dirty(dst_i);
+}
+
+static void gfx_indexed_compose(int fg_x, int fg_y, int w, int h, SDL_Surface *fg, int bg_x,
+		int bg_y, SDL_Surface *bg, int dst_x, int dst_y, SDL_Surface *dst,
+		uint8_t mask_color)
+{
+	gfx_indexed_copy(bg_x, bg_y, w, h, bg, dst_x, dst_y, dst);
+	gfx_indexed_copy_masked(fg_x, fg_y, w, h, fg, dst_x, dst_y, dst, mask_color);
+}
+
+static void gfx_direct_compose(int fg_x, int fg_y, int w, int h, SDL_Surface *fg, int bg_x,
+		int bg_y, SDL_Surface *bg, int dst_x, int dst_y, SDL_Surface *dst,
+		uint16_t mask_color)
+{
+	gfx_direct_copy(bg_x, bg_y, w, h, bg, dst_x, dst_y, dst);
+	gfx_direct_copy_masked(fg_x, fg_y, w, h, fg, dst_x, dst_y, dst, mask_color);
+}
+
+void gfx_compose(int fg_x, int fg_y, int w, int h, unsigned fg_i, int bg_x, int bg_y,
+		unsigned bg_i, int dst_x, int dst_y, unsigned dst_i, uint16_t mask_color)
+{
+	GFX_LOG("gfx_compose[%u] %u(%d,%d) + %u(%d,%d) -> %u(%d,%d) @ (%d,%d)", mask_color,
+			fg_i, fg_x, fg_y, bg_i, bg_x, bg_y, dst_i, dst_x, dst_y, w, h);
+	SDL_Surface *fg = gfx_get_surface(fg_i);
+	SDL_Surface *bg = gfx_get_surface(bg_i);
+	SDL_Surface *dst = gfx_get_surface(dst_i);
+	if (game->bpp == 8)
+		gfx_indexed_compose(fg_x, fg_y, w, h, fg, bg_x, bg_y, bg, dst_x, dst_y, dst,
+				mask_color);
+	else
+		gfx_direct_compose(fg_x, fg_y, w, h, fg, bg_x, bg_y, bg, dst_x, dst_y, dst,
+				mask_color);
+	gfx_dirty(dst_i);
 }
 
 void gfx_invert_colors(int x, int y, int w, int h, unsigned i)
 {
 	GFX_LOG("gfx_invert_colors %u(%d,%d) @ (%d,%d)", i, x, y, w, h);
+	if (game->bpp != 8)
+		VM_ERROR("Invalid bpp for gfx_invert_colors");
 	SDL_Surface *s = gfx_get_surface(i);
 	SDL_Rect r = { x, y, w, h };
-	foreach_pixel(s, &r, gfx_invert_colors_cb, NULL);
+	if (!gfx_fill_begin(s, &r))
+		return;
+
+	indexed_foreach_px(p, s, &r,
+		*p ^= 0xf;
+	);
+
+	gfx_fill_end(s);
 	gfx_dirty(i);
 }
 
-void gfx_fill(int x, int y, int w, int h, unsigned i, uint8_t c)
+static void gfx_indexed_fill(int x, int y, int w, int h, SDL_Surface *dst, uint8_t c)
+{
+	SDL_Rect rect = { x, y, w, h };
+	SDL_CALL(SDL_FillRect, dst, &rect, c);
+}
+
+static void gfx_direct_fill(int x, int y, int w, int h, SDL_Surface *dst, uint16_t color)
+{
+	SDL_Color c;
+	if (game->bpp == 16)
+		c = gfx_decode_bgr555(color);
+	else
+		VM_ERROR("Invalid bpp for gfx_direct_fill");
+	SDL_Rect rect = { x, y, w, h };
+	SDL_CALL(SDL_FillRect, dst, &rect, SDL_MapRGB(dst->format, c.r, c.g, c.b));
+}
+
+void gfx_fill(int x, int y, int w, int h, unsigned i, uint16_t c)
 {
 	GFX_LOG("gfx_fill[%u] %u(%d,%d) @ (%d,%d)", c, i, x, y, w, h);
-	SDL_Rect rect = { x, y, w, h };
-	SDL_CALL(SDL_FillRect, gfx_get_surface(i), &rect, c);
+	SDL_Surface *dst = gfx_get_surface(i);
+	if (game->bpp == 8)
+		return gfx_indexed_fill(x, y, w, h, dst, c);
+	else
+		return gfx_direct_fill(x, y, w, h, dst, c);
 	gfx_dirty(i);
 }
 
-struct swap_colors_data {
-	uint8_t c1, c2;
-};
-
-void gfx_swap_colors_cb(uint8_t *p, void *data)
+static void gfx_indexed_swap_colors(SDL_Rect r, SDL_Surface *dst, uint8_t c1,
+		uint8_t c2)
 {
-	struct swap_colors_data *colors = data;
-	if (*p == colors->c1)
-		*p = colors->c2;
-	else if (*p == colors->c2)
-		*p = colors->c1;
+	if (!gfx_fill_begin(dst, &r))
+		return;
+
+	indexed_foreach_px(p, dst, &r,
+		if (*p == c1)
+			*p = c2;
+		else if (*p == c2)
+			*p = c1;
+	);
+
+	gfx_fill_end(dst);
 }
 
-void gfx_swap_colors(int x, int y, int w, int h, unsigned i, uint8_t c1, uint8_t c2)
+// XXX: we assume pixel format is RGB24
+//      this must change if alpha channel is needed in the future
+_Static_assert(DIRECT_FORMAT == SDL_PIXELFORMAT_RGB24);
+static uint32_t gfx_direct_get_pixel(uint8_t *p)
+{
+	if (SDL_BYTEORDER == SDL_BIG_ENDIAN)
+		return (p[0] << 16) | (p[1] << 8) || p[2];
+	else
+		return p[0] | (p[1] << 8) | (p[2] << 16);
+}
+
+static void gfx_direct_set_pixel(uint8_t *dst, uint32_t c)
+{
+	dst[0] = c & 0xff;
+	dst[1] = (c >> 8) & 0xff;
+	dst[2] = (c >> 16) & 0xff;
+}
+
+static void gfx_direct_swap_colors(SDL_Rect r, SDL_Surface *dst, uint16_t _c1,
+		uint16_t _c2)
+{
+	if (!gfx_fill_begin(dst, &r))
+		return;
+
+	// transcode color to RGB24
+	SDL_Color color1 = gfx_decode_bgr555(_c1);
+	SDL_Color color2 = gfx_decode_bgr555(_c2);
+	uint32_t c1 = color1.r | (color1.g << 8) | (color1.b << 16);
+	uint32_t c2 = color2.r | (color2.g << 8) | (color2.b << 16);
+	direct_foreach_px(p, dst, &r,
+		uint32_t c = gfx_direct_get_pixel(p);
+		if (c == c2)
+			gfx_direct_set_pixel(p, c1);
+		else
+			gfx_direct_set_pixel(p, c2);
+	);
+
+	gfx_fill_end(dst);
+}
+
+void gfx_swap_colors(int x, int y, int w, int h, unsigned i, uint16_t c1, uint16_t c2)
 {
 	GFX_LOG("gfx_swap_colors[%u,%u] %u(%d,%d) @ (%d,%d)", c1, c2, i, x, y, w, h);
 	SDL_Surface *s = gfx_get_surface(i);
 	SDL_Rect r = { x, y, w, h };
-	struct swap_colors_data colors = { c1, c2 };
-	foreach_pixel(s, &r, gfx_swap_colors_cb, &colors);
+	if (game->bpp == 8)
+		gfx_indexed_swap_colors(r, s, c1, c2);
+	else
+		gfx_direct_swap_colors(r, s, c1, c2);
 	gfx_dirty(i);
 }
 
-void gfx_draw_cg(unsigned i, struct cg *cg)
+static void gfx_indexed_draw_cg(SDL_Surface *s, struct cg *cg)
 {
-	GFX_LOG("gfx_draw_cg[%u] (%u,%u,%u,%u)", i, cg->metrics.x, cg->metrics.y,
-			cg->metrics.w, cg->metrics.h);
-	SDL_Surface *s = gfx_get_surface(i);
-	if (SDL_MUSTLOCK(s))
-		SDL_CALL(SDL_LockSurface, s);
-
 	unsigned screen_w = s->w;
 	unsigned screen_h = s->h;
 	unsigned cg_x = cg->metrics.x;
@@ -587,6 +797,37 @@ void gfx_draw_cg(unsigned i, struct cg *cg)
 		uint8_t *dst = base + row * s->pitch;
 		uint8_t *src = cg->pixels + row * cg_w;
 		memcpy(dst, src, cg_w);
+	}
+}
+
+static void gfx_direct_draw_cg(SDL_Surface *dst, struct cg *cg)
+{
+	SDL_Surface *src;
+	SDL_CTOR(SDL_CreateRGBSurfaceWithFormatFrom, src, cg->pixels, cg->metrics.w,
+			cg->metrics.h, 32, cg->metrics.w * 4, SDL_PIXELFORMAT_RGBA32);
+	SDL_Rect dst_r = { cg->metrics.x, cg->metrics.y, cg->metrics.w, cg->metrics.h };
+	SDL_CALL(SDL_BlitSurface, src, NULL, dst, &dst_r);
+	SDL_FreeSurface(src);
+}
+
+void gfx_draw_cg(unsigned i, struct cg *cg)
+{
+	GFX_LOG("gfx_draw_cg[%u] (%u,%u,%u,%u)", i, cg->metrics.x, cg->metrics.y,
+			cg->metrics.w, cg->metrics.h);
+	SDL_Surface *s = gfx_get_surface(i);
+	if (SDL_MUSTLOCK(s))
+		SDL_CALL(SDL_LockSurface, s);
+
+	if (game->bpp == 8) {
+		if (!cg->palette)
+			VM_ERROR("Tried to draw direct-color CG to indexed surface");
+		gfx_indexed_draw_cg(s, cg);
+	} else {
+		if (cg->palette) {
+			// FIXME: depalettize?
+			VM_ERROR("Tried to draw indexed CG to direct-color surface");
+		}
+		gfx_direct_draw_cg(s, cg);
 	}
 
 	if (SDL_MUSTLOCK(s))

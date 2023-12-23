@@ -20,6 +20,7 @@
 #include "nulib.h"
 #include "ai5/cg.h"
 
+#include "game.h"
 #include "gfx_private.h"
 #include "vm.h"
 
@@ -151,6 +152,9 @@ static uint8_t *get_pixel_p(SDL_Surface *s, int x, int y)
 void gfx_fade_down(int x, int y, int w, int h, unsigned dst_i, int src_i)
 {
 	GFX_LOG("gfx_fade_down %d -> %u{%d,%d} @ (%d,%d)", src_i, dst_i, x, y, w, h);
+	if (unlikely(game->bpp != 8))
+		VM_ERROR("Invalid bpp for gfx_fade_down");
+
 	SDL_Surface *s = gfx_get_surface(dst_i);
 	SDL_Surface *src_s = src_i < 0 ? NULL : gfx_get_surface(src_i);
 	SDL_Rect r = { x, y, w, h };
@@ -204,6 +208,9 @@ void gfx_fade_down(int x, int y, int w, int h, unsigned dst_i, int src_i)
 void gfx_fade_right(int x, int y, int w, int h, unsigned dst_i, int src_i)
 {
 	GFX_LOG("gfx_fade_right %d -> %u(%d,%d) @ (%d,%d)", src_i, dst_i, x, y, w, h);
+	if (unlikely(game->bpp != 8))
+		VM_ERROR("Invalid bpp for gfx_fade_right");
+
 	SDL_Surface *s = gfx_get_surface(dst_i);
 	SDL_Surface *src_s = src_i < 0 ? NULL : gfx_get_surface(src_i);
 	SDL_Rect r = { x, y, w, h };
@@ -261,6 +268,9 @@ void gfx_fade_right(int x, int y, int w, int h, unsigned dst_i, int src_i)
 void gfx_pixelate(int x, int y, int w, int h, unsigned dst_i, unsigned mag)
 {
 	GFX_LOG("gfx_pixelate[%u] %u(%d,%d) @ (%d,%d)", mag, dst_i, x, y, w, h);
+	if (unlikely(game->bpp != 8))
+		VM_ERROR("Invalid bpp for gfx_pixelate");
+
 	SDL_Surface *s = gfx_get_surface(dst_i);
 	SDL_Rect r = { x, y, w, h };
 	if (!gfx_fill_clip(s, &r)) {
@@ -315,6 +325,9 @@ void progressive_update(vm_timer_t *timer, unsigned dst_i)
 void gfx_blink_fade(int x, int y, int w, int h, unsigned dst_i)
 {
 	GFX_LOG("gfx_blink_fade %u(%d,%d) @ (%d,%d)", dst_i, x, y, w, h);
+	if (unlikely(game->bpp != 8))
+		VM_ERROR("Invalid bpp for gfx_blink_fade");
+
 	SDL_Surface *s = gfx_get_surface(dst_i);
 	SDL_Rect r = { x, y, w, h };
 	if (!gfx_fill_clip(s, &r)) {
@@ -348,6 +361,9 @@ void gfx_blink_fade(int x, int y, int w, int h, unsigned dst_i)
 void gfx_fade_progressive(int x, int y, int w, int h, unsigned dst_i)
 {
 	GFX_LOG("gfx_fade_progressive %u(%d,%d) @ (%d,%d)", dst_i, x, y, w, h);
+	if (unlikely(game->bpp != 8))
+		VM_ERROR("Invalid bpp for gfx_fade_progressive");
+
 	SDL_Surface *s = gfx_get_surface(dst_i);
 	SDL_Rect r = { x, y, w, h };
 	if (!gfx_fill_clip(s, &r)) {
@@ -372,13 +388,13 @@ void gfx_fade_progressive(int x, int y, int w, int h, unsigned dst_i)
 }
 
 static void copy_row(uint8_t *src_base, uint8_t *dst_base, unsigned row, unsigned w,
-		unsigned h, unsigned src_pitch, unsigned dst_pitch)
+		unsigned h, unsigned src_pitch, unsigned dst_pitch, unsigned bytes_pp)
 {
 	if (row >= h)
 		return;
 	uint8_t *src = src_base + row * src_pitch;
 	uint8_t *dst = dst_base + row * dst_pitch;
-	memcpy(dst, src, w);
+	memcpy(dst, src, w * bytes_pp);
 }
 
 void gfx_copy_progressive(int src_x, int src_y, int w, int h, unsigned src_i, int dst_x,
@@ -386,6 +402,7 @@ void gfx_copy_progressive(int src_x, int src_y, int w, int h, unsigned src_i, in
 {
 	GFX_LOG("gfx_copy_progressive %u(%d,%d) -> %u(%d,%d) @ (%d,%d)", src_i, src_x, src_y,
 			dst_i, dst_x, dst_y, w, h);
+
 	SDL_Surface *src = gfx_get_surface(src_i);
 	SDL_Surface *dst = gfx_get_surface(dst_i);
 	SDL_Rect src_r = { src_x, src_y, w, h };
@@ -397,29 +414,30 @@ void gfx_copy_progressive(int src_x, int src_y, int w, int h, unsigned src_i, in
 	}
 
 	vm_timer_t timer = vm_timer_create();
+	unsigned bytes_pp = src->format->BytesPerPixel;
 	unsigned logical_h = ((unsigned)src_r.h + 3u) & ~3u;
-	uint8_t *src_base = src->pixels + src_r.y * src->pitch + src_r.x;
-	uint8_t *dst_base = dst->pixels + dst_p.y * dst->pitch + dst_p.x;
+	uint8_t *src_base = src->pixels + src_r.y * src->pitch + src_r.x * bytes_pp;
+	uint8_t *dst_base = dst->pixels + dst_p.y * dst->pitch + dst_p.x * bytes_pp;
 	for (int row = 0; row <= logical_h; row += 4) {
 		unsigned row_top = row;
 		unsigned row_bot = (logical_h - row) + 2;
-		copy_row(src_base, dst_base, row_top, src_r.w, src_r.h, src->pitch, dst->pitch);
-		copy_row(src_base, dst_base, row_bot, src_r.w, src_r.h, src->pitch, dst->pitch);
+		copy_row(src_base, dst_base, row_top, src_r.w, src_r.h, src->pitch, dst->pitch, bytes_pp);
+		copy_row(src_base, dst_base, row_bot, src_r.w, src_r.h, src->pitch, dst->pitch, bytes_pp);
 		progressive_update(&timer, dst_i);
 	}
 
 	for (int row = 0; row <= logical_h; row += 4) {
 		unsigned row_top = row + 1;
 		unsigned row_bot = (logical_h - row) + 3;
-		copy_row(src_base, dst_base, row_top, src_r.w, src_r.h, src->pitch, dst->pitch);
-		copy_row(src_base, dst_base, row_bot, src_r.w, src_r.h, src->pitch, dst->pitch);
+		copy_row(src_base, dst_base, row_top, src_r.w, src_r.h, src->pitch, dst->pitch, bytes_pp);
+		copy_row(src_base, dst_base, row_bot, src_r.w, src_r.h, src->pitch, dst->pitch, bytes_pp);
 		progressive_update(&timer, dst_i);
 	}
 }
 
 void gfx_scale_h(unsigned i, int mag)
 {
-	if (unlikely(i >= GFX_NR_SURFACES)) {
+	if (unlikely(i >= GFX_NR_SURFACES || !gfx.surface[i].s)) {
 		WARNING("Invalid surface index: %u", i);
 		i = 0;
 	}
@@ -430,11 +448,6 @@ void gfx_scale_h(unsigned i, int mag)
 		s->src.h = s->s->h;
 		s->dst.y = 0;
 		s->scaled = !SDL_RectEquals(&s->src, &s->dst);
-		if (s->scaled) {
-			ERROR("wtf: {%d,%d,%d,%d} {%d,%d,%d,%d}", s->src.x, s->src.y,
-					s->src.w, s->src.h, s->dst.x, s->dst.y, s->dst.w,
-					s->dst.h);
-		}
 	} else if (mag < 0) {
 		s->src.y = 0;
 		s->src.h = s->s->h + mag;

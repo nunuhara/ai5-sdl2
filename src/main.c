@@ -155,6 +155,9 @@ static void set_game(const char *name)
 	}
 	ai5_set_game(name);
 	switch (ai5_target_game) {
+	case GAME_ISAKU:
+		game = &game_isaku;
+		break;
 	case GAME_SHANGRLIA:
 		game = &game_shangrlia;
 		break;

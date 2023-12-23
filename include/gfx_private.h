@@ -52,8 +52,10 @@ struct gfx {
 	SDL_Surface *scaled_display;
 	SDL_Texture *texture;
 	struct {
-		uint8_t bg;
-		uint8_t fg;
+		uint32_t bg;
+		uint32_t fg;
+		SDL_Color bg_color;
+		SDL_Color fg_color;
 	} text;
 	bool dirty;
 	bool hidden;
@@ -63,5 +65,15 @@ extern struct gfx gfx;
 SDL_Surface *gfx_get_surface(unsigned i);
 bool gfx_fill_clip(SDL_Surface *s, SDL_Rect *r);
 bool gfx_copy_clip(SDL_Surface *src, SDL_Rect *src_r, SDL_Surface *dst, SDL_Point *dst_p);
+
+static inline SDL_Color gfx_decode_bgr555(uint16_t c)
+{
+	return (SDL_Color) {
+		.r = (c & 0x7c00) >> 7,
+		.g = (c & 0x03e0) >> 2,
+		.b = (c & 0x001f) << 3,
+		.a = 255
+	};
+}
 
 #endif // AI5_GFX_PRIVATE_H

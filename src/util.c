@@ -44,9 +44,9 @@ void util_noop(struct param_list *params)
 
 void util_get_text_colors(struct param_list *params)
 {
-	uint8_t bg, fg;
+	uint32_t bg, fg;
 	gfx_text_get_colors(&bg, &fg);
-	mem_set_var32(18, (bg << 4) | fg);
+	mem_set_var32(18, ((bg & 0xf) << 4) | (fg & 0xf));
 }
 
 void util_blink_fade(struct param_list *params)

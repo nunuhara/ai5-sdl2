@@ -20,6 +20,7 @@
 #include "ai5/mes.h"
 
 #include "ai5.h"
+#include "game.h"
 #include "gfx_private.h"
 #include "gfx.h"
 #include "memory.h"
@@ -32,6 +33,7 @@ struct font {
 	int size;
 	int y_off;
 	TTF_Font *id;
+	TTF_Font *id_outline;
 };
 
 #define MAX_FONTS 256
@@ -48,7 +50,7 @@ static struct font *font_lookup(int size)
 	return NULL;
 }
 
-static struct font *font_insert(int size, TTF_Font *id)
+static struct font *font_insert(int size, TTF_Font *id, TTF_Font *id_outline)
 {
 	int min_x, max_x, min_y, max_y, adv;
 	int ascent = TTF_FontAscent(id);
@@ -64,6 +66,7 @@ static struct font *font_insert(int size, TTF_Font *id)
 	fonts[nr_fonts].size = size;
 	fonts[nr_fonts].y_off = y_off;
 	fonts[nr_fonts].id = id;
+	fonts[nr_fonts].id_outline = id_outline;
 	return &fonts[nr_fonts++];
 }
 
@@ -74,13 +77,17 @@ void gfx_text_init(void)
 	gfx_text_set_size(mem_get_sysvar16(mes_sysvar16_font_height));
 }
 
-void gfx_text_set_colors(uint8_t bg, uint8_t fg)
+void gfx_text_set_colors(uint32_t bg, uint32_t fg)
 {
 	gfx.text.bg = bg;
 	gfx.text.fg = fg;
+	if (game->bpp == 16) {
+		gfx.text.bg_color = gfx_decode_bgr555(bg);
+		gfx.text.fg_color = gfx_decode_bgr555(fg);
+	}
 }
 
-void gfx_text_get_colors(uint8_t *bg, uint8_t *fg)
+void gfx_text_get_colors(uint32_t *bg, uint32_t *fg)
 {
 	*bg = gfx.text.bg;
 	*fg = gfx.text.fg;
@@ -97,7 +104,7 @@ void gfx_text_swap_colors(int x, int y, int w, int h, unsigned i)
 }
 
 // XXX: We have to blit manually so that the correct foreground index is written.
-static void glyph_blit(SDL_Surface *glyph, int dst_x, int dst_y, SDL_Surface *s)
+static void glyph_blit_indexed(SDL_Surface *glyph, int dst_x, int dst_y, SDL_Surface *s)
 {
 	int glyph_x = 0;
 	int glyph_y = 0;
@@ -142,12 +149,8 @@ static void glyph_blit(SDL_Surface *glyph, int dst_x, int dst_y, SDL_Surface *s)
 		SDL_UnlockSurface(glyph);
 }
 
-unsigned gfx_text_draw_glyph(int x, int y, unsigned i, uint32_t ch)
+static unsigned gfx_text_draw_glyph_indexed(int x, int y, SDL_Surface *dst, uint32_t ch)
 {
-	if (!cur_font)
-		return 0;
-
-	SDL_Surface *dst = gfx_get_surface(i);
 	assert(gfx.text.fg < dst->format->palette->ncolors);
 	SDL_Color fg = dst->format->palette->colors[gfx.text.fg];
 	SDL_Surface *s = TTF_RenderGlyph32_Solid(cur_font->id, ch, fg);
@@ -156,10 +159,52 @@ unsigned gfx_text_draw_glyph(int x, int y, unsigned i, uint32_t ch)
 
 	y -= cur_font->y_off;
 	unsigned w = s->w;
-	glyph_blit(s, x, y, dst);
+	glyph_blit_indexed(s, x, y, dst);
 	SDL_FreeSurface(s);
-	gfx_dirty(i);
 	return w;
+}
+
+static unsigned gfx_text_draw_glyph_direct(int x, int y, SDL_Surface *dst, uint32_t ch)
+{
+	// TODO: decode from system variable
+	SDL_Surface *outline = TTF_RenderGlyph32_Blended(cur_font->id_outline, ch, gfx.text.bg_color);
+	SDL_Surface *glyph = TTF_RenderGlyph32_Blended(cur_font->id, ch, gfx.text.fg_color);
+	if (!outline || !glyph)
+		ERROR("TTF_RenderGlyph32_Blended: %s", TTF_GetError());
+
+	y -= cur_font->y_off;
+
+	SDL_Rect outline_r = { x-1, y-1, outline->w, outline->h };
+	SDL_Rect glyph_r = { x, y, glyph->w, glyph->h };
+	SDL_CALL(SDL_BlitSurface, outline, NULL, dst, &outline_r);
+	SDL_CALL(SDL_BlitSurface, glyph, NULL, dst, &glyph_r);
+	SDL_FreeSurface(glyph);
+	SDL_FreeSurface(outline);
+	return glyph_r.w;
+}
+
+unsigned gfx_text_draw_glyph(int x, int y, unsigned i, uint32_t ch)
+{
+	if (!cur_font)
+		return 0;
+
+	SDL_Surface *dst = gfx_get_surface(i);
+	unsigned r;
+	if (game->bpp == 8)
+		r = gfx_text_draw_glyph_indexed(x, y, dst, ch);
+	else
+		r = gfx_text_draw_glyph_direct(x, y, dst, ch);
+	gfx_dirty(i);
+	return r;
+}
+
+static void open_font(const char *path, int size, TTF_Font **out, TTF_Font **outline_out)
+{
+	*out = TTF_OpenFont(path, size);
+	*outline_out = TTF_OpenFont(path, size);
+	if (!out || !outline_out)
+		ERROR("TTF_OpenFont: %s", TTF_GetError());
+	TTF_SetFontOutline(*outline_out, 1);
 }
 
 void gfx_text_set_size(int size)
@@ -167,16 +212,15 @@ void gfx_text_set_size(int size)
 	struct font *font = font_lookup(size);
 	if (!font) {
 		TTF_Font *f;
+		TTF_Font *f_outline = NULL;
 		if (yuno_eng) {
-			f = TTF_OpenFont(AI5_DATA_DIR "/fonts/NotoSansJP-Thin.ttf", size);
+			open_font(AI5_DATA_DIR "/fonts/NotoSansJP-Thin.ttf", size, &f, &f_outline);
 		} else if (size <= 18) {
-			f = TTF_OpenFont(AI5_DATA_DIR "/fonts/DotGothic16-Regular.ttf", size);
+			open_font(AI5_DATA_DIR "/fonts/DotGothic16-Regular.ttf", size, &f, &f_outline);
 		} else {
-			f = TTF_OpenFont(AI5_DATA_DIR "/fonts/Kosugi-Regular.ttf", size);
+			open_font(AI5_DATA_DIR "/fonts/Kosugi-Regular.ttf", size, &f, &f_outline);
 		}
-		if (!f)
-			ERROR("TTF_OpenFont: %s", TTF_GetError());
-		font = font_insert(size, f);
+		font = font_insert(size, f, f_outline);
 	}
 	cur_font = font;
 }
