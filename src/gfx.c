@@ -24,12 +24,6 @@
 #include "gfx_private.h"
 #include "vm.h"
 
-#define INDEXED_BPP 8
-#define INDEXED_FORMAT SDL_PIXELFORMAT_INDEX8
-
-#define DIRECT_BPP 24
-#define DIRECT_FORMAT SDL_PIXELFORMAT_RGB24
-
 struct gfx gfx = { .dirty = true };
 struct gfx_view gfx_view = { 640, 400 };
 
@@ -63,6 +57,24 @@ unsigned gfx_current_surface(void)
 	return gfx.screen;
 }
 
+static SDL_Surface *gfx_create_surface(unsigned w, unsigned h, uint8_t r, uint8_t g, uint8_t b)
+{
+	SDL_Surface *s;
+	SDL_CTOR(SDL_CreateRGBSurfaceWithFormat, s, 0, w, h,
+			game->bpp == 8 ? GFX_INDEXED_BPP : GFX_DIRECT_BPP,
+			game->bpp == 8 ? GFX_INDEXED_FORMAT : GFX_DIRECT_FORMAT);
+	SDL_CALL(SDL_FillRect, s, NULL, SDL_MapRGB(s->format, r, g, b));
+	return s;
+}
+
+static SDL_Texture *gfx_create_texture(unsigned w, unsigned h)
+{
+	SDL_Texture *t;
+	SDL_CTOR(SDL_CreateTexture, t, gfx.renderer, gfx.display->format->format,
+			SDL_TEXTUREACCESS_STATIC, w, h);
+	return t;
+}
+
 static void gfx_init_window(void)
 {
 	gfx_view.w = game->surface_sizes[0].w;
@@ -89,29 +101,21 @@ static void gfx_init_window(void)
 			break;
 		}
 
-		if (game->bpp == 8) {
-			SDL_CTOR(SDL_CreateRGBSurfaceWithFormat, gfx.surface[i].s, 0, w, h,
-					INDEXED_BPP, INDEXED_FORMAT);
-		} else {
-			SDL_CTOR(SDL_CreateRGBSurfaceWithFormat, gfx.surface[i].s, 0, w, h,
-					DIRECT_BPP, DIRECT_FORMAT);
-		}
-		SDL_CALL(SDL_FillRect, gfx.surface[i].s, NULL, 0);
+		gfx.surface[i].s = gfx_create_surface(w, h, 0, 0, 0);
 		gfx.surface[i].src = (SDL_Rect) { 0, 0, w, h };
 		gfx.surface[i].dst = (SDL_Rect) { 0, 0, w, h };
 		gfx.surface[i].scaled = false;
 	}
 
 	SDL_CTOR(SDL_CreateRGBSurfaceWithFormat, gfx.display, 0, gfx_view.w, gfx_view.h,
-			DIRECT_BPP, DIRECT_FORMAT);
+			GFX_DIRECT_BPP, GFX_DIRECT_FORMAT);
 	SDL_CTOR(SDL_CreateRGBSurfaceWithFormat, gfx.scaled_display, 0, gfx_view.w,
-			gfx_view.h, DIRECT_BPP, DIRECT_FORMAT);
+			gfx_view.h, GFX_DIRECT_BPP, GFX_DIRECT_FORMAT);
 	SDL_CALL(SDL_FillRect, gfx.display, NULL, SDL_MapRGB(gfx.display->format, 0, 0, 0));
 	SDL_CALL(SDL_FillRect, gfx.scaled_display, NULL,
 			SDL_MapRGB(gfx.scaled_display->format, 0, 0, 0));
 
-	SDL_CTOR(SDL_CreateTexture, gfx.texture, gfx.renderer, gfx.display->format->format,
-			SDL_TEXTUREACCESS_STATIC, gfx_view.w, gfx_view.h);
+	gfx.texture = gfx_create_texture(gfx_view.w, gfx_view.h);
 }
 
 static void gfx_fini(void)
@@ -176,7 +180,83 @@ void gfx_update(void)
 	gfx.dirty = false;
 }
 
-void gfx_hide_screen(void)
+void gfx_display_freeze(void)
+{
+	GFX_LOG("gfx_display_freeze");
+	gfx.hidden = true;
+}
+
+void gfx_display_unfreeze(void)
+{
+	GFX_LOG("gfx_display_unfreeze");
+	gfx.hidden = false;
+	gfx.dirty = true;
+}
+
+#define FADE_ALPHA_STEP 4
+#define FADE_FRAME_TIME 16
+
+void gfx_display_fade_out(uint16_t vm_color)
+{
+	GFX_LOG("gfx_display_fade_out %u", vm_color);
+	gfx.hidden = true;
+
+	// create mask texture with solid color
+	SDL_Color c = gfx_decode_bgr555(vm_color);
+	SDL_CALL(SDL_FillRect, gfx.display, NULL, SDL_MapRGB(gfx.display->format, c.r, c.g, c.b));
+	SDL_Texture *mask = gfx_create_texture(gfx_view.w, gfx_view.h);
+	SDL_CALL(SDL_UpdateTexture, mask, NULL, gfx.display->pixels, gfx.display->pitch);
+	SDL_CALL(SDL_SetTextureBlendMode, mask, SDL_BLENDMODE_BLEND);
+
+	vm_timer_t timer = vm_timer_create();
+	for (int i = 0; i < 256; i += FADE_ALPHA_STEP) {
+		SDL_CALL(SDL_SetTextureAlphaMod, mask, i);
+		SDL_CALL(SDL_RenderClear, gfx.renderer);
+		SDL_CALL(SDL_RenderCopy, gfx.renderer, gfx.texture, NULL, NULL);
+		SDL_CALL(SDL_RenderCopy, gfx.renderer, mask, NULL, NULL);
+		SDL_RenderPresent(gfx.renderer);
+
+		vm_peek();
+		vm_timer_tick(&timer, FADE_FRAME_TIME);
+	}
+
+	SDL_CALL(SDL_SetTextureAlphaMod, mask, 255);
+	SDL_CALL(SDL_RenderClear, gfx.renderer);
+	SDL_CALL(SDL_RenderCopy, gfx.renderer, mask, NULL, NULL);
+	SDL_RenderPresent(gfx.renderer);
+}
+
+void gfx_display_fade_in(void)
+{
+	GFX_LOG("gfx_display_fade_in");
+	SDL_Texture *mask = gfx_create_texture(gfx_view.w, gfx_view.h);
+	SDL_CALL(SDL_UpdateTexture, mask, NULL, gfx.display->pixels, gfx.display->pitch);
+	SDL_CALL(SDL_SetTextureBlendMode, mask, SDL_BLENDMODE_BLEND);
+
+	SDL_CALL(SDL_BlitSurface, gfx.surface[gfx.screen].s, NULL, gfx.display, NULL);
+	SDL_CALL(SDL_UpdateTexture, gfx.texture, NULL, gfx.display->pixels, gfx.display->pitch);
+
+	vm_timer_t timer = vm_timer_create();
+	for (int i = 255; i >= 0; i -= FADE_ALPHA_STEP) {
+		SDL_CALL(SDL_SetTextureAlphaMod, mask, i);
+		SDL_CALL(SDL_RenderClear, gfx.renderer);
+		SDL_CALL(SDL_RenderCopy, gfx.renderer, gfx.texture, NULL, NULL);
+		SDL_CALL(SDL_RenderCopy, gfx.renderer, mask, NULL, NULL);
+		SDL_RenderPresent(gfx.renderer);
+
+		vm_peek();
+		vm_timer_tick(&timer, FADE_FRAME_TIME);
+	}
+
+	SDL_CALL(SDL_RenderClear, gfx.renderer);
+	SDL_CALL(SDL_RenderCopy, gfx.renderer, gfx.texture, NULL, NULL);
+	SDL_RenderPresent(gfx.renderer);
+
+	gfx.hidden = false;
+	gfx.dirty = true;
+}
+
+void gfx_display_hide(void)
 {
 	GFX_LOG("gfx_hide_screen");
 	// fill screen with color 0 and prevent updates
@@ -185,7 +265,7 @@ void gfx_hide_screen(void)
 	gfx.hidden = true;
 }
 
-void gfx_unhide_screen(void)
+void gfx_display_unhide(void)
 {
 	GFX_LOG("gfx_unhide_screen");
 	// allow updates
@@ -611,10 +691,10 @@ static void gfx_direct_copy_swap(int src_x, int src_y, int w, int h, SDL_Surface
 		return;
 
 	direct_foreach_px2(src_px, dst_px, src, &src_r, dst, &dst_p,
-		uint8_t c[DIRECT_BPP / 8];
-		memcpy(c, dst_px, DIRECT_BPP / 8);
-		memcpy(dst_px, src_px, DIRECT_BPP / 8);
-		memcpy(src_px, c, DIRECT_BPP / 8);
+		uint8_t c[GFX_DIRECT_BPP / 8];
+		memcpy(c, dst_px, GFX_DIRECT_BPP / 8);
+		memcpy(dst_px, src_px, GFX_DIRECT_BPP / 8);
+		memcpy(src_px, c, GFX_DIRECT_BPP / 8);
 	);
 
 	gfx_copy_end(src, dst);
@@ -731,7 +811,7 @@ static void gfx_indexed_swap_colors(SDL_Rect r, SDL_Surface *dst, uint8_t c1,
 
 // XXX: we assume pixel format is RGB24
 //      this must change if alpha channel is needed in the future
-_Static_assert(DIRECT_FORMAT == SDL_PIXELFORMAT_RGB24);
+_Static_assert(GFX_DIRECT_FORMAT == SDL_PIXELFORMAT_RGB24);
 static uint32_t gfx_direct_get_pixel(uint8_t *p)
 {
 	if (SDL_BYTEORDER == SDL_BIG_ENDIAN)

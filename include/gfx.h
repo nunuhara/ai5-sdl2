@@ -19,9 +19,6 @@
 
 struct cg;
 
-#define DEFAULT_VIEW_WIDTH 640
-#define DEFAULT_VIEW_HEIGHT 400
-
 #define GFX_NR_SURFACES 10
 
 struct gfx_view { unsigned w, h; };
@@ -32,13 +29,23 @@ void gfx_update(void);
 void gfx_dirty(unsigned surface);
 void gfx_screen_dirty(void);
 unsigned gfx_current_surface(void);
-void gfx_hide_screen(void);
-void gfx_unhide_screen(void);
+void gfx_set_screen_surface(unsigned i);
+
+// display operations
+void gfx_display_hide(void);
+void gfx_display_unhide(void);
+void gfx_display_freeze(void);
+void gfx_display_unfreeze(void);
+void gfx_display_fade_out(uint16_t vm_color);
+void gfx_display_fade_in(void);
+
+// palette operations
 void gfx_palette_set(const uint8_t *data);
 void gfx_palette_set_color(uint8_t c, uint8_t r, uint8_t g, uint8_t b);
 void gfx_palette_crossfade(const uint8_t *data, unsigned ms);
 void gfx_palette_crossfade_to(uint8_t r, uint8_t g, uint8_t b, unsigned ms);
-void gfx_set_screen_surface(unsigned i);
+
+// draw operations
 void gfx_copy(int src_x, int src_y, int src_w, int src_h, unsigned src_i, int dst_x,
 		int dst_y, unsigned dst_i);
 void gfx_copy_masked(int src_x, int src_y, int src_w, int src_h, unsigned src_i, int dst_x,
@@ -63,11 +70,7 @@ void gfx_copy_progressive(int src_x, int src_y, int w, int h, unsigned src_i, in
 		int dst_y, unsigned dst_i);
 void gfx_scale_h(unsigned i, int mag);
 
-// yuno.c
-void gfx_yuno_reflector_animation(void);
-
-#define DEFAULT_FONT_SIZE 16
-
+// text.c
 void gfx_text_init(void);
 void gfx_text_set_colors(uint32_t bg, uint32_t fg);
 void gfx_text_get_colors(uint32_t *bg, uint32_t *fg);

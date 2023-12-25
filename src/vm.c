@@ -692,10 +692,8 @@ void vm_peek(void)
 #ifdef USE_SDL_MIXER
 	audio_update();
 #endif
-	if (ai5_target_game == GAME_YUNO && vm_flag_is_on(VM_FLAG_REFLECTOR)) {
-		if (gfx_current_surface() != 1 || mem_get_var4(21) != 1)
-			gfx_yuno_reflector_animation();
-	}
+	if (game->update)
+		game->update();
 	gfx_update();
 }
 

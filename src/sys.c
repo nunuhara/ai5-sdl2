@@ -285,8 +285,8 @@ void sys_palette(struct param_list *params)
 	case 0:  sys_palette_set(params); break;
 	case 1:  sys_palette_crossfade1(params); break;
 	case 2:  sys_palette_crossfade2(params); break;
-	case 3:  gfx_hide_screen(); break;
-	case 4:  gfx_unhide_screen(); break;
+	case 3:  gfx_display_hide(); break;
+	case 4:  gfx_display_unhide(); break;
 	default: VM_ERROR("System.Palette.function[%d] not implemented",
 				 params->params[0].val);
 	}

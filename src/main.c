@@ -291,6 +291,9 @@ int main(int argc, char *argv[])
 	free(ini_name);
 	free(exe_path);
 
+	if (game->init)
+		game->init();
+
 	// execute start mes file
 	vm_load_mes(config.start_mes);
 	vm_exec();

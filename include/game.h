@@ -30,6 +30,8 @@ struct game {
 	unsigned x_mult;
 	uint32_t var4_size;
 	uint32_t mem16_size;
+	void (*init)(void);
+	void (*update)(void);
 	void (*mem_init)(void);
 	void (*mem_restore)(void);
 	void (*util[GAME_MAX_UTIL])(struct param_list*);

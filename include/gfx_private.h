@@ -30,6 +30,12 @@
 #define GFX_LOG(...)
 #endif
 
+#define GFX_INDEXED_BPP 8
+#define GFX_INDEXED_FORMAT SDL_PIXELFORMAT_INDEX8
+
+#define GFX_DIRECT_BPP 24
+#define GFX_DIRECT_FORMAT SDL_PIXELFORMAT_RGB24
+
 struct gfx_surface {
 	SDL_Surface *s;
 	SDL_Rect src;   // source rectangle for BlitScaled

@@ -66,10 +66,10 @@ static void yuno_mem_init(void)
 	mem_set_sysvar16(mes_sysvar16_text_start_y, 0);
 	mem_set_sysvar16(mes_sysvar16_text_end_x, game_yuno.surface_sizes[0].w);
 	mem_set_sysvar16(mes_sysvar16_text_end_y, game_yuno.surface_sizes[0].h);
-	mem_set_sysvar16(mes_sysvar16_font_width, DEFAULT_FONT_SIZE);
-	mem_set_sysvar16(mes_sysvar16_font_height, DEFAULT_FONT_SIZE);
-	mem_set_sysvar16(mes_sysvar16_char_space, DEFAULT_FONT_SIZE);
-	mem_set_sysvar16(mes_sysvar16_line_space, DEFAULT_FONT_SIZE);
+	mem_set_sysvar16(mes_sysvar16_font_width, 16);
+	mem_set_sysvar16(mes_sysvar16_font_height, 16);
+	mem_set_sysvar16(mes_sysvar16_char_space, 16);
+	mem_set_sysvar16(mes_sysvar16_line_space, 16);
 	mem_set_sysvar16(mes_sysvar16_mask_color, 0);
 
 	mem_set_sysvar32(mes_sysvar32_cg_offset, 0x20000);
@@ -79,6 +79,16 @@ static void yuno_mem_init(void)
 static void sys_22_warn(struct param_list *params)
 {
 	WARNING("System.function[22] not implemented");
+}
+
+static void yuno_reflector_animation(void);
+
+static void yuno_update(void)
+{
+	if (vm_flag_is_on(VM_FLAG_REFLECTOR)) {
+		if (gfx_current_surface() != 1 || mem_get_var4(21) != 1)
+			yuno_reflector_animation();
+	}
 }
 
 struct game game_yuno = {
@@ -94,6 +104,7 @@ struct game game_yuno = {
 	.x_mult = 8,
 	.var4_size = VAR4_SIZE,
 	.mem16_size = MEM16_SIZE,
+	.update = yuno_update,
 	.mem_init = yuno_mem_init,
 	.mem_restore = yuno_mem_restore,
 	.sys = {
@@ -276,7 +287,7 @@ static void draw_frame(uint8_t frame[W*H])
 
 #define FRAME_TIME 250
 
-void gfx_yuno_reflector_animation(void)
+static void yuno_reflector_animation(void)
 {
 	static uint32_t t = 0;
 	static unsigned frame = 0;
