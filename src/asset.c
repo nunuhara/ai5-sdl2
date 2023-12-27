@@ -37,6 +37,7 @@ char *asset_mes_name = NULL;
 char *asset_cg_name = NULL;
 char *asset_bgm_name = NULL;
 char *asset_effect_name = NULL;
+char *asset_voice_name = NULL;
 char *asset_data_name = NULL;
 
 void asset_init(void)
@@ -157,6 +158,18 @@ struct archive_data *asset_effect_load(const char *name)
 		return NULL;
 	free(asset_effect_name);
 	asset_effect_name = xstrdup(name);
+	return file;
+}
+
+struct archive_data *asset_voice_load(const char *name)
+{
+	if (!arc.voice)
+		return asset_fs_load(name);
+	struct archive_data *file = archive_get(arc.voice, name);
+	if (!file)
+		return NULL;
+	free(asset_voice_name);
+	asset_voice_name = xstrdup(name);
 	return file;
 }
 

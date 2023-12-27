@@ -45,6 +45,7 @@ void sys_set_text_colors_indexed(struct param_list *params);
 void sys_set_text_colors_direct(struct param_list *params);
 void sys_farcall(struct param_list *params);
 void sys_get_cursor_segment(struct param_list *params);
+void sys_get_cursor_segment_classics(struct param_list *params);
 void sys_menu_get_no(struct param_list *params);
 void sys_check_input(struct param_list *params);
 void sys_strlen(struct param_list *params);

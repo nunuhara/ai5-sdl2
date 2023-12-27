@@ -49,8 +49,9 @@ struct channel {
 	int repeat;
 	struct fade fade;
 };
-struct channel bgm_channel = { .id = 0, .volume = 31, .repeat = -1 };
-struct channel se_channel  = { .id = 1, .volume = 31 };
+struct channel bgm_channel   = { .id = 0, .volume = 31, .repeat = -1 };
+struct channel se_channel    = { .id = 1, .volume = 31 };
+struct channel voice_channel = { .id = 2, .volume = 31 };
 
 void audio_fini(void)
 {
@@ -91,6 +92,12 @@ void audio_se_stop(void)
 {
 	AUDIO_LOG("audio_se_stop()");
 	channel_stop(&se_channel);
+}
+
+void audio_voice_stop(void)
+{
+	AUDIO_LOG("audio_voice_stop()");
+	channel_stop(&voice_channel);
 }
 
 static void channel_update(struct channel *ch, uint32_t t)
@@ -137,12 +144,22 @@ static int get_linear_volume(uint8_t vol)
 	return linear_volume;
 }
 
+static struct archive_data *load_data(unsigned id, const char *name)
+{
+	switch (id) {
+	case 0: return asset_bgm_load(name);
+	case 1: return asset_effect_load(name);
+	case 2: return asset_voice_load(name);
+	default: VM_ERROR("Invalid channel id: %u", id);
+	}
+}
+
 static void channel_play(struct channel *ch, const char *name, bool check_playing)
 {
 	if (check_playing && ch->file_name && !strcmp(ch->file_name, name))
 		return;
 	channel_stop(ch);
-	struct archive_data *data = ch->id == 0 ? asset_bgm_load(name) : asset_effect_load(name);
+	struct archive_data *data = load_data(ch->id, name);
 	if (!data) {
 		WARNING("Failed to load audio file on channel %u: \"%s\"", ch->id, name);
 		return;
@@ -173,6 +190,12 @@ void audio_se_play(const char *name)
 {
 	AUDIO_LOG("audio_se_play(\"%s\")", name);
 	channel_play(&se_channel, name, false);
+}
+
+void audio_voice_play(const char *name)
+{
+	AUDIO_LOG("audio_voice_play(\"%s\")", name);
+	channel_play(&voice_channel, name, false);
 }
 
 static void channel_set_volume(struct channel *ch, uint8_t vol)

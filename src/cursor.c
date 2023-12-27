@@ -650,8 +650,15 @@ error:
 	free(entry);
 }
 
+#if 0
+#define CURSOR_LOG(...) NOTICE(__VA_ARGS__)
+#else
+#define CURSOR_LOG(...)
+#endif
+
 void cursor_load(unsigned no)
 {
+	CURSOR_LOG("cursor_load(%u)", no);
 	if (no*2 + 1 >= nr_cursors) {
 		WARNING("Invalid cursor number: %u", no);
 		return;
@@ -665,29 +672,34 @@ void cursor_load(unsigned no)
 
 void cursor_unload(void)
 {
+	CURSOR_LOG("cursor_unload()");
 	cursor_animating = false;
 	SDL_SetCursor(system_cursor);
 }
 
 void cursor_reload(void)
 {
+	CURSOR_LOG("cursor_reload()");
 	cursor_load(current_cursor);
 }
 
 void cursor_show(void)
 {
+	CURSOR_LOG("cursor_show()");
 	cursor_animating = true;
 	SDL_ShowCursor(SDL_ENABLE);
 }
 
 void cursor_hide(void)
 {
+	CURSOR_LOG("cursor_hide()");
 	cursor_animating = false;
 	SDL_ShowCursor(SDL_DISABLE);
 }
 
 void cursor_set_pos(unsigned x, unsigned y)
 {
+	CURSOR_LOG("cursor_set_pos(%u,%u)", x, y);
 	SDL_WarpMouseInWindow(gfx.window, x, y);
 }
 
@@ -697,6 +709,7 @@ void cursor_get_pos(unsigned *x_out, unsigned *y_out)
 	SDL_GetMouseState(&x, &y);
 	*x_out = x < 0 ? 0 : x;
 	*y_out = y < 0 ? 0 : y;
+	//CURSOR_LOG("cursor_get_pos() -> (%u,%u)", *x_out, *y_out);
 }
 
 void cursor_swap(void)

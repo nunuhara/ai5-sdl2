@@ -490,16 +490,14 @@ void sys_farcall(struct param_list *params)
  * If the cursor position is between `top_left` and `bot_right`, then `id` is returned.
  * If no match is found, then 0xFFFF is returned.
  */
-void sys_get_cursor_segment(struct param_list *params)
+static void get_cursor_segment(unsigned x, unsigned y, uint32_t off)
 {
-	unsigned x = vm_expr_param(params, 0);
-	unsigned y = vm_expr_param(params, 1);
 	if (x >= gfx_view.w || y >= gfx_view.h) {
-		WARNING("Invalid argument to System.check_cursor_pos: (%u,%u)", x, y);
+		WARNING("Invalid argument to System.get_cursor_segment: (%u,%u)", x, y);
 		return;
 	}
 
-	uint8_t *a = memory.file_data + vm_expr_param(params, 2);
+	uint8_t *a = memory.file_data + off;
 	while (a < memory.file_data + MEMORY_FILE_DATA_SIZE - 10) {
 		uint16_t id = le_get16(a, 0);
 		if (id == 0xffff) {
@@ -519,6 +517,19 @@ void sys_get_cursor_segment(struct param_list *params)
 	}
 	WARNING("Read past end of buffer in System.check_cursor_pos");
 	mem_set_var16(18, 0);
+
+}
+
+void sys_get_cursor_segment_classics(struct param_list *params)
+{
+	get_cursor_segment(vm_expr_param(params, 0), vm_expr_param(params, 1),
+			vm_expr_param(params, 2));
+}
+
+void sys_get_cursor_segment(struct param_list *params)
+{
+	get_cursor_segment(vm_expr_param(params, 0), vm_expr_param(params, 1),
+			mem_get_sysvar32(mes_sysvar32_a6_offset));
 }
 
 void sys_menu_get_no(struct param_list *params)

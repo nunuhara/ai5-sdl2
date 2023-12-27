@@ -38,8 +38,9 @@ struct audio_ch {
 	char *file_name;
 	uint8_t volume;
 };
-static struct audio_ch bgm_channel = { .id = MIXER_MUSIC,  .volume = 31 };
-static struct audio_ch se_channel  = { .id = MIXER_EFFECT, .volume = 31 };
+static struct audio_ch bgm_channel   = { .id = MIXER_MUSIC,  .volume = 31 };
+static struct audio_ch se_channel    = { .id = MIXER_EFFECT, .volume = 31 };
+static struct audio_ch voice_channel = { .id = MIXER_VOICE,  .volume = 31 };
 
 void audio_init(void)
 {
@@ -69,6 +70,12 @@ void audio_se_stop(void)
 {
 	AUDIO_LOG("audio_se_stop()");
 	audio_ch_stop(&se_channel);
+}
+
+void audio_voice_stop(void)
+{
+	AUDIO_LOG("audio_voice_stop()");
+	audio_ch_stop(&voice_channel);
 }
 
 // XXX: Volume is a value in the range [0,31], which corresponds to the range
@@ -114,6 +121,12 @@ void audio_se_play(const char *name)
 {
 	AUDIO_LOG("audio_se_play(\"%s\")", name);
 	audio_ch_play(&se_channel, name, false);
+}
+
+void audio_voice_play(const char *name)
+{
+	AUDIO_LOG("audio_voice_play(\"%s\")", name);
+	audio_ch_play(&voice_channel, name, false);
 }
 
 static void audio_ch_set_volume(struct audio_ch *ch, uint8_t vol)
@@ -172,7 +185,7 @@ void audio_bgm_fade_out(uint8_t vol, bool sync)
 
 void audio_bgm_fade(uint8_t vol, int t, bool stop, bool sync)
 {
-	AUDIO_LOG("audio_bgm_fade(%u,%u,%s,%s)", uk, vol, stop ? "true" : "false",
+	AUDIO_LOG("audio_bgm_fade(%u,%d,%s,%s)", vol, t, stop ? "true" : "false",
 			sync ? "true" : "false");
 	audio_ch_fade(&bgm_channel, vol, t, stop, sync);
 }

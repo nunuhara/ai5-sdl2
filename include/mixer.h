@@ -22,7 +22,8 @@
 enum mix_channel {
 	MIXER_MUSIC = 0,
 	MIXER_EFFECT = 1,
-	MIXER_MASTER = 2,
+	MIXER_VOICE = 2,
+	MIXER_MASTER = 3,
 };
 
 void mixer_init(void);

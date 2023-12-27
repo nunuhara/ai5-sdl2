@@ -85,7 +85,7 @@ static void isaku_sys_cursor(struct param_list *params)
 	case 1: cursor_hide(); break;
 	case 2: sys_cursor_save_pos(params); break;
 	case 3: cursor_set_pos(vm_expr_param(params, 1), vm_expr_param(params, 2)); break;
-	case 4: cursor_load(vm_expr_param(params, 1)); break;
+	case 4: cursor_load(vm_expr_param(params, 1) + 15); break;
 	case 5: uk = 0; break;
 	case 6: mem_set_var16(18, 0); break;
 	case 7: mem_set_var32(18, uk); break;
@@ -190,6 +190,16 @@ static void isaku_sys_audio(struct param_list *params)
 	}
 }
 
+static void isaku_sys_voice(struct param_list *params)
+{
+	switch (vm_expr_param(params, 0)) {
+	case 0: audio_voice_play(vm_string_param(params, 1)); break;
+	case 1: audio_voice_stop(); break;
+	default: WARNING("System.Voice.function[%u] not implemented",
+				 params->params[0].val);
+	}
+}
+
 // only unfreeze is used in Isaku
 static void sys_display_freeze_unfreeze(struct param_list *params)
 {
@@ -248,16 +258,9 @@ static void isaku_sys_graphics(struct param_list *params)
 static void sys_item_window(struct param_list *params)
 {
 	switch (vm_expr_param(params, 0)) {
-	case 0:
-	case 2:
-	case 6:
-		WARNING("System.ItemWindow.function[%u] not implemented",
-				params->params[0].val);
-		break;
 	default:
-		VM_ERROR("System.ItemWindow.function[%u] not implemented",
-				params->params[0].val);
-		break;
+//		WARNING("System.ItemWindow.function[%u] not implemented",
+//				params->params[0].val);
 	}
 }
 
@@ -277,7 +280,6 @@ static void sys_25(struct param_list *params)
 	default:
 		VM_ERROR("System.function[25].function[%u] not implemented",
 				params->params[0].val);
-		break;
 	}
 }
 
@@ -290,7 +292,15 @@ static void sys_26(struct param_list *params)
 	default:
 		VM_ERROR("System.function[26].function[%u] not implemented",
 				params->params[0].val);
-		break;
+	}
+}
+
+static void sys_27(struct param_list *params)
+{
+	switch (vm_expr_param(params, 0)) {
+	default:
+		WARNING("System.function[27].function[%u] not implemented",
+				params->params[0].val);
 	}
 }
 
@@ -339,6 +349,7 @@ struct game game_isaku = {
 		[3]  = isaku_sys_anim,
 		[4]  = isaku_sys_savedata,
 		[5]  = isaku_sys_audio,
+		[6]  = isaku_sys_voice,
 		[7]  = sys_load_file,
 		[8]  = sys_load_image,
 		[9]  = sys_display,
@@ -346,11 +357,14 @@ struct game game_isaku = {
 		[11] = sys_wait,
 		[12] = sys_set_text_colors_direct,
 		[13] = sys_farcall,
+		[14] = sys_get_cursor_segment,
 		[15] = sys_menu_get_no,
+		[18] = sys_check_input,
 		[22] = sys_item_window,
 		[24] = isaku_sys_farcall_strlen,
 		[25] = sys_25,
 		[26] = sys_26,
+		[27] = sys_27,
 	},
 	.util = {
 		[7]  = isaku_util_delay,

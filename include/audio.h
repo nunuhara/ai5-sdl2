@@ -38,4 +38,7 @@ void audio_se_stop(void);
 bool audio_se_is_playing(void);
 void audio_se_fade(uint8_t vol, int t, bool stop, bool sync);
 
+void audio_voice_play(const char *name);
+void audio_voice_stop(void);
+
 #endif // AI5_AUDIO_H
