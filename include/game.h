@@ -28,6 +28,8 @@ struct game {
 	struct { uint16_t w, h; } surface_sizes[10];
 	unsigned bpp;
 	unsigned x_mult;
+	bool use_effect_arc;
+	bool persistent_volume;
 	uint32_t var4_size;
 	uint32_t mem16_size;
 	void (*init)(void);

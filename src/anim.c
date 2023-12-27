@@ -19,7 +19,7 @@
 
 #include "nulib.h"
 #include "nulib/little_endian.h"
-#include "ai5/s4.h"
+#include "ai5/anim.h"
 
 #include "anim.h"
 #include "gfx.h"
@@ -32,11 +32,17 @@
 #define ANIM_LOG(...)
 #endif
 
-#define ANIM_NR_SLOTS S4_MAX_STREAMS
+#if 0
+#define STREAM_LOG(...) NOTICE(__VA_ARGS__)
+#else
+#define STREAM_LOG(...)
+#endif
+
+#define ANIM_NR_SLOTS ANIM_MAX_STREAMS
 
 struct anim_stream {
 	uint8_t cmd;
-	// pointer to S4 file in memory
+	// pointer to S4/A file in memory
 	uint8_t *file_data;
 	// pointer to stream's bytecode
 	uint8_t *bytecode;
@@ -50,11 +56,13 @@ struct anim_stream {
 	struct { unsigned start, count; } loop2;
 	// offset into animation CG
 	struct { unsigned x, y; } off;
+	// index of stream in animation file
+	unsigned stream;
 	// animation initialized
 	bool initialized;
 };
 
-static struct anim_stream streams[S4_MAX_STREAMS] = {0};
+static struct anim_stream streams[ANIM_MAX_STREAMS] = {0};
 
 enum anim_command {
 	// stream is in halted state
@@ -63,8 +71,8 @@ enum anim_command {
 	ANIM_CMD_RUN,
 	// halt on next CHECK_STOP instruction
 	ANIM_CMD_STOP,
-	// halt after next instruction
-	ANIM_CMD_HALT_NEXT,
+	// waiting until halted
+	ANIM_CMD_WAIT,
 };
 
 static void check_slot(unsigned i)
@@ -73,18 +81,27 @@ static void check_slot(unsigned i)
 		VM_ERROR("Invalid animation slot index: %u", i);
 }
 
+static void _anim_init_stream(unsigned slot, unsigned stream)
+{
+	struct anim_stream *anim = &streams[slot];
+	memset(anim, 0, sizeof(struct anim_stream));
+	anim->file_data = memory.file_data + mem_get_sysvar32(mes_sysvar32_data_offset);
+	if (anim_type == ANIM_S4) {
+		anim->bytecode = anim->file_data + le_get16(anim->file_data, 1 + stream * 2);
+	} else {
+		anim->bytecode = anim->file_data + le_get32(anim->file_data, 2 + stream * 4);
+	}
+	anim->stream = stream;
+	anim->initialized = true;
+}
+
 void anim_init_stream(unsigned slot, unsigned stream)
 {
 	ANIM_LOG("anim_init_stream(%u,%u)", slot, stream);
 	check_slot(slot);
-	if (stream >= S4_MAX_STREAMS)
-		VM_ERROR("Invalid S4 animation stream index: %u", stream);
-
-	struct anim_stream *anim = &streams[slot];
-	memset(anim, 0, sizeof(struct anim_stream));
-	anim->file_data = memory.file_data + mem_get_sysvar32(mes_sysvar32_data_offset);
-	anim->bytecode = anim->file_data + le_get16(anim->file_data, 1 + stream * 2);
-	anim->initialized = true;
+	if (stream >= ANIM_MAX_STREAMS)
+		VM_ERROR("Invalid animation stream index: %u", stream);
+	_anim_init_stream(slot, stream);
 }
 
 void anim_start(unsigned slot)
@@ -112,6 +129,16 @@ void anim_halt(unsigned slot)
 	streams[slot].initialized = false;
 }
 
+void anim_wait(unsigned slot)
+{
+	ANIM_LOG("anim_wait(%u)", slot);
+	check_slot(slot);
+	streams[slot].cmd = ANIM_CMD_WAIT;
+	do {
+		vm_peek();
+	} while (streams[slot].cmd != ANIM_CMD_HALTED);
+}
+
 void anim_stop_all(void)
 {
 	ANIM_LOG("anim_stop_all()");
@@ -124,9 +151,19 @@ void anim_stop_all(void)
 void anim_halt_all(void)
 {
 	ANIM_LOG("anim_halt_all()");
-	for (int i = 0; i < S4_MAX_STREAMS; i++) {
+	for (int i = 0; i < ANIM_MAX_STREAMS; i++) {
 		streams[i].cmd = ANIM_CMD_HALTED;
 		streams[i].initialized = false;
+	}
+}
+
+void anim_reset_all(void)
+{
+	ANIM_LOG("anim_reset_all()");
+	for (int i = 0; i < ANIM_MAX_STREAMS; i++) {
+		if (streams[i].cmd == ANIM_CMD_HALTED)
+			continue;
+		_anim_init_stream(i, streams[i].stream);
 	}
 }
 
@@ -138,9 +175,13 @@ void anim_set_offset(unsigned slot, unsigned x, unsigned y)
 	streams[slot].off.y = y;
 }
 
-static uint8_t read_byte(struct anim_stream *anim)
+static uint16_t read_value(struct anim_stream *anim)
 {
-	return anim->bytecode[anim->ip++];
+	if (anim_type == ANIM_S4)
+		return anim->bytecode[anim->ip++];
+	uint16_t code = le_get16(anim->bytecode, anim->ip);
+	anim->ip += 2;
+	return code;
 }
 
 static bool anim_stream_draw(struct anim_stream *anim, uint8_t i)
@@ -150,37 +191,65 @@ static bool anim_stream_draw(struct anim_stream *anim, uint8_t i)
 		return false;
 	}
 
-	unsigned off = 1 + anim->file_data[0] * 2 + (i - 20) * s4_draw_call_size;
-	struct s4_draw_call call;
-	if (!s4_parse_draw_call(anim->file_data + off, &call)) {
+	// compute offset
+	unsigned off;
+	if (anim_type == ANIM_S4) {
+		off = 1 + anim->file_data[0] * 2 + (i - 20) * anim_draw_call_size;
+	} else {
+		off = 2 + 100 * 4 + (i - 20) * anim_draw_call_size;
+	}
+
+	// parse
+	struct anim_draw_call call;
+	if (!anim_parse_draw_call(anim->file_data + off, &call)) {
 		WARNING("Failed to parse draw call %u", i);
 		return false;
 	}
 
+	// execute
 	switch (call.op) {
-	case S4_DRAW_OP_FILL:
+	case ANIM_DRAW_OP_FILL:
+		STREAM_LOG("FILL %u(%u,%u) @ (%u,%u);", call.fill.dst.i, call.fill.dst.x,
+				call.fill.dst.y, call.fill.dim.w, call.fill.dim.h);
 		gfx_fill(call.fill.dst.x + anim->off.x, call.fill.dst.y + anim->off.y,
 				call.fill.dim.w, call.fill.dim.h, call.fill.dst.i, 8);
 		break;
-	case S4_DRAW_OP_COPY:
+	case ANIM_DRAW_OP_COPY:
+		STREAM_LOG("COPY %u(%u,%u) -> %u(%u,%u) @ (%u,%u);", call.copy.src.i,
+				call.copy.src.x, call.copy.src.y, call.copy.dst.i,
+				call.copy.dst.x, call.copy.dst.y, call.copy.dim.w,
+				call.copy.dim.h);
 		gfx_copy(call.copy.src.x, call.copy.src.y, call.copy.dim.w, call.copy.dim.h,
 				call.copy.src.i, call.copy.dst.x + anim->off.x,
 				call.copy.dst.y + anim->off.y, call.copy.dst.i);
 		break;
-	case S4_DRAW_OP_COPY_MASKED:
+	case ANIM_DRAW_OP_COPY_MASKED:
+		STREAM_LOG("COPY_MASKED %u(%u,%u) -> %u(%u,%u) @ (%u,%u);", call.copy.src.i,
+				call.copy.src.x, call.copy.src.y, call.copy.dst.i,
+				call.copy.dst.x, call.copy.dst.y, call.copy.dim.w,
+				call.copy.dim.h);
 		gfx_copy_masked(call.copy.src.x, call.copy.src.y, call.copy.dim.w,
 				call.copy.dim.h, call.copy.src.i,
 				call.copy.dst.x + anim->off.x, call.copy.dst.y + anim->off.y,
 				call.copy.dst.i,
 				mem_get_sysvar16(mes_sysvar16_mask_color));
 		break;
-	case S4_DRAW_OP_SWAP:
+	case ANIM_DRAW_OP_SWAP:
+		STREAM_LOG("SWAP %u(%u,%u) -> %u(%u,%u) @ (%u,%u);", call.copy.src.i,
+				call.copy.src.x, call.copy.src.y, call.copy.dst.i,
+				call.copy.dst.x, call.copy.dst.y, call.copy.dim.w,
+				call.copy.dim.h);
 		gfx_copy_swap(call.copy.src.x, call.copy.src.y, call.copy.dim.w,
 				call.copy.dim.h, call.copy.src.i,
 				call.copy.dst.x + anim->off.x, call.copy.dst.y + anim->off.y,
 				call.copy.dst.i);
 		break;
-	case S4_DRAW_OP_COMPOSE:
+	case ANIM_DRAW_OP_COMPOSE:
+		STREAM_LOG("COMPOSE %u(%u,%u) + %u(%u,%u) -> %u(%u,%u) @ (%u,%u);",
+				call.compose.bg.i, call.compose.bg.x, call.compose.bg.y,
+				call.compose.fg.i, call.compose.fg.x, call.compose.fg.y,
+				call.compose.dst.i, call.compose.dst.x, call.compose.dst.y,
+				call.compose.dim.w, call.compose.dim.h);
 		gfx_compose(call.compose.fg.x, call.compose.fg.y, call.compose.dim.w,
 				call.compose.dim.h, call.compose.fg.i, call.compose.bg.x,
 				call.compose.bg.y, call.compose.bg.i,
@@ -189,9 +258,9 @@ static bool anim_stream_draw(struct anim_stream *anim, uint8_t i)
 				call.compose.dst.i,
 				mem_get_sysvar16(mes_sysvar16_mask_color));
 		break;
-	case S4_DRAW_OP_SET_COLOR:
+	case ANIM_DRAW_OP_SET_COLOR:
 		break;
-	case S4_DRAW_OP_SET_PALETTE:
+	case ANIM_DRAW_OP_SET_PALETTE:
 		break;
 	}
 	return true;
@@ -203,38 +272,51 @@ static bool anim_stream_execute(struct anim_stream *anim)
 		anim->stall_count--;
 		return false;
 	}
-	uint8_t op = read_byte(anim);
+	uint16_t op = read_value(anim);
 	switch (op) {
-	case S4_OP_NOOP:
+	case ANIM_OP_NOOP:
+		STREAM_LOG("NOOP;");
 		break;
-	case S4_OP_CHECK_STOP:
+	case ANIM_OP_CHECK_STOP:
+		STREAM_LOG("CHECK_STOP;");
 		if (anim->cmd == ANIM_CMD_STOP)
 			anim->cmd = ANIM_CMD_HALTED;
 		break;
-	case S4_OP_STALL:
-		anim->stall_count = read_byte(anim);
+	case ANIM_OP_STALL:
+		anim->stall_count = read_value(anim);
+		STREAM_LOG("STALL %u;", anim->stall_count);
 		break;
-	case S4_OP_RESET:
+	case ANIM_OP_RESET:
+		STREAM_LOG("RESET;");
 		anim->ip = 0;
 		break;
-	case S4_OP_HALT:
+	case ANIM_OP_HALT:
+		STREAM_LOG("HALT;");
 		anim->cmd = ANIM_CMD_HALTED;
 		break;
-	case S4_OP_LOOP_START:
-		anim->loop.count = read_byte(anim);
+	case ANIM_OP_LOOP_START:
+		anim->loop.count = read_value(anim);
 		anim->loop.start = anim->ip;
+		STREAM_LOG("LOOP_START %u;", anim->loop.count);
 		break;
-	case S4_OP_LOOP_END:
+	case ANIM_OP_LOOP_END:
+		STREAM_LOG("LOOP_END;");
 		if (anim->loop.count && --anim->loop.count)
 			anim->ip = anim->loop.start;
 		break;
-	case S4_OP_LOOP2_START:
-		anim->loop2.count = read_byte(anim);
+	case ANIM_OP_LOOP2_START:
+		anim->loop2.count = read_value(anim);
 		anim->loop2.start = anim->ip;
+		STREAM_LOG("LOOP2_START %u;", anim->loop2.start);
 		break;
-	case S4_OP_LOOP2_END:
+	case ANIM_OP_LOOP2_END:
+		STREAM_LOG("LOOP2_END;");
 		if (anim->loop2.count && --anim->loop2.count)
 			anim->ip = anim->loop2.start;
+		break;
+	case 0xff:
+	case 0xffff:
+		anim->cmd = ANIM_CMD_HALTED;
 		break;
 	default:
 		return anim_stream_draw(anim, op);
@@ -251,7 +333,7 @@ void anim_execute(void)
 		return;
 
 	anim_prev_frame_t = t;
-	for (int i = 0; i < S4_MAX_STREAMS; i++) {
+	for (int i = 0; i < ANIM_MAX_STREAMS; i++) {
 		struct anim_stream *anim = &streams[i];
 		if (anim->cmd == ANIM_CMD_HALTED)
 			continue;
@@ -261,13 +343,13 @@ void anim_execute(void)
 
 bool anim_stream_running(unsigned stream)
 {
-	assert(stream < S4_MAX_STREAMS);
+	assert(stream < ANIM_MAX_STREAMS);
 	return streams[stream].cmd != ANIM_CMD_HALTED;
 }
 
 bool anim_running(void)
 {
-	for (int i = 0; i < S4_MAX_STREAMS; i++) {
+	for (int i = 0; i < ANIM_MAX_STREAMS; i++) {
 		if (streams[i].cmd != ANIM_CMD_HALTED)
 			return true;
 	}

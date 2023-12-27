@@ -24,8 +24,10 @@ void anim_init_stream(unsigned slot, unsigned stream);
 void anim_start(unsigned slot);
 void anim_stop(unsigned slot);
 void anim_halt(unsigned slot);
+void anim_wait(unsigned slot);
 void anim_stop_all(void);
 void anim_halt_all(void);
+void anim_reset_all(void);
 void anim_set_offset(unsigned slot, unsigned x, unsigned y);
 
 #endif // AI5_ANIM_H

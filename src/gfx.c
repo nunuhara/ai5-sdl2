@@ -316,14 +316,41 @@ static void pal_set_color(uint8_t *pal, uint8_t i, uint8_t r, uint8_t g, uint8_t
 	pal[i*4+3] = 0;
 }
 
+#include "nulib/file.h"
+static void gfx_dump_surface_direct(SDL_Surface *s, const char *filename)
+{
+	struct cg *cg = xcalloc(1, sizeof(struct cg));
+	cg->metrics.w = s->w;
+	cg->metrics.h = s->h;
+	cg->metrics.bpp = 16;
+
+	cg->pixels = xcalloc(cg->metrics.w * cg->metrics.h, 4);
+	for (int row = 0; row < cg->metrics.h; row++) {
+		uint8_t *src = s->pixels + s->pitch * row;
+		uint8_t *dst = cg->pixels + cg->metrics.w * 4 * row;
+		for (int col = 0; col < cg->metrics.w; col++, src += 3, dst += 4) {
+			memcpy(dst, src, 3);
+			dst[3] = 255;
+		}
+	}
+
+	FILE *f = file_open_utf8(filename, "wb");
+	cg_write(cg, f, CG_TYPE_PNG);
+	fclose(f);
+	cg_free(cg);
+}
+
 /*
  * Write a surface to a PNG file, altering the palette so that every color
  * index is identifiable.
  */
-#include "nulib/file.h"
 void gfx_dump_surface(unsigned i, const char *filename)
 {
 	SDL_Surface *s = gfx_get_surface(i);
+	if (game->bpp > 8) {
+		gfx_dump_surface_direct(s, filename);
+		return;
+	}
 
 	struct cg *cg = xcalloc(1, sizeof(struct cg));
 	cg->metrics.w = s->w;
@@ -362,6 +389,7 @@ void gfx_dump_surface(unsigned i, const char *filename)
 	FILE *f = file_open_utf8(filename, "wb");
 	cg_write(cg, f, CG_TYPE_PNG);
 	fclose(f);
+	cg_free(cg);
 }
 
 static uint8_t u8_interp(uint8_t a, uint8_t b, float rate)
@@ -601,7 +629,7 @@ static void gfx_direct_copy(int src_x, int src_y, int w, int h, SDL_Surface *src
 		int dst_y, SDL_Surface *dst)
 {
 	SDL_Rect src_r = { src_x, src_y, w, h };
-	SDL_Rect dst_r = { dst_y, dst_y, w, h };
+	SDL_Rect dst_r = { dst_x, dst_y, w, h };
 	SDL_CALL(SDL_BlitSurface, src, &src_r, dst, &dst_r);
 }
 

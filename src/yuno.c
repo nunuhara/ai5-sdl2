@@ -102,6 +102,8 @@ struct game game_yuno = {
 	},
 	.bpp = 8,
 	.x_mult = 8,
+	.use_effect_arc = true,
+	.persistent_volume = true,
 	.var4_size = VAR4_SIZE,
 	.mem16_size = MEM16_SIZE,
 	.update = yuno_update,

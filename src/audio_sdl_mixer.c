@@ -23,7 +23,7 @@
 
 #include "asset.h"
 #include "audio.h"
-#include "mixer.h"
+#include "game.h"
 #include "vm.h"
 
 #if 0
@@ -32,19 +32,25 @@
 #define AUDIO_LOG(...)
 #endif
 
-static Mix_Chunk *bgm = NULL;
-static Mix_Chunk *se = NULL;
-static char *bgm_name = NULL;
-static uint8_t bgm_volume = 31;
-
-struct {
+struct fade {
 	bool fading;
 	uint32_t start_t;
 	uint32_t ms;
 	int start_vol;
 	int end_vol;
 	bool stop;
-} fade = {0};
+};
+
+struct channel {
+	unsigned id;
+	Mix_Chunk *chunk;
+	char *file_name;
+	uint8_t volume;
+	int repeat;
+	struct fade fade;
+};
+struct channel bgm_channel = { .id = 0, .volume = 31, .repeat = -1 };
+struct channel se_channel  = { .id = 1, .volume = 31 };
 
 void audio_fini(void)
 {
@@ -61,49 +67,60 @@ void audio_init(void)
 	atexit(audio_fini);
 }
 
-static void _audio_bgm_stop(void)
+static void channel_stop(struct channel *ch)
 {
-	fade.fading = false;
-	Mix_HaltChannel(0);
-	if (bgm) {
-		Mix_FreeChunk(bgm);
-		bgm = NULL;
+	ch->fade.fading = false;
+	Mix_HaltChannel(ch->id);
+	if (ch->chunk) {
+		Mix_FreeChunk(ch->chunk);
+		ch->chunk = NULL;
 	}
-	if (bgm_name) {
-		free(bgm_name);
-		bgm_name = NULL;
+	if (ch->file_name) {
+		free(ch->file_name);
+		ch->file_name = NULL;
 	}
 }
 
 void audio_bgm_stop(void)
 {
 	AUDIO_LOG("audio_bgm_stop()");
-	_audio_bgm_stop();
+	channel_stop(&bgm_channel);
+}
+
+void audio_se_stop(void)
+{
+	AUDIO_LOG("audio_se_stop()");
+	channel_stop(&se_channel);
+}
+
+static void channel_update(struct channel *ch, uint32_t t)
+{
+	if (!ch->fade.fading)
+		return;
+
+	if (t >= ch->fade.start_t + ch->fade.ms) {
+		ch->fade.fading = false;
+		if (ch->fade.stop)
+			channel_stop(ch);
+		else
+			Mix_Volume(ch->id, ch->fade.end_vol);
+		return;
+	}
+
+	float rate = (float)(t - ch->fade.start_t) / (float)ch->fade.ms;
+	int vol = ch->fade.start_vol + (ch->fade.end_vol - ch->fade.start_vol) * rate;
+	Mix_Volume(ch->id, vol);
 }
 
 void audio_update(void)
 {
 	static uint32_t prev_fade_t = 0;
-
-	if (!fade.fading)
-		return;
-
 	uint32_t t = vm_get_ticks();
 	if (t - prev_fade_t < 30)
 		return;
 
-	if (t >= fade.start_t + fade.ms) {
-		fade.fading = false;
-		if (fade.stop)
-			_audio_bgm_stop();
-		else
-			Mix_Volume(0, fade.end_vol);
-		return;
-	}
-
-	float rate = (float)(t - fade.start_t) / (float)fade.ms;
-	int vol = fade.start_vol + (fade.end_vol - fade.start_vol) * rate;
-	Mix_Volume(0, vol);
+	channel_update(&bgm_channel, t);
+	channel_update(&se_channel, t);
 }
 
 // XXX: Volume is a value in the range [0,31], which corresponds to the range
@@ -120,142 +137,167 @@ static int get_linear_volume(uint8_t vol)
 	return linear_volume;
 }
 
+static void channel_play(struct channel *ch, const char *name, bool check_playing)
+{
+	if (check_playing && ch->file_name && !strcmp(ch->file_name, name))
+		return;
+	channel_stop(ch);
+	struct archive_data *data = ch->id == 0 ? asset_bgm_load(name) : asset_effect_load(name);
+	if (!data) {
+		WARNING("Failed to load audio file on channel %u: \"%s\"", ch->id, name);
+		return;
+	}
+	ch->chunk = Mix_LoadWAV_RW(SDL_RWFromConstMem(data->data, data->size), 1);
+	archive_data_release(data);
+	if (!ch->chunk) {
+		WARNING("Failed to decode audio file on channel %u: \"%s\"", ch->id, name);
+		return;
+	}
+	if (game->persistent_volume) {
+		Mix_Volume(ch->id, get_linear_volume(ch->volume));
+	} else {
+		Mix_Volume(ch->id, MIX_MAX_VOLUME);
+		ch->volume = 31;
+	}
+	Mix_PlayChannel(ch->id, ch->chunk, ch->repeat);
+	ch->file_name = strdup(name);
+}
+
 void audio_bgm_play(const char *name, bool check_playing)
 {
 	AUDIO_LOG("audio_bgm_play(\"%s\", %s)", name, check_playing ? "true" : "false");
-	if (check_playing && bgm_name && !strcmp(name, bgm_name))
-		return;
-	_audio_bgm_stop();
-	struct archive_data *data = asset_bgm_load(name);
-	if (!data) {
-		WARNING("Failed to load BGM \"%s\"", name);
-		return;
-	}
-	bgm = Mix_LoadWAV_RW(SDL_RWFromConstMem(data->data, data->size), 1);
-	archive_data_release(data);
-	if (!bgm) {
-		WARNING("Failed to decode BGM \"%s\": %s", name, SDL_GetError());
-		return;
-	}
-	Mix_Volume(0, get_linear_volume(bgm_volume));
-	Mix_PlayChannel(0, bgm, -1);
-	bgm_name = strdup(name);
+	channel_play(&bgm_channel, name, check_playing);
+}
+
+void audio_se_play(const char *name)
+{
+	AUDIO_LOG("audio_se_play(\"%s\")", name);
+	channel_play(&se_channel, name, false);
+}
+
+static void channel_set_volume(struct channel *ch, uint8_t vol)
+{
+	ch->volume = vol;
+	Mix_Volume(ch->id, get_linear_volume(vol));
 }
 
 void audio_bgm_set_volume(uint8_t vol)
 {
 	AUDIO_LOG("audio_bgm_set_volume(%u)", vol);
-	bgm_volume = vol;
-	Mix_Volume(0, get_linear_volume(vol));
+	channel_set_volume(&bgm_channel, vol);
 }
 
-static unsigned fade_time(uint8_t vol)
+static unsigned fade_time(struct channel *ch, uint8_t vol)
 {
-	unsigned diff = abs((int)vol - (int)bgm_volume);
+	unsigned diff = abs((int)vol - (int)ch->volume);
 	return diff * 100 + 50;
 }
 
-void audio_bgm_fade_out(uint32_t uk, uint8_t vol, bool sync)
+static void channel_fade(struct channel *ch, uint8_t vol, int t, bool stop, bool sync)
 {
-	if (vol == bgm_volume) {
-		_audio_bgm_stop();
+	if (ch->fade.fading) {
+		Mix_Volume(ch->id, ch->fade.end_vol);
+		ch->fade.fading = false;
+	}
+
+	if (!Mix_Playing(ch->id))
 		return;
-	}
-	audio_bgm_fade(uk, vol, true, sync);
-}
 
-void audio_bgm_fade(uint32_t uk, uint8_t vol, bool stop, bool sync)
-{
-	AUDIO_LOG("audio_bgm_fade(%u, %u, %s, %s)", uk, vol, stop ? "true" : "false",
-			sync ? "true" : "false");
-	if (fade.fading) {
-		Mix_Volume(0, fade.end_vol);
-		fade.fading = false;
-	}
-
-	if (vol > bgm_volume)
+	if (vol > ch->volume)
 		stop = false;
-	else if (vol == bgm_volume)
+	else if (vol == ch->volume)
 		return;
 
-	fade.fading = true;
-	fade.start_t = vm_get_ticks();
-	fade.ms = fade_time(vol);
-	fade.start_vol = get_linear_volume(bgm_volume);
-	fade.end_vol = get_linear_volume(vol);
-	fade.stop = stop;
+	if (t < 0)
+		t = fade_time(ch, vol);
 
-	bgm_volume = vol;
+	ch->fade.fading = true;
+	ch->fade.start_t = vm_get_ticks();
+	ch->fade.ms = t;
+	ch->fade.start_vol = get_linear_volume(ch->volume);
+	ch->fade.end_vol = get_linear_volume(vol);
+	ch->fade.stop = stop;
+
+	ch->volume = vol;
 
 	if (sync) {
-		while (fade.fading) {
+		while (ch->fade.fading) {
 			vm_peek();
 			vm_delay(16);
 		}
 	}
 }
 
-void audio_bgm_restore_volume(void)
+static void channel_fade_out(struct channel *ch, uint8_t vol, bool sync)
 {
-	AUDIO_LOG("audio_bgm_restore_volume()");
-	if (!bgm)
+	if (vol == ch->volume) {
+		channel_stop(ch);
 		return;
-	if (bgm_volume == 31) {
-		_audio_bgm_stop();
+	}
+	channel_fade(ch, vol, -1, true, sync);
+}
+
+void audio_bgm_fade_out(uint8_t vol, bool sync)
+{
+	channel_fade_out(&bgm_channel, vol, sync);
+}
+
+void audio_bgm_fade(uint8_t vol, int t, bool stop, bool sync)
+{
+	AUDIO_LOG("audio_bgm_fade(%u,%d,%s,%s)", vol, t, stop ? "true" : "false",
+			sync ? "true" : "false");
+	channel_fade(&bgm_channel, vol, t, stop, sync);
+}
+
+void audio_se_fade(uint8_t vol, int t, bool stop, bool sync)
+{
+	AUDIO_LOG("audio_se_fade(%u,%d,%s,%s)", vol, t, stop ? "true" : "false",
+			sync ? "true" : "false");
+	channel_fade(&se_channel, vol, t, stop, sync);
+}
+
+static void channel_restore_volume(struct channel *ch)
+{
+	if (!ch->chunk)
+		return;
+	if (ch->volume == 31) {
+		channel_stop(ch);
 		return;
 	}
 
-	audio_bgm_fade(0, 31, false, false);
+	channel_fade(ch, 31, -1, false, false);
+}
+
+void audio_bgm_restore_volume(void)
+{
+	AUDIO_LOG("audio_bgm_restore_volume()");
+	channel_restore_volume(&bgm_channel);
+}
+
+static bool channel_is_playing(struct channel *ch)
+{
+	return Mix_Playing(ch->id);
 }
 
 bool audio_bgm_is_playing(void)
 {
 	AUDIO_LOG("audio_bgm_is_playing()");
-	return Mix_Playing(0);
+	return channel_is_playing(&bgm_channel);
+}
+
+bool audio_se_is_playing(void)
+{
+	AUDIO_LOG("audio_se_is_playing() -> %s", channel_is_playing(&se_channel) ? "true" : "false");
+	return channel_is_playing(&se_channel);
+}
+
+static bool channel_is_fading(struct channel *ch)
+{
+	return ch->fade.fading;
 }
 
 bool audio_bgm_is_fading(void)
 {
 	AUDIO_LOG("audio_bgm_is_fading()");
-	return Mix_FadingChannel(0) != MIX_NO_FADING;
+	return channel_is_fading(&bgm_channel);
 }
-
-static void _audio_se_stop(void)
-{
-	Mix_HaltChannel(1);
-	if (se) {
-		Mix_FreeChunk(se);
-		se = NULL;
-	}
-}
-
-void audio_se_stop(void)
-{
-	AUDIO_LOG("audio_se_stop()");
-	_audio_se_stop();
-}
-
-void audio_se_play(const char *name)
-{
-	AUDIO_LOG("audio_se_play(\"%s\")", name);
-	_audio_se_stop();
-	struct archive_data *data = asset_effect_load(name);
-	if (!data) {
-		WARNING("Failed to load sound effect \"%s\"", name);
-		return;
-	}
-	se = Mix_LoadWAV_RW(SDL_RWFromConstMem(data->data, data->size), 1);
-	archive_data_release(data);
-	if (!se) {
-		WARNING("Failed to decode sound effect \"%s\": %s", name, SDL_GetError());
-		return;
-	}
-	// FIXME: some effects loop (but SDL_mixer only gives loop info for music...)
-	Mix_PlayChannel(1, se, 0);
-}
-
-bool audio_se_is_playing(void)
-{
-	return Mix_Playing(1);
-}
-

@@ -25,6 +25,7 @@ void sys_anim(struct param_list *params);
 void sys_savedata(struct param_list *params);
 void sys_audio(struct param_list *params);
 void sys_file(struct param_list *params);
+void sys_load_file(struct param_list *params);
 void sys_load_image(struct param_list *params);
 void sys_palette_set(struct param_list *params);
 void sys_palette_crossfade1(struct param_list *params);

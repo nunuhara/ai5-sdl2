@@ -18,7 +18,7 @@
 
 #include "nulib.h"
 #include "ai5/game.h"
-#include "ai5/s4.h"
+#include "ai5/anim.h"
 
 #include "anim.h"
 #include "asset.h"
@@ -163,7 +163,7 @@ void util_delay(struct param_list *params)
 static char *saved_cg_name = NULL;
 static char *saved_data_name = NULL;
 
-static bool saved_anim_running[S4_MAX_STREAMS] = {0};
+static bool saved_anim_running[10] = {0};
 
 void util_save_animation(struct param_list *params)
 {
@@ -179,7 +179,7 @@ void util_restore_animation(struct param_list *params)
 		VM_ERROR("No saved animation in Util.restore_animation");
 	vm_load_image(saved_cg_name, 1);
 	vm_read_file(saved_data_name, mem_get_sysvar32(mes_sysvar32_data_offset));
-	for (int i = 0; i < S4_MAX_STREAMS; i++) {
+	for (int i = 0; i < 10; i++) {
 		if (saved_anim_running[i]) {
 			anim_init_stream(i, i);
 			anim_start(i);
@@ -190,7 +190,7 @@ void util_restore_animation(struct param_list *params)
 void util_anim_save_running(struct param_list *params)
 {
 	bool running = false;
-	for (int i = 0; i < S4_MAX_STREAMS; i++) {
+	for (int i = 0; i < 10; i++) {
 		saved_anim_running[i] = anim_stream_running(i);
 		running |= saved_anim_running[i];
 	}

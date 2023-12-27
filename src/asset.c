@@ -21,6 +21,7 @@
 
 #include "ai5.h"
 #include "asset.h"
+#include "game.h"
 
 static struct {
 	struct archive *bg;
@@ -147,6 +148,8 @@ struct archive_data *asset_bgm_load(const char *name)
 
 struct archive_data *asset_effect_load(const char *name)
 {
+	if (!game->use_effect_arc)
+		return asset_bgm_load(name);
 	if (!arc.effect)
 		return asset_fs_load(name);
 	struct archive_data *file = archive_get(arc.effect, name);

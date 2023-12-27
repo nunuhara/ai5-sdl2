@@ -27,8 +27,8 @@ void audio_update(void);
 void audio_bgm_play(const char *name, bool check_playing);
 void audio_bgm_stop(void);
 void audio_bgm_set_volume(uint8_t vol);
-void audio_bgm_fade(uint32_t uk, uint8_t vol, bool stop, bool sync);
-void audio_bgm_fade_out(uint32_t uk, uint8_t vol, bool sync);
+void audio_bgm_fade(uint8_t vol, int t, bool stop, bool sync);
+void audio_bgm_fade_out(uint8_t vol, bool sync);
 void audio_bgm_restore_volume(void);
 bool audio_bgm_is_playing(void);
 bool audio_bgm_is_fading(void);
@@ -36,5 +36,6 @@ bool audio_bgm_is_fading(void);
 void audio_se_play(const char *name);
 void audio_se_stop(void);
 bool audio_se_is_playing(void);
+void audio_se_fade(uint8_t vol, int t, bool stop, bool sync);
 
 #endif // AI5_AUDIO_H

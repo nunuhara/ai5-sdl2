@@ -144,15 +144,11 @@ void sys_audio(struct param_list *params)
 	case 0:  audio_bgm_play(vm_string_param(params, 1), true); break;
 	case 2:  audio_bgm_stop(); break;
 	case 3:  audio_se_play(vm_string_param(params, 1)); break;
-	case 4:  audio_bgm_fade(vm_expr_param(params, 1), vm_expr_param(params, 2),
-				vm_expr_param(params, 3), true); break;
+	case 4:  audio_bgm_fade(vm_expr_param(params, 2), -1, vm_expr_param(params, 3), true); break;
 	case 5:  audio_bgm_set_volume(vm_expr_param(params, 1)); break;
-	case 7:  audio_bgm_fade(vm_expr_param(params, 1), vm_expr_param(params, 2),
-				vm_expr_param(params, 3), false); break;
-	case 9:  audio_bgm_fade_out(vm_expr_param(params, 1), vm_expr_param(params, 1),
-				true); break;
-	case 10: audio_bgm_fade_out(vm_expr_param(params, 1), vm_expr_param(params, 2),
-				false); break;
+	case 7:  audio_bgm_fade(vm_expr_param(params, 2), -1, vm_expr_param(params, 3), false); break;
+	case 9:  audio_bgm_fade_out(vm_expr_param(params, 1), true); break;
+	case 10: audio_bgm_fade_out(vm_expr_param(params, 2), false); break;
 	case 12: audio_se_stop(); break;
 	case 18: audio_bgm_restore_volume(); break;
 	default: VM_ERROR("System.Audio.function[%d] not implemented", params->params[0].val);
@@ -184,6 +180,11 @@ void sys_file(struct param_list *params)
 	case 1:  // TODO: File.write
 	default: VM_ERROR("System.File.function[%d] not implemented", params->params[0].val);
 	}
+}
+
+void sys_load_file(struct param_list *params)
+{
+	vm_read_file(vm_string_param(params, 0), vm_expr_param(params, 1));
 }
 
 void vm_load_image(const char *name, unsigned i)
