@@ -338,6 +338,10 @@ void vm_draw_text(const char *text)
 	NOTICE("%s", u);
 	string_free(u);
 #endif
+	if (vm_flag_is_on(FLAG_STRLEN)) {
+		mem_set_var32(18, strlen(text));
+		return;
+	}
 	if (yuno_eng) {
 		draw_text_eng(text);
 		return;
@@ -542,7 +546,7 @@ static void stmt_goto(void)
 	vm_string_param(&params, 0);
 	vm_load_mes(params.params[0].str);
 
-	vm_flag_on(VM_FLAG_RETURN);
+	vm_flag_on(FLAG_RETURN);
 }
 
 static void stmt_call(void)
@@ -567,7 +571,7 @@ static void stmt_call(void)
 	// restore previous VM state
 	frame = &vm.mes_call_stack[--vm.mes_call_stack_ptr];
 	vm.ip.code = frame->ip.code;
-	if (!vm_flag_is_on(VM_FLAG_RETURN)) {
+	if (!vm_flag_is_on(FLAG_RETURN)) {
 		vm.ip.ptr = frame->ip.ptr;
 		memcpy(vm.procedures, frame->procedures, sizeof(vm.procedures));
 		vm_load_mes(frame->mes_name);
@@ -701,10 +705,10 @@ void vm_exec(void)
 {
 	vm.scope_counter++;
 	while (true) {
-		if (vm_flag_is_on(VM_FLAG_RETURN)) {
+		if (vm_flag_is_on(FLAG_RETURN)) {
 			if (vm.scope_counter != 1)
 				break;
-			vm_flag_off(VM_FLAG_RETURN);
+			vm_flag_off(FLAG_RETURN);
 			vm.ip.ptr = 0;
 		}
 		if (!vm_exec_statement())

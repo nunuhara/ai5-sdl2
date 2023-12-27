@@ -24,6 +24,17 @@
 
 struct param_list;
 
+enum game_flag {
+	FLAG_REFLECTOR,
+	FLAG_MENU_RETURN,
+	FLAG_RETURN,
+	FLAG_LOG,
+	FLAG_LOAD_PALETTE,
+	FLAG_STRLEN,
+};
+#define GAME_NR_FLAGS (FLAG_STRLEN+1)
+#define FLAG_ALWAYS_ON 0xffff
+
 struct game {
 	struct { uint16_t w, h; } surface_sizes[10];
 	unsigned bpp;
@@ -38,6 +49,7 @@ struct game {
 	void (*mem_restore)(void);
 	void (*util[GAME_MAX_UTIL])(struct param_list*);
 	void (*sys[GAME_MAX_SYS])(struct param_list*);
+	uint32_t flags[GAME_NR_FLAGS];
 };
 
 extern struct game game_isaku;

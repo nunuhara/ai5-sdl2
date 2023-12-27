@@ -22,6 +22,7 @@
 #include "nulib.h"
 #include "ai5/mes.h"
 
+#include "game.h"
 #include "memory.h"
 
 #define VM_STACK_SIZE 1024
@@ -65,29 +66,23 @@ void vm_print_state(void);
 void vm_delay(int ms);
 uint32_t vm_get_ticks(void);
 
-enum vm_flag {
-	// XXX: YU-NO specific: when this flag is set, the light on the reflector (bottom
-	//      right corner) flashes -- seems to be hardcoded
-	VM_FLAG_REFLECTOR    = 0x0002,
-	VM_FLAG_MENU_RETURN  = 0x0008,
-	VM_FLAG_RETURN       = 0x0010,
-	VM_FLAG_LOG          = 0x0080,
-	VM_FLAG_LOAD_PALETTE = 0x2000,
-};
-
-static inline bool vm_flag_is_on(uint16_t flag)
+static inline bool vm_flag_is_on(enum game_flag flag)
 {
-	return (mem_get_sysvar16(MES_SYS_VAR_FLAGS) & flag) == flag;
+	if (game->flags[flag] == FLAG_ALWAYS_ON)
+		return true;
+	return (mem_get_sysvar16(MES_SYS_VAR_FLAGS) & game->flags[flag]);
 }
 
-static inline void vm_flag_on(uint16_t flag)
+static inline void vm_flag_on(enum game_flag flag)
 {
-	mem_set_sysvar16(MES_SYS_VAR_FLAGS, mem_get_sysvar16(MES_SYS_VAR_FLAGS) | flag);
+	if (game->flags[flag] == FLAG_ALWAYS_ON)
+		return;
+	mem_set_sysvar16(MES_SYS_VAR_FLAGS, mem_get_sysvar16(MES_SYS_VAR_FLAGS) | game->flags[flag]);
 }
 
-static inline void vm_flag_off(uint16_t flag)
+static inline void vm_flag_off(enum game_flag flag)
 {
-	mem_set_sysvar16(MES_SYS_VAR_FLAGS, mem_get_sysvar16(MES_SYS_VAR_FLAGS) & ~flag);
+	mem_set_sysvar16(MES_SYS_VAR_FLAGS, mem_get_sysvar16(MES_SYS_VAR_FLAGS) & ~(game->flags[flag]));
 }
 
 typedef uint32_t vm_timer_t;

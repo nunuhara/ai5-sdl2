@@ -85,7 +85,7 @@ static void yuno_reflector_animation(void);
 
 static void yuno_update(void)
 {
-	if (vm_flag_is_on(VM_FLAG_REFLECTOR)) {
+	if (vm_flag_is_on(FLAG_REFLECTOR)) {
 		if (gfx_current_surface() != 1 || mem_get_var4(21) != 1)
 			yuno_reflector_animation();
 	}
@@ -160,6 +160,13 @@ struct game game_yuno = {
 		[212] = util_wait_until2,
 		[213] = util_warn_unimplemented,
 		[214] = util_bgm_is_fading,
+	},
+	.flags = {
+		[FLAG_REFLECTOR]    = 0x0002,
+		[FLAG_MENU_RETURN]  = 0x0008,
+		[FLAG_RETURN]       = 0x0010,
+		[FLAG_LOG]          = 0x0080,
+		[FLAG_LOAD_PALETTE] = 0x2000,
 	}
 };
 

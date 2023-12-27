@@ -261,11 +261,11 @@ static void sys_item_window(struct param_list *params)
 	}
 }
 
-static void isaku_sys_farcall(struct param_list *params)
+static void isaku_sys_farcall_strlen(struct param_list *params)
 {
-	mem_set_sysvar16(mes_sysvar16_flags, mem_get_sysvar16(mes_sysvar16_flags) | 0x0400);
+	vm_flag_on(FLAG_STRLEN);
 	sys_farcall(params);
-	mem_set_sysvar16(mes_sysvar16_flags, mem_get_sysvar16(mes_sysvar16_flags) & 0xfbff);
+	vm_flag_off(FLAG_STRLEN);
 }
 
 static void sys_25(struct param_list *params)
@@ -348,7 +348,7 @@ struct game game_isaku = {
 		[13] = sys_farcall,
 		[15] = sys_menu_get_no,
 		[22] = sys_item_window,
-		[24] = isaku_sys_farcall,
+		[24] = isaku_sys_farcall_strlen,
 		[25] = sys_25,
 		[26] = sys_26,
 	},
@@ -356,5 +356,10 @@ struct game game_isaku = {
 		[7]  = isaku_util_delay,
 		[11] = util_warn_unimplemented,
 		[12] = util_warn_unimplemented,
+	},
+	.flags = {
+		[FLAG_MENU_RETURN] = 0x0008,
+		[FLAG_RETURN]      = 0x0010,
+		[FLAG_STRLEN]      = 0x0400,
 	}
 };

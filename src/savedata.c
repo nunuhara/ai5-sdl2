@@ -101,7 +101,7 @@ void savedata_resume_load(const char *save_name)
 	read_save(save_name, memory_raw, 0, savedata_size());
 	game->mem_restore();
 	vm_load_mes(mem_mes_name());
-	vm_flag_on(VM_FLAG_RETURN);
+	vm_flag_on(FLAG_RETURN);
 }
 
 void savedata_resume_save(const char *save_name)
@@ -208,7 +208,7 @@ void savedata_f11(const char *save_name)
 	}
 	game->mem_restore();
 	vm_load_mes(mem_mes_name());
-	vm_flag_on(VM_FLAG_RETURN);
+	vm_flag_on(FLAG_RETURN);
 }
 
 static uint8_t stashed_mes_name[MEMORY_MES_NAME_SIZE];

@@ -146,5 +146,12 @@ struct game game_shangrlia = {
 		[0] = NULL,
 		[1] = util_get_text_colors,
 		[100] = NULL,
+	},
+	.flags = {
+		[FLAG_REFLECTOR]    = 0x0002,
+		[FLAG_MENU_RETURN]  = 0x0008,
+		[FLAG_RETURN]       = 0x0010,
+		[FLAG_LOG]          = 0x0080,
+		[FLAG_LOAD_PALETTE] = 0x2000,
 	}
 };

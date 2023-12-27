@@ -216,7 +216,7 @@ void vm_load_image(const char *name, unsigned i)
 
 	// draw CG
 	gfx_draw_cg(i, cg);
-	if (cg->palette && vm_flag_is_on(VM_FLAG_LOAD_PALETTE)) {
+	if (cg->palette && vm_flag_is_on(FLAG_LOAD_PALETTE)) {
 		memcpy(memory.palette, cg->palette, 256 * 4);
 	}
 	cg_free(cg);
