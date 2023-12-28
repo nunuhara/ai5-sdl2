@@ -100,17 +100,23 @@ void audio_voice_stop(void)
 	channel_stop(&voice_channel);
 }
 
+static void channel_fade_end(struct channel *ch)
+{
+	assert(ch->fade.fading);
+	ch->fade.fading = false;
+	if (ch->fade.stop)
+		channel_stop(ch);
+	else
+		Mix_Volume(ch->id, ch->fade.end_vol);
+}
+
 static void channel_update(struct channel *ch, uint32_t t)
 {
 	if (!ch->fade.fading)
 		return;
 
 	if (t >= ch->fade.start_t + ch->fade.ms) {
-		ch->fade.fading = false;
-		if (ch->fade.stop)
-			channel_stop(ch);
-		else
-			Mix_Volume(ch->id, ch->fade.end_vol);
+		channel_fade_end(ch);
 		return;
 	}
 
@@ -218,10 +224,8 @@ static unsigned fade_time(struct channel *ch, uint8_t vol)
 
 static void channel_fade(struct channel *ch, uint8_t vol, int t, bool stop, bool sync)
 {
-	if (ch->fade.fading) {
-		Mix_Volume(ch->id, ch->fade.end_vol);
-		ch->fade.fading = false;
-	}
+	if (ch->fade.fading)
+		channel_fade_end(ch);
 
 	if (!Mix_Playing(ch->id))
 		return;

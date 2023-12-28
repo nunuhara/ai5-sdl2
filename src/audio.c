@@ -94,8 +94,10 @@ static int get_linear_volume(uint8_t vol)
 
 static void audio_ch_play(struct audio_ch *ch, const char *name, bool check_playing)
 {
-	if (check_playing && ch->file_name && !strcmp(name, ch->file_name))
-		return;
+	if (check_playing && ch->file_name && !strcmp(name, ch->file_name)) {
+		if (ch->ch && channel_is_playing(ch->ch))
+			return;
+	}
 
 	audio_ch_stop(ch);
 
