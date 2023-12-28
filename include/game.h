@@ -41,6 +41,7 @@ struct game {
 	unsigned x_mult;
 	bool use_effect_arc;
 	bool persistent_volume;
+	bool call_saves_procedures;
 	uint32_t var4_size;
 	uint32_t mem16_size;
 	void (*init)(void);

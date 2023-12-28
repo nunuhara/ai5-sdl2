@@ -116,6 +116,7 @@ struct game game_shangrlia = {
 	.x_mult = 1,
 	.use_effect_arc = true,
 	.persistent_volume = true,
+	.call_saves_procedures = true,
 	.var4_size = VAR4_SIZE,
 	.mem16_size = MEM16_SIZE,
 	.mem_init = shangrlia_mem_init,

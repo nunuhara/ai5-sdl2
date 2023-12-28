@@ -339,7 +339,7 @@ void vm_draw_text(const char *text)
 	string_free(u);
 #endif
 	if (vm_flag_is_on(FLAG_STRLEN)) {
-		mem_set_var32(18, strlen(text));
+		mem_set_var32(18, mem_get_var32(18) + strlen(text));
 		return;
 	}
 	if (yuno_eng) {
@@ -560,7 +560,8 @@ static void stmt_call(void)
 	frame->ip = vm.ip;
 	memcpy(frame->mes_name, mem_mes_name(), 12);
 	frame->mes_name[12] = '\0';
-	memcpy(frame->procedures, vm.procedures, sizeof(vm.procedures));
+	if (game->call_saves_procedures)
+		memcpy(frame->procedures, vm.procedures, sizeof(vm.procedures));
 
 	// load and execute mes file
 	vm.ip.ptr = 0;
@@ -573,7 +574,8 @@ static void stmt_call(void)
 	vm.ip.code = frame->ip.code;
 	if (!vm_flag_is_on(FLAG_RETURN)) {
 		vm.ip.ptr = frame->ip.ptr;
-		memcpy(vm.procedures, frame->procedures, sizeof(vm.procedures));
+		if (game->call_saves_procedures)
+			memcpy(vm.procedures, frame->procedures, sizeof(vm.procedures));
 		vm_load_mes(frame->mes_name);
 		frame->ip.ptr = 0;
 		frame->ip.code = NULL;

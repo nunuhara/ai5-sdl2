@@ -275,6 +275,7 @@ static void sys_item_window(struct param_list *params)
 static void isaku_sys_farcall_strlen(struct param_list *params)
 {
 	vm_flag_on(FLAG_STRLEN);
+	mem_set_var32(18, 0);
 	sys_farcall(params);
 	vm_flag_off(FLAG_STRLEN);
 }
@@ -384,6 +385,7 @@ struct game game_isaku = {
 	.x_mult = 1,
 	.use_effect_arc = false,
 	.persistent_volume = false,
+	.call_saves_procedures = false,
 	.var4_size = VAR4_SIZE,
 	.mem16_size = MEM16_SIZE,
 	.key_down = isaku_key_down,
