@@ -45,6 +45,8 @@ struct game {
 	uint32_t mem16_size;
 	void (*init)(void);
 	void (*update)(void);
+	void (*key_down)(uint32_t keycode);
+	void (*key_up)(uint32_t keycode);
 	void (*mem_init)(void);
 	void (*mem_restore)(void);
 	void (*util[GAME_MAX_UTIL])(struct param_list*);

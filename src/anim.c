@@ -266,7 +266,7 @@ static bool anim_stream_draw(struct anim_stream *anim, uint8_t i)
 	return true;
 }
 
-static bool anim_stream_execute(struct anim_stream *anim)
+bool anim_stream_execute(struct anim_stream *anim)
 {
 	if (anim->stall_count) {
 		anim->stall_count--;
@@ -354,4 +354,28 @@ bool anim_running(void)
 			return true;
 	}
 	return false;
+}
+
+void anim_exec_copy_call(unsigned stream)
+{
+	ANIM_LOG("anim_exec_copy_call(%u)", stream);
+	if (unlikely(anim_type != ANIM_A))
+		VM_ERROR("Wrong animation type for anim_exec_copy_call");
+	if (unlikely(stream >= ANIM_MAX_STREAMS))
+		VM_ERROR("Invalid animation stream index: %u", stream);
+
+	// get draw call index
+	uint8_t *data = memory.file_data + mem_get_sysvar32(mes_sysvar32_data_offset);
+	uint8_t *bytecode = data + le_get32(data, 2 + stream * 4);
+	uint16_t no = le_get16(bytecode, 0);
+	if (no < 20 || (no - 20) >= le_get16(data, 0)) {
+		WARNING("Invalid draw call index: %d", (int)no - 20);
+		return;
+	}
+
+	uint8_t *call = data + 2 + 100 * 4 + (no - 20) * anim_draw_call_size;
+	gfx_copy_masked(le_get16(call, 2), le_get16(call, 4), le_get16(call, 6),
+			le_get16(call, 8), 1, le_get16(call, 10), le_get16(call, 12),
+			mem_get_sysvar16(mes_sysvar16_dst_surface),
+			mem_get_sysvar16(mes_sysvar16_mask_color));
 }

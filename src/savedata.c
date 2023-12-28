@@ -66,7 +66,7 @@ static FILE *open_save(const char *save_name, const char *mode)
 	return f;
 }
 
-static void read_save(const char *save_name, uint8_t *buf, uint32_t off, size_t size)
+void savedata_read(const char *save_name, uint8_t *buf, uint32_t off, size_t size)
 {
 	FILE *f = open_save(save_name, "rb");
 	if (!f) {
@@ -80,7 +80,7 @@ static void read_save(const char *save_name, uint8_t *buf, uint32_t off, size_t 
 	close_save(f);
 }
 
-static void write_save(const char *save_name, const uint8_t *buf, uint32_t off, size_t size)
+void savedata_write(const char *save_name, const uint8_t *buf, uint32_t off, size_t size)
 {
 	// XXX: we open r+b (O_RDWR) because it's the only write mode that doesn't
 	//      truncate or append
@@ -98,7 +98,7 @@ static void write_save(const char *save_name, const uint8_t *buf, uint32_t off, 
 
 void savedata_resume_load(const char *save_name)
 {
-	read_save(save_name, memory_raw, 0, savedata_size());
+	savedata_read(save_name, memory_raw, 0, savedata_size());
 	game->mem_restore();
 	vm_load_mes(mem_mes_name());
 	vm_flag_on(FLAG_RETURN);
@@ -106,13 +106,13 @@ void savedata_resume_load(const char *save_name)
 
 void savedata_resume_save(const char *save_name)
 {
-	write_save(save_name, memory_raw, 0, savedata_size());
+	savedata_write(save_name, memory_raw, 0, savedata_size());
 }
 
 void savedata_load(const char *save_name)
 {
 	// load except mes name
-	read_save(save_name, memory_raw, MEMORY_MES_NAME_SIZE,
+	savedata_read(save_name, memory_raw, MEMORY_MES_NAME_SIZE,
 			savedata_size() - MEMORY_MES_NAME_SIZE);
 	game->mem_restore();
 }
@@ -120,18 +120,18 @@ void savedata_load(const char *save_name)
 void savedata_save(const char *save_name)
 {
 	// save except mes name
-	write_save(save_name, memory_raw, MEMORY_MES_NAME_SIZE,
+	savedata_write(save_name, memory_raw, MEMORY_MES_NAME_SIZE,
 			savedata_size() - MEMORY_MES_NAME_SIZE);
 }
 
 void savedata_load_var4(const char *save_name)
 {
-	read_save(save_name, memory_raw, MEMORY_VAR4_OFFSET, game->var4_size);
+	savedata_read(save_name, memory_raw, MEMORY_VAR4_OFFSET, game->var4_size);
 }
 
 void savedata_save_var4(const char *save_name)
 {
-	write_save(save_name, memory_raw, MEMORY_VAR4_OFFSET, game->var4_size);
+	savedata_write(save_name, memory_raw, MEMORY_VAR4_OFFSET, game->var4_size);
 }
 
 void savedata_save_union_var4(const char *save_name)
@@ -171,7 +171,7 @@ void savedata_load_var4_slice(const char *save_name, unsigned from, unsigned to)
 {
 	if (from > to)
 		return;
-	read_save(save_name, memory_raw, MEMORY_VAR4_OFFSET + from,
+	savedata_read(save_name, memory_raw, MEMORY_VAR4_OFFSET + from,
 			(to + 1) - from);
 }
 
@@ -179,15 +179,15 @@ void savedata_save_var4_slice(const char *save_name, unsigned from, unsigned to)
 {
 	if (from > to)
 		return;
-	write_save(save_name, memory_raw, MEMORY_VAR4_OFFSET + from,
+	savedata_write(save_name, memory_raw, MEMORY_VAR4_OFFSET + from,
 			(to + 1) - from);
 }
 
 void savedata_copy(const char *src_save, const char *dst_save)
 {
 	uint8_t buf[MEMORY_MEM16_MAX_SIZE];
-	read_save(src_save, buf, 0, savedata_size());
-	write_save(dst_save, buf, 0, savedata_size());
+	savedata_read(src_save, buf, 0, savedata_size());
+	savedata_write(dst_save, buf, 0, savedata_size());
 }
 
 void savedata_f11(const char *save_name)
@@ -195,7 +195,7 @@ void savedata_f11(const char *save_name)
 	uint8_t buf[MEMORY_MEM16_MAX_SIZE];
 	uint8_t *load_var4 = buf + MEMORY_MES_NAME_SIZE;
 	uint8_t *cur_var4 = mem_var4();
-	read_save(save_name, buf, 0, MEMORY_VAR4_OFFSET + game->var4_size);
+	savedata_read(save_name, buf, 0, MEMORY_VAR4_OFFSET + game->var4_size);
 	memcpy(memory_raw, buf, MEMORY_MES_NAME_SIZE);
 	cur_var4[18] = load_var4[18];
 	cur_var4[21] = load_var4[21];
@@ -223,7 +223,7 @@ void savedata_f12(const char *save_name)
 	uint8_t buf[MEMORY_MEM16_MAX_SIZE];
 	uint8_t *out_var4 = buf + MEMORY_MES_NAME_SIZE;
 	uint8_t *cur_var4 = mem_var4();
-	read_save(save_name, buf, 0, MEMORY_VAR4_OFFSET + game->var4_size);
+	savedata_read(save_name, buf, 0, MEMORY_VAR4_OFFSET + game->var4_size);
 	memcpy(buf, stashed_mes_name, MEMORY_MES_NAME_SIZE);
 	for (int i = 50; i < 90; i++) {
 		out_var4[i] = cur_var4[i];
@@ -231,10 +231,10 @@ void savedata_f12(const char *save_name)
 	for (int i = 96; i < 2000; i++) {
 		out_var4[i] = cur_var4[i];
 	}
-	write_save(save_name, buf, 0, MEMORY_VAR4_OFFSET + game->var4_size);
+	savedata_write(save_name, buf, 0, MEMORY_VAR4_OFFSET + game->var4_size);
 }
 
 void savedata_set_mes_name(const char *save_name, const char *mes_name)
 {
-	write_save(save_name, (const uint8_t*)mes_name, 0, strlen(mes_name) + 1);
+	savedata_write(save_name, (const uint8_t*)mes_name, 0, strlen(mes_name) + 1);
 }

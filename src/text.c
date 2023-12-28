@@ -60,6 +60,9 @@ static struct font *font_insert(int size, TTF_Font *id, TTF_Font *id_outline)
 	// works reasonably well for most fonts.
 	int y_off = ascent - size;         // align baseline to point size
 	y_off += (size - (max_y - 2)) / 2; // center based on height of 'A'
+	// XXX: 1px border
+	if (game->bpp > 8)
+		y_off -= 1;
 
 	if (nr_fonts >= MAX_FONTS)
 		ERROR("Font table is full");

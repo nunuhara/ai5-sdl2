@@ -17,6 +17,18 @@
 #ifndef AI5_SAVEDATA_H
 #define AI5_SAVEDATA_H
 
+/*
+ * Read bytes from a save file into a buffer.
+ * `off` is both a read offset into the file, and a write offset into the buffer.
+ */
+void savedata_read(const char *save_name, uint8_t *buf, uint32_t off, size_t size);
+
+/*
+ * Write bytes from a buffer into a save file.
+ * `off` is both a read offset into the buffer, and a write offset into the file.
+ */
+void savedata_write(const char *save_name, const uint8_t *buf, uint32_t off, size_t size);
+
 void savedata_resume_load(const char *save_name);
 void savedata_resume_save(const char *save_name);
 void savedata_load(const char *save_name);

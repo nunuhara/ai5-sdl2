@@ -90,9 +90,13 @@ void handle_events(void)
 			break;
 		case SDL_KEYDOWN:
 			key_event(&e.key, true);
+			if (game->key_down)
+				game->key_down(e.key.keysym.sym);
 			break;
 		case SDL_KEYUP:
 			key_event(&e.key, false);
+			if (game->key_up)
+				game->key_up(e.key.keysym.sym);
 			break;
 		case SDL_MOUSEBUTTONDOWN:
 			mouse_event(&e.button, true);

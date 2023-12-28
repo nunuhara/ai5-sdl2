@@ -123,9 +123,9 @@ void menu_get_no(unsigned index)
 {
 	for (int no = 0; no < MEMORY_MENU_ENTRY_MAX; no++) {
 		if (menu_no_to_index_table[no] == index) {
-			mem_set_sysvar16(22, no);
+			mem_set_sysvar16(mes_sysvar16_menu_no, no);
 			return;
 		}
 	}
-	mem_set_sysvar16(22, 200);
+	mem_set_sysvar16(mes_sysvar16_menu_no, 200);
 }

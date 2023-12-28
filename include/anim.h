@@ -29,5 +29,6 @@ void anim_stop_all(void);
 void anim_halt_all(void);
 void anim_reset_all(void);
 void anim_set_offset(unsigned slot, unsigned x, unsigned y);
+void anim_exec_copy_call(unsigned stream);
 
 #endif // AI5_ANIM_H

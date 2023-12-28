@@ -116,6 +116,7 @@ static void isaku_sys_anim(struct param_list *params)
 	case 5: anim_stop_all(); break;
 	case 6: anim_halt_all(); break;
 	case 7: anim_reset_all(); break;
+	case 8: anim_exec_copy_call(vm_anim_param(params, 1)); break;
 	default: VM_ERROR("System.Anim.function[%u] not implemented",
 				 params->params[0].val);
 	}
@@ -231,8 +232,15 @@ static void sys_display_scan_out_scan_in(struct param_list *params)
 	}
 }
 
+static void isaku_load_image(struct param_list *params)
+{
+	anim_halt_all();
+	sys_load_image(params);
+}
+
 static void sys_display(struct param_list *params)
 {
+	anim_halt_all();
 	switch (vm_expr_param(params, 0)) {
 	case 0: sys_display_freeze_unfreeze(params); break;
 	case 1: sys_display_fade_out_fade_in(params); break;
@@ -271,28 +279,44 @@ static void isaku_sys_farcall_strlen(struct param_list *params)
 	vm_flag_off(FLAG_STRLEN);
 }
 
-static void sys_25(struct param_list *params)
+struct menu {
+	bool enabled;
+	bool requested;
+	const char *name;
+};
+static struct menu save_menu = { .name = "SaveMenu" };
+static struct menu load_menu = { .name = "LoadMenu" };
+
+static void menu_open(struct menu *menu)
+{
+	if (!menu->enabled) {
+		audio_se_play("error.wav");
+		return;
+	}
+	audio_se_play("winopn.wav");
+	menu->requested = true;
+}
+
+static void sys_menu(struct param_list *params, struct menu *menu)
 {
 	switch (vm_expr_param(params, 0)) {
-	case 1:
-		WARNING("System.function[25].function[1] not implemented");
-		break;
-	default:
-		VM_ERROR("System.function[25].function[%u] not implemented",
-				params->params[0].val);
+	case 0: menu_open(menu); break;
+	case 1: menu->enabled = vm_expr_param(params, 1); break;
+	case 2: menu->requested = false; break;
+	case 3: mem_set_var16(18, menu->requested); break;
+	default: VM_ERROR("System.%s.function[%u] not implemented", menu->name,
+				 params->params[0].val);
 	}
 }
 
-static void sys_26(struct param_list *params)
+static void sys_save_menu(struct param_list *params)
 {
-	switch (vm_expr_param(params, 0)) {
-	case 1:
-		WARNING("System.function[26].function[1] not implemented");
-		break;
-	default:
-		VM_ERROR("System.function[26].function[%u] not implemented",
-				params->params[0].val);
-	}
+	sys_menu(params, &save_menu);
+}
+
+static void sys_load_menu(struct param_list *params)
+{
+	sys_menu(params, &load_menu);
 }
 
 static void sys_27(struct param_list *params)
@@ -302,6 +326,16 @@ static void sys_27(struct param_list *params)
 		WARNING("System.function[27].function[%u] not implemented",
 				params->params[0].val);
 	}
+}
+
+static void isaku_util_load_heap(struct param_list *params)
+{
+	savedata_read("FLAG08", memory_raw, 3132, 100);
+}
+
+static void isaku_util_save_heap(struct param_list *params)
+{
+	savedata_write("FLAG08", memory_raw, 3132, 100);
 }
 
 static void isaku_util_delay(struct param_list *params)
@@ -318,6 +352,18 @@ static void isaku_util_delay(struct param_list *params)
 		}
 		vm_peek();
 		vm_timer_tick(&t, 16);
+	}
+}
+
+static void isaku_key_down(uint32_t keycode)
+{
+	switch (keycode) {
+	case SDLK_F5:
+		menu_open(&save_menu);
+		break;
+	case SDLK_F9:
+		menu_open(&load_menu);
+		break;
 	}
 }
 
@@ -340,6 +386,7 @@ struct game game_isaku = {
 	.persistent_volume = false,
 	.var4_size = VAR4_SIZE,
 	.mem16_size = MEM16_SIZE,
+	.key_down = isaku_key_down,
 	.mem_init = isaku_mem_init,
 	.mem_restore = isaku_mem_restore,
 	.sys = {
@@ -351,7 +398,7 @@ struct game game_isaku = {
 		[5]  = isaku_sys_audio,
 		[6]  = isaku_sys_voice,
 		[7]  = sys_load_file,
-		[8]  = sys_load_image,
+		[8]  = isaku_load_image,
 		[9]  = sys_display,
 		[10] = isaku_sys_graphics,
 		[11] = sys_wait,
@@ -362,11 +409,13 @@ struct game game_isaku = {
 		[18] = sys_check_input,
 		[22] = sys_item_window,
 		[24] = isaku_sys_farcall_strlen,
-		[25] = sys_25,
-		[26] = sys_26,
+		[25] = sys_save_menu,
+		[26] = sys_load_menu,
 		[27] = sys_27,
 	},
 	.util = {
+		[3]  = isaku_util_load_heap,
+		[4]  = isaku_util_save_heap,
 		[7]  = isaku_util_delay,
 		[11] = util_warn_unimplemented,
 		[12] = util_warn_unimplemented,
