@@ -35,31 +35,59 @@ void sys_set_font_size(struct param_list *params)
 	gfx_text_set_size(mem_get_sysvar16(mes_sysvar16_font_height));
 }
 
+static uint8_t *write_digit(uint8_t *buf, int n, bool halfwidth)
+{
+	if (halfwidth) {
+		buf[0] = '0' + n;
+		return buf + 1;
+	}
+	buf[0] = 0x82;
+	buf[1] = 0x4f + n;
+	return buf + 2;
+}
+
 #define MAX_DIGITS 10
 void sys_display_number(struct param_list *params)
 {
+	uint16_t flags = mem_get_sysvar16(mes_sysvar16_display_number_flags);
+	unsigned display_digits = min(flags & 0xff, MAX_DIGITS);
+	bool halfwidth = flags & 0x100;
+
 	uint32_t n = vm_expr_param(params, 0);
-	uint8_t buf[MAX_DIGITS * 2 + 1];
 
-	// count digits
-	unsigned digits = 0;
-	for (uint32_t i = n; i > 0; i /= 10, digits++)
-		;
-
-	// write digits into buffer
-	if (!digits) {
-		buf[0] = 0x82;
-		buf[1] = 0x4f;
-		buf[2] = 0;
-	} else {
-		for (int i = 0; n > 0; i++, n /= 10) {
-			int off = (digits - (i + 1)) * 2;
-			buf[off+0] = 0x82;
-			buf[off+1] = 0x4f + n % 10;
-		}
-		buf[digits * 2] = 0;
+	// write digits to array
+	uint8_t nr_digits = 0;
+	uint8_t digits[MAX_DIGITS];
+	for (int i = MAX_DIGITS - 1; n && i >= 0; i--, n /= 10, nr_digits++) {
+		digits[i] = n % 10;
+	}
+	for (int i = MAX_DIGITS - (nr_digits + 1); i >= 0; i--) {
+		digits[i] = 0;
 	}
 
+	if (!display_digits)
+		display_digits = nr_digits;
+
+	// write digits to string
+	uint8_t buf[MAX_DIGITS * 2 + 1];
+	if (!display_digits) {
+		uint8_t *end = write_digit(buf, 0, halfwidth);
+		*end = 0;
+	} else {
+		uint8_t *digit_start = digits + (MAX_DIGITS - display_digits);
+		uint8_t *buf_p = buf;
+		for (int i = 0; i < display_digits; i++) {
+			buf_p = write_digit(buf_p, digit_start[i], halfwidth);
+		}
+		*buf_p = 0;
+	}
+
+	if (flags & 0x400) {
+		mem_set_var32(18, strlen((char*)buf));
+		return;
+	}
+
+	// draw number
 	vm_draw_text((char*)buf);
 }
 
