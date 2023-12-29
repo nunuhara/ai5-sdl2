@@ -20,7 +20,7 @@
 
 #include "cursor.h"
 #include "input.h"
-#include "gfx.h"
+#include "gfx_private.h"
 #include "vm.h"
 
 static bool key_down[INPUT_NR_INPUTS] = {0};
@@ -81,27 +81,47 @@ void handle_events(void)
 {
 	SDL_Event e;
 	while (SDL_PollEvent(&e)) {
+		if (game->handle_event)
+			game->handle_event(&e);
 		switch (e.type) {
 		case SDL_QUIT:
 			sys_exit(0);
 			break;
 		case SDL_WINDOWEVENT:
-			gfx_screen_dirty();
+			if (e.window.windowID != gfx.window_id)
+				break;
+			switch (e.window.event) {
+			case SDL_WINDOWEVENT_SHOWN:
+			case SDL_WINDOWEVENT_EXPOSED:
+			case SDL_WINDOWEVENT_RESIZED:
+			case SDL_WINDOWEVENT_SIZE_CHANGED:
+			case SDL_WINDOWEVENT_MAXIMIZED:
+			case SDL_WINDOWEVENT_RESTORED:
+				gfx_screen_dirty();
+				break;
+			case SDL_WINDOWEVENT_CLOSE:
+				sys_exit(0);
+				break;
+			}
 			break;
 		case SDL_KEYDOWN:
+			if (e.key.windowID != gfx.window_id)
+				break;
 			key_event(&e.key, true);
-			if (game->key_down)
-				game->key_down(e.key.keysym.sym);
 			break;
 		case SDL_KEYUP:
+			if (e.key.windowID != gfx.window_id)
+				break;
 			key_event(&e.key, false);
-			if (game->key_up)
-				game->key_up(e.key.keysym.sym);
 			break;
 		case SDL_MOUSEBUTTONDOWN:
+			if (e.button.windowID != gfx.window_id)
+				break;
 			mouse_event(&e.button, true);
 			break;
 		case SDL_MOUSEBUTTONUP:
+			if (e.button.windowID != gfx.window_id)
+				break;
 			mouse_event(&e.button, false);
 			break;
 		default:
@@ -131,6 +151,8 @@ bool input_down(enum input_event_type type)
 
 void input_wait_until_up(enum input_event_type type)
 {
+	if (!vm_flag_is_on(FLAG_WAIT_KEYUP))
+		return;
 	while (input_down(type)) {
 		vm_peek();
 		vm_delay(16);

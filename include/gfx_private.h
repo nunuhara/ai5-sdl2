@@ -46,6 +46,7 @@ struct gfx_surface {
 struct gfx {
 	SDL_Window *window;
 	SDL_Renderer *renderer;
+	uint32_t window_id;
 
 	struct gfx_surface surface[GFX_NR_SURFACES];
 
@@ -71,6 +72,8 @@ extern struct gfx gfx;
 SDL_Surface *gfx_get_surface(unsigned i);
 bool gfx_fill_clip(SDL_Surface *s, SDL_Rect *r);
 bool gfx_copy_clip(SDL_Surface *src, SDL_Rect *src_r, SDL_Surface *dst, SDL_Point *dst_p);
+
+void gfx_dump_surface(unsigned i, const char *filename);
 
 static inline SDL_Color gfx_decode_bgr555(uint16_t c)
 {

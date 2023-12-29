@@ -105,6 +105,7 @@ struct game game_yuno = {
 	.use_effect_arc = true,
 	.persistent_volume = true,
 	.call_saves_procedures = true,
+	.proc_clears_flag = false,
 	.var4_size = VAR4_SIZE,
 	.mem16_size = MEM16_SIZE,
 	.update = yuno_update,
@@ -164,10 +165,16 @@ struct game game_yuno = {
 	},
 	.flags = {
 		[FLAG_REFLECTOR]    = 0x0002,
+		[FLAG_ANIM_ENABLE]  = 0x0004,
 		[FLAG_MENU_RETURN]  = 0x0008,
 		[FLAG_RETURN]       = 0x0010,
 		[FLAG_LOG]          = 0x0080,
+		[FLAG_VOICE_ENABLE] = 0x0100,
+		[FLAG_AUDIO_ENABLE] = FLAG_ALWAYS_ON,
 		[FLAG_LOAD_PALETTE] = 0x2000,
+		[FLAG_WAIT_KEYUP]   = FLAG_ALWAYS_ON,
+		[FLAG_SKIP_KEYUP]   = 0x4000,
+		[FLAG_PALETTE_ONLY] = 0x8000,
 	}
 };
 

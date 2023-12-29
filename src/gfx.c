@@ -151,6 +151,7 @@ void gfx_init(const char *name)
 	SDL_CTOR(SDL_CreateWindow, gfx.window, title,
 			SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, gfx_view.w, gfx_view.h,
 			SDL_WINDOW_RESIZABLE);
+	gfx.window_id = SDL_GetWindowID(gfx.window);
 	SDL_CTOR(SDL_CreateRenderer, gfx.renderer, gfx.window, -1, 0);
 	SDL_CALL(SDL_SetRenderDrawColor, gfx.renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
 	gfx_init_window();

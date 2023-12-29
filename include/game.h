@@ -23,16 +23,37 @@
 #define GAME_MAX_SYS 32
 
 struct param_list;
+typedef union SDL_Event SDL_Event;
 
 enum game_flag {
+	// enables reflector animation (YU-NO specific)
 	FLAG_REFLECTOR,
+	// enables animation playback
+	FLAG_ANIM_ENABLE,
+	// return flag for menuexec
 	FLAG_MENU_RETURN,
+	// return flag
 	FLAG_RETURN,
+	// cleared/restored on procedure call
+	FLAG_PROC_CLEAR,
+	// message history?
 	FLAG_LOG,
+	// enables loading of palette in System.load_image
 	FLAG_LOAD_PALETTE,
+	// enables System.Voice subsystem
+	FLAG_VOICE_ENABLE,
+	// enables System.Audio subsystem
+	FLAG_AUDIO_ENABLE,
+	// if set, counts the length of text rather than displaying it
 	FLAG_STRLEN,
+	// if set, wait for keyup events
+	FLAG_WAIT_KEYUP,
+	// if set, skip keyup events in menus
+	FLAG_SKIP_KEYUP,
+	// if set, only palette is loaded in System.load_image
+	FLAG_PALETTE_ONLY,
 };
-#define GAME_NR_FLAGS (FLAG_STRLEN+1)
+#define GAME_NR_FLAGS (FLAG_PALETTE_ONLY+1)
 #define FLAG_ALWAYS_ON 0xffff
 
 struct game {
@@ -42,12 +63,12 @@ struct game {
 	bool use_effect_arc;
 	bool persistent_volume;
 	bool call_saves_procedures;
+	bool proc_clears_flag;
 	uint32_t var4_size;
 	uint32_t mem16_size;
 	void (*init)(void);
 	void (*update)(void);
-	void (*key_down)(uint32_t keycode);
-	void (*key_up)(uint32_t keycode);
+	void (*handle_event)(SDL_Event *e);
 	void (*mem_init)(void);
 	void (*mem_restore)(void);
 	void (*util[GAME_MAX_UTIL])(struct param_list*);

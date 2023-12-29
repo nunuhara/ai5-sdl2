@@ -17,6 +17,7 @@
 #include <SDL.h>
 
 #include "nulib.h"
+#include "nulib/little_endian.h"
 #include "ai5/anim.h"
 #include "ai5/mes.h"
 
@@ -175,6 +176,8 @@ static void isaku_se_wait(void)
 
 static void isaku_sys_audio(struct param_list *params)
 {
+	if (!vm_flag_is_on(FLAG_AUDIO_ENABLE))
+		return;
 	switch (vm_expr_param(params, 0)) {
 	case 0: audio_bgm_play(vm_string_param(params, 1), true); break;
 	case 1: audio_bgm_fade(0, 2000, true, false); break;
@@ -193,6 +196,8 @@ static void isaku_sys_audio(struct param_list *params)
 
 static void isaku_sys_voice(struct param_list *params)
 {
+	if (!vm_flag_is_on(FLAG_VOICE_ENABLE))
+		return;
 	switch (vm_expr_param(params, 0)) {
 	case 0: audio_voice_play(vm_string_param(params, 1)); break;
 	case 1: audio_voice_stop(); break;
@@ -263,12 +268,148 @@ static void isaku_sys_graphics(struct param_list *params)
 	}
 }
 
+#define ITEM_WINDOW_W 320
+#define ITEM_WINDOW_H 32
+struct {
+	SDL_Window *window;
+	SDL_Renderer *renderer;
+	SDL_Texture *texture;
+	uint32_t window_id;
+	bool enabled;
+	bool opened;
+	bool lmb_down;
+	bool rmb_down;
+} item_window = {0};
+
+static void item_window_create(void)
+{
+	SDL_CTOR(SDL_CreateWindow, item_window.window, "Items",
+			SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
+			ITEM_WINDOW_W, ITEM_WINDOW_H,
+			SDL_WINDOW_HIDDEN);
+	item_window.window_id = SDL_GetWindowID(item_window.window);
+	SDL_CTOR(SDL_CreateRenderer, item_window.renderer, item_window.window, -1, 0);
+	SDL_CALL(SDL_SetRenderDrawColor, item_window.renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
+	SDL_CALL(SDL_RenderSetLogicalSize, item_window.renderer, ITEM_WINDOW_W, ITEM_WINDOW_H);
+	SDL_CTOR(SDL_CreateTexture, item_window.texture, item_window.renderer,
+			gfx.display->format->format, SDL_TEXTUREACCESS_STATIC,
+			ITEM_WINDOW_W, ITEM_WINDOW_H);
+	item_window.enabled = true;
+}
+
+static void item_window_update(void)
+{
+	if (!item_window.opened)
+		return;
+	SDL_CALL(SDL_UpdateTexture, item_window.texture, NULL, gfx.surface[7].s->pixels,
+			gfx.surface[7].s->pitch);
+	SDL_CALL(SDL_RenderClear, item_window.renderer);
+	SDL_CALL(SDL_RenderCopy, item_window.renderer, item_window.texture, NULL, NULL);
+	SDL_RenderPresent(item_window.renderer);
+}
+
+static void item_window_toggle(void)
+{
+	if (!item_window.enabled)
+		return;
+	if (item_window.opened) {
+		SDL_HideWindow(item_window.window);
+		audio_se_play("wincls.wav");
+		item_window.opened = false;
+	} else {
+		SDL_ShowWindow(item_window.window);
+		audio_se_play("winopn.wav");
+		item_window.opened = true;
+		item_window_update();
+		gfx_dump_surface(7, "item_window.png");
+	}
+}
+
+static void item_window_is_open(void)
+{
+	if (!item_window.enabled)
+		return;
+	mem_set_var16(18, item_window.opened);
+}
+
+static void item_window_get_pos(void)
+{
+	if (!item_window.enabled)
+		return;
+	int x, y;
+	SDL_GetWindowPosition(item_window.window, &x, &y);
+	le_put16(memory_ptr.system_var32, 44, x);
+	le_put16(memory_ptr.system_var32, 46, y);
+	le_put16(memory_ptr.system_var32, 48, x + ITEM_WINDOW_W - 1);
+	le_put16(memory_ptr.system_var32, 50, y + ITEM_WINDOW_H - 1);
+}
+
+static void item_window_get_cursor_pos(void)
+{
+	if (!item_window.enabled)
+		return;
+	int x, y;
+	if (SDL_GetMouseFocus() != item_window.window) {
+		x = ITEM_WINDOW_W;
+		y = ITEM_WINDOW_H;
+	} else {
+		SDL_GetMouseState(&x, &y);
+	}
+	mem_set_sysvar16(mes_sysvar16_cursor_x, x);
+	mem_set_sysvar16(mes_sysvar16_cursor_y, y);
+}
+
+static void item_window_enable(void)
+{
+	if (!item_window.window)
+		return;
+	item_window.enabled = true;
+}
+
+static void item_window_disable(void)
+{
+	item_window.enabled = false;
+	if (item_window.opened) {
+		SDL_HideWindow(item_window.window);
+		item_window.enabled = false;
+	}
+}
+
+static void item_window_get_mouse_state(void)
+{
+	if (!item_window.enabled)
+		return;
+	le_put16(memory_ptr.system_var32, 52, item_window.lmb_down);
+	le_put16(memory_ptr.system_var32, 54, item_window.rmb_down);
+}
+
+static void item_window_9(void)
+{
+	mem_set_var16(18, 0);
+}
+
+static void item_window_10(void)
+{
+	WARNING("ItemWindow.function[10] not implemented");
+}
+
 static void sys_item_window(struct param_list *params)
 {
 	switch (vm_expr_param(params, 0)) {
+	case 0: item_window_create(); break;
+	case 1: item_window_toggle(); break;
+	case 2: item_window_is_open(); break;
+	case 3: item_window_get_pos(); break;
+	case 4: item_window_get_cursor_pos(); break;
+	case 5: item_window_enable(); break;
+	case 6: item_window_disable(); break;
+	case 7: item_window_get_mouse_state(); break;
+	case 8: item_window_update(); break;
+	case 9: item_window_9(); break;
+	case 10: item_window_10(); break;
 	default:
-//		WARNING("System.ItemWindow.function[%u] not implemented",
-//				params->params[0].val);
+		VM_ERROR("System.ItemWindow.function[%u] not implemented",
+				params->params[0].val);
 	}
 }
 
@@ -356,14 +497,47 @@ static void isaku_util_delay(struct param_list *params)
 	}
 }
 
-static void isaku_key_down(uint32_t keycode)
+static void isaku_handle_event(SDL_Event *e)
 {
-	switch (keycode) {
-	case SDLK_F5:
-		menu_open(&save_menu);
-		break;
-	case SDLK_F9:
-		menu_open(&load_menu);
+	switch (e->type) {
+	case SDL_WINDOWEVENT:
+		if (e->window.windowID != item_window.window_id)
+			break;
+		switch (e->window.event) {
+		case SDL_WINDOWEVENT_SHOWN:
+		case SDL_WINDOWEVENT_EXPOSED:
+		case SDL_WINDOWEVENT_RESIZED:
+		case SDL_WINDOWEVENT_SIZE_CHANGED:
+		case SDL_WINDOWEVENT_MAXIMIZED:
+		case SDL_WINDOWEVENT_RESTORED:
+			item_window_update();
+			break;
+		case SDL_WINDOWEVENT_CLOSE:
+			assert(item_window.opened);
+			item_window_toggle();
+			break;
+		}
+	case SDL_KEYDOWN:
+		switch (e->key.keysym.sym) {
+		case SDLK_SPACE:
+			item_window_toggle();
+			break;
+		case SDLK_F5:
+			menu_open(&save_menu);
+			break;
+		case SDLK_F9:
+			menu_open(&load_menu);
+			break;
+		}
+	case SDL_MOUSEBUTTONDOWN:
+	case SDL_MOUSEBUTTONUP:
+		if (e->button.windowID != item_window.window_id)
+			break;
+		if (e->button.button == SDL_BUTTON_LEFT) {
+			item_window.lmb_down = e->button.state == SDL_PRESSED;
+		} else if (e->button.button == SDL_BUTTON_RIGHT) {
+			item_window.rmb_down = e->button.state == SDL_PRESSED;
+		}
 		break;
 	}
 }
@@ -386,9 +560,10 @@ struct game game_isaku = {
 	.use_effect_arc = false,
 	.persistent_volume = false,
 	.call_saves_procedures = false,
+	.proc_clears_flag = true,
 	.var4_size = VAR4_SIZE,
 	.mem16_size = MEM16_SIZE,
-	.key_down = isaku_key_down,
+	.handle_event = isaku_handle_event,
 	.mem_init = isaku_mem_init,
 	.mem_restore = isaku_mem_restore,
 	.sys = {
@@ -416,6 +591,7 @@ struct game game_isaku = {
 		[27] = sys_27,
 	},
 	.util = {
+		[2]  = util_warn_unimplemented,
 		[3]  = isaku_util_load_heap,
 		[4]  = isaku_util_save_heap,
 		[7]  = isaku_util_delay,
@@ -423,8 +599,13 @@ struct game game_isaku = {
 		[12] = util_warn_unimplemented,
 	},
 	.flags = {
-		[FLAG_MENU_RETURN] = 0x0008,
-		[FLAG_RETURN]      = 0x0010,
-		[FLAG_STRLEN]      = 0x0400,
+		[FLAG_ANIM_ENABLE]  = 0x0004,
+		[FLAG_MENU_RETURN]  = 0x0008,
+		[FLAG_RETURN]       = 0x0010,
+		[FLAG_PROC_CLEAR]   = 0x0040,
+		[FLAG_VOICE_ENABLE] = 0x0100,
+		[FLAG_AUDIO_ENABLE] = 0x0200,
+		[FLAG_STRLEN]       = 0x0400,
+		[FLAG_WAIT_KEYUP]   = 0x0800,
 	}
 };

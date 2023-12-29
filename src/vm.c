@@ -610,9 +610,16 @@ void vm_call_procedure(unsigned no)
 
 static void stmt_proc(void)
 {
+	bool flag_on = vm_flag_is_on(FLAG_PROC_CLEAR);
+	if (game->proc_clears_flag)
+		vm_flag_off(FLAG_PROC_CLEAR);
+
 	struct param_list params = {0};
 	read_params(&params);
 	vm_call_procedure(vm_expr_param(&params, 0));
+
+	if (game->proc_clears_flag && flag_on)
+		vm_flag_on(FLAG_PROC_CLEAR);
 }
 
 static void stmt_util(void)
