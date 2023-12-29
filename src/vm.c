@@ -47,6 +47,11 @@ void vm_print_state(void)
 {
 	sys_warning("ip = %08x\n", vm.ip.ptr);
 	sys_warning("file = %s\n", asset_mes_name);
+
+	for (int i = 0; i < 26; i++) {
+		sys_warning("var16[%02d] = %04x\tvar32[%02d] = %08x\n", i, mem_get_var16(i),
+				i, mem_get_var32(i));
+	}
 }
 
 void vm_init(void)
@@ -452,7 +457,7 @@ static void stmt_setac(void)
 {
 	uint32_t i = vm_eval();
 	uint8_t var = vm_read_byte();
-	uint8_t *dst = memory_raw + mem_get_var4(var) + i;
+	uint8_t *dst = memory_raw + mem_get_var16(var) + i;
 
 	do {
 		*dst++ = vm_eval();
@@ -650,6 +655,7 @@ static void stmt_procd(void)
 bool vm_exec_statement(void)
 {
 #if 0
+	printf("%08x: ", vm.ip.ptr);
 	struct mes_statement *stmt = mes_parse_statement(vm.ip.code + vm.ip.ptr, 2048);
 	mes_statement_print(stmt, port_stdout());
 	mes_statement_free(stmt);
