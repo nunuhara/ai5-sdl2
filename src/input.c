@@ -108,6 +108,8 @@ void handle_events(void)
 			if (e.key.windowID != gfx.window_id)
 				break;
 			key_event(&e.key, true);
+			if (e.key.keysym.sym == SDLK_F12)
+				vm_print_state();
 			break;
 		case SDL_KEYUP:
 			if (e.key.windowID != gfx.window_id)

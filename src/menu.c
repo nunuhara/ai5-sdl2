@@ -86,7 +86,7 @@ void menu_exec(void)
 	// initialize menu
 	vm_call_procedure(38);
 	while (true) {
-		if (vm_flag_is_on(FLAG_MENU_RETURN))
+		if (vm_flag_is_on(FLAG_MENU_RETURN) || vm_flag_is_on(FLAG_RETURN))
 			break;
 		// update menu
 		vm_call_procedure(39);
