@@ -366,7 +366,7 @@ int channel_stop_fade(struct channel *ch)
 
 int channel_is_fading(struct channel *ch)
 {
-	return ch->fade.fading;
+	return channel_is_playing(ch) && ch->fade.fading;
 }
 
 int channel_pause(struct channel *ch)
