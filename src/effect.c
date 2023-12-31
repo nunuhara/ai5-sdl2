@@ -165,7 +165,7 @@ void gfx_fade_down(int x, int y, int w, int h, unsigned dst_i, int src_i)
 
 	uint32_t frame_timer = vm_timer_create();
 	uint8_t *base = s->pixels + r.y * s->pitch + r.x;
-	for (int i = 0; i < FADE_SIZE + r.h; i += FADE_PATTERN_SIZE * 2) {
+	for (int i = 0; i < FADE_SIZE + r.h + FADE_PATTERN_SIZE * 2; i += FADE_PATTERN_SIZE * 2) {
 		int row = 0;
 		int fade_start = FADE_SIZE - i;
 
@@ -221,7 +221,7 @@ void gfx_fade_right(int x, int y, int w, int h, unsigned dst_i, int src_i)
 
 	uint32_t frame_timer = vm_timer_create();
 	uint8_t *base = s->pixels + r.y * s->pitch + r.x;
-	for (int i = 0; i < FADE_SIZE + r.w; i += FADE_PATTERN_SIZE * 2) {
+	for (int i = 0; i < FADE_SIZE + r.w + FADE_PATTERN_SIZE * 2; i += FADE_PATTERN_SIZE * 2) {
 		for (int row = 0; row < r.h; row++) {
 			int col = 0;
 			uint8_t *dst = base + row * s->pitch;
