@@ -816,9 +816,9 @@ void gfx_fill(int x, int y, int w, int h, unsigned i, uint16_t c)
 	GFX_LOG("gfx_fill[%u] %u(%d,%d) @ (%d,%d)", c, i, x, y, w, h);
 	SDL_Surface *dst = gfx_get_surface(i);
 	if (game->bpp == 8)
-		return gfx_indexed_fill(x, y, w, h, dst, c);
+		gfx_indexed_fill(x, y, w, h, dst, c);
 	else
-		return gfx_direct_fill(x, y, w, h, dst, c);
+		gfx_direct_fill(x, y, w, h, dst, c);
 	gfx_dirty(i);
 }
 

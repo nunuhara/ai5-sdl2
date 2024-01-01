@@ -237,13 +237,16 @@ void vm_load_image(const char *name, unsigned i)
 		return;
 	}
 
-	mem_set_sysvar16(mes_sysvar16_cg_x, cg->metrics.x / game->x_mult);
-	mem_set_sysvar16(mes_sysvar16_cg_y, cg->metrics.y);
-	mem_set_sysvar16(mes_sysvar16_cg_w, cg->metrics.w / game->x_mult);
-	mem_set_sysvar16(mes_sysvar16_cg_h, cg->metrics.h);
-
 	// draw CG
-	gfx_draw_cg(i, cg);
+	if (!vm_flag_is_on(FLAG_PALETTE_ONLY)) {
+		mem_set_sysvar16(mes_sysvar16_cg_x, cg->metrics.x / game->x_mult);
+		mem_set_sysvar16(mes_sysvar16_cg_y, cg->metrics.y);
+		mem_set_sysvar16(mes_sysvar16_cg_w, cg->metrics.w / game->x_mult);
+		mem_set_sysvar16(mes_sysvar16_cg_h, cg->metrics.h);
+		gfx_draw_cg(i, cg);
+	}
+
+	// load palette
 	if (cg->palette && vm_flag_is_on(FLAG_LOAD_PALETTE)) {
 		memcpy(memory.palette, cg->palette, 256 * 4);
 	}
