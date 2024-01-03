@@ -65,7 +65,13 @@ struct memory_ptr {
 
 extern struct memory memory;
 #define memory_raw ((uint8_t*)&memory)
+#define memory_end (memory_raw+sizeof(struct memory))
 extern struct memory_ptr memory_ptr;
+
+static inline bool mem_ptr_valid(uint8_t *p, int size)
+{
+	return p >= memory_raw && (p + size) <= memory_end;
+}
 
 static inline void mem_set_sysvar16_ptr(uint32_t ptr)
 {

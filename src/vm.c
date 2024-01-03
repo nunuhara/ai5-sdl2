@@ -132,20 +132,22 @@ static uint32_t vm_eval(void)
 			vm_stack_push(mem_get_var16(vm_read_byte()));
 			break;
 		case MES_EXPR_ARRAY16_GET16: {
-			uint32_t i = vm_stack_pop();
+			int32_t i = vm_stack_pop();
 			uint8_t var = vm_read_byte();
-			uint16_t v;
+			uint8_t *src = memory_ptr.system_var16;
 			if (var)
-				v = le_get16(memory_raw + mem_get_var16(var - 1), i * 2);
-			else
-				v = mem_get_sysvar16(i);
-			vm_stack_push(v);
+				src = memory_raw + mem_get_var16(var - 1);
+			if (unlikely(!mem_ptr_valid(src + i * 2, 2)))
+				VM_ERROR("Out of bounds read");
+			vm_stack_push(le_get16(src, i * 2));
 			break;
 		}
 		case MES_EXPR_ARRAY16_GET8: {
 			uint32_t i = vm_stack_pop();
 			uint8_t var = vm_read_byte();
 			uint8_t *src = memory_raw + mem_get_var16(var);
+			if (unlikely(!mem_ptr_valid(src + i, 1)))
+				VM_ERROR("Out of bounds read");
 			vm_stack_push(src[i]);
 			break;
 		}
@@ -220,27 +222,31 @@ static uint32_t vm_eval(void)
 			vm_stack_push(mem_get_var4(vm_stack_pop()));
 			break;
 		case MES_EXPR_ARRAY32_GET32: {
-			uint32_t i = vm_stack_pop();
+			int32_t i = vm_stack_pop();
 			uint8_t var = vm_read_byte();
-			uint32_t v;
+			uint8_t *src = memory_ptr.system_var32;
 			if (var)
-				v = le_get32(memory_raw + mem_get_var32(var - 1), i * 4);
-			else
-				v = mem_get_sysvar32(i);
-			vm_stack_push(v);
+				src = memory_raw + mem_get_var32(var - 1);
+			if (unlikely(!mem_ptr_valid(src + i * 4, 4)))
+				VM_ERROR("Out of bounds read");
+			vm_stack_push(le_get32(src, i * 4));
 			break;
 		}
 		case MES_EXPR_ARRAY32_GET16: {
-			uint32_t i = vm_stack_pop();
+			int32_t i = vm_stack_pop();
 			uint8_t var = vm_read_byte();
-			uint16_t v = le_get16(memory_raw + mem_get_var32(var - 1), i * 2);
-			vm_stack_push(v);
+			uint8_t *src = memory_raw + mem_get_var32(var - 1);
+			if (unlikely(!mem_ptr_valid(src + i * 2, 2)))
+				VM_ERROR("Out of bounds read");
+			vm_stack_push(le_get16(src, i * 2));
 			break;
 		}
 		case MES_EXPR_ARRAY32_GET8: {
-			uint32_t i = vm_stack_pop();
+			int32_t i = vm_stack_pop();
 			uint8_t var = vm_read_byte();
 			uint8_t *src = memory_raw + mem_get_var32(var - 1);
+			if (unlikely(!mem_ptr_valid(src + i, 1)))
+				VM_ERROR("Out of bounds read");
 			vm_stack_push(src[i]);
 			break;
 		}
@@ -425,6 +431,8 @@ static void stmt_setrbc(void)
 {
 	uint16_t i = vm_read_word();
 	do {
+		if (unlikely(!mem_ptr_valid(memory_raw + MEMORY_MES_NAME_SIZE + i, 1)))
+			VM_ERROR("Out of bounds write");
 		mem_set_var4(i++, vm_eval());
 	} while (vm_read_byte());
 }
@@ -433,46 +441,57 @@ static void stmt_setv(void)
 {
 	uint8_t i = vm_read_byte();
 	do {
+		if (unlikely(!mem_ptr_valid(memory_ptr.var16 + i * 2, 2)))
+			VM_ERROR("Out of bounds write");
 		mem_set_var16(i++, vm_eval());
 	} while (vm_read_byte());
 }
 
 static void stmt_setrbe(void)
 {
-	uint32_t i = vm_eval();
+	int32_t i = vm_eval();
 	do {
+		if (unlikely(!mem_ptr_valid(memory_raw + MEMORY_MES_NAME_SIZE + i, 1)))
+			VM_ERROR("Out of bounds write");
 		mem_set_var4(i++, vm_eval());
 	} while (vm_read_byte());
 }
 
 static void stmt_setrd(void)
 {
-	uint32_t i = vm_read_byte();
+	int32_t i = vm_read_byte();
+
 	do {
+		if (unlikely(!mem_ptr_valid(memory_ptr.var32 + i * 4, 4)))
+			VM_ERROR("Out of bounds write");
 		mem_set_var32(i++, vm_eval());
 	} while (vm_read_byte());
 }
 
 static void stmt_setac(void)
 {
-	uint32_t i = vm_eval();
+	int32_t i = vm_eval();
 	uint8_t var = vm_read_byte();
 	uint8_t *dst = memory_raw + mem_get_var16(var) + i;
 
 	do {
+		if (unlikely(!mem_ptr_valid(dst, 1)))
+			VM_ERROR("Out of bounds write");
 		*dst++ = vm_eval();
 	} while (vm_read_byte());
 }
 
 static void stmt_seta_at(void)
 {
-	uint32_t i = vm_eval();
+	int32_t i = vm_eval();
 	uint8_t var = vm_read_byte();
 	uint8_t *dst = memory_ptr.system_var16;
 	if (var)
 		dst = memory_raw + mem_get_var16(var - 1);
 
 	do {
+		if (unlikely(!mem_ptr_valid(dst + i * 2, 2)))
+			VM_ERROR("Out of bounds write");
 		le_put16(dst, i * 2, vm_eval());
 		i++;
 	} while (vm_read_byte());
@@ -480,13 +499,15 @@ static void stmt_seta_at(void)
 
 static void stmt_setad(void)
 {
-	uint32_t i = vm_eval();
+	int32_t i = vm_eval();
 	uint8_t var = vm_read_byte();
 	uint8_t *dst = memory_ptr.system_var32;
 	if (var)
 		dst = memory_raw + mem_get_var32(var - 1);
 
 	do {
+		if (unlikely(!mem_ptr_valid(dst + i*4, 4)))
+			VM_ERROR("Out of bounds write");
 		le_put32(dst, i * 4, vm_eval());
 		i++;
 	} while (vm_read_byte());
@@ -494,11 +515,13 @@ static void stmt_setad(void)
 
 static void stmt_setaw(void)
 {
-	uint32_t i = vm_eval();
+	int32_t i = vm_eval();
 	uint8_t var = vm_read_byte();
 	uint8_t *dst = memory_raw + mem_get_var32(var - 1);
 
 	do {
+		if (unlikely(!mem_ptr_valid(dst + i*2, 2)))
+			VM_ERROR("Out of bounds write");
 		le_put16(dst, i * 2, vm_eval());
 		i++;
 	} while (vm_read_byte());
@@ -506,11 +529,13 @@ static void stmt_setaw(void)
 
 static void stmt_setab(void)
 {
-	uint32_t i = vm_eval();
+	int32_t i = vm_eval();
 	uint8_t var = vm_read_byte();
 	uint8_t *dst = memory_raw + mem_get_var32(var - 1) + i;
 
 	do {
+		if (unlikely(!mem_ptr_valid(dst, 1)))
+			VM_ERROR("Out of bounds write");
 		*dst++ = vm_eval();
 	} while (vm_read_byte());
 }
@@ -548,8 +573,7 @@ static void stmt_goto(void)
 	struct param_list params = {0};
 	read_params(&params);
 
-	vm_string_param(&params, 0);
-	vm_load_mes(params.params[0].str);
+	vm_load_mes(vm_string_param(&params, 0));
 
 	vm_flag_on(FLAG_RETURN);
 }
