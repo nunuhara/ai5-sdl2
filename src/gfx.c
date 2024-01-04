@@ -432,6 +432,14 @@ static void _gfx_palette_crossfade(SDL_Color *new, unsigned ms)
 		SDL_Delay(16);
 		t = vm_get_ticks() - start_t;
 	}
+
+	for (int i = 0; i < nr_fading; i++) {
+		uint8_t c = fading[i];
+		palette[c].r = new[c].r;
+		palette[c].g = new[c].g;
+		palette[c].b = new[c].b;
+	}
+	update_palette();
 }
 
 void gfx_palette_crossfade(const uint8_t *data, unsigned ms)
