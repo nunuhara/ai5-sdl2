@@ -157,7 +157,12 @@ void util_check_cursor(struct param_list *params)
 
 void util_delay(struct param_list *params)
 {
-	vm_delay(vm_expr_param(params, 1) * 15);
+	unsigned nr_ticks = vm_expr_param(params, 1);
+	vm_timer_t timer = vm_timer_create();
+	for (unsigned i = 0; i < nr_ticks; i++) {
+		vm_peek();
+		vm_timer_tick(&timer, 15);
+	}
 }
 
 static char *saved_cg_name = NULL;
