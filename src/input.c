@@ -19,6 +19,7 @@
 #include "nulib.h"
 
 #include "cursor.h"
+#include "debug.h"
 #include "input.h"
 #include "gfx_private.h"
 #include "vm.h"
@@ -109,7 +110,7 @@ void handle_events(void)
 				break;
 			key_event(&e.key, true);
 			if (e.key.keysym.sym == SDLK_F12)
-				vm_print_state();
+				dbg_repl();
 			break;
 		case SDL_KEYUP:
 			if (e.key.windowID != gfx.window_id)

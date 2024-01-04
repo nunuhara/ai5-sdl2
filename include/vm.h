@@ -53,14 +53,14 @@ struct vm {
 };
 extern struct vm vm;
 
-#define VM_ERROR(fmt, ...) { vm_print_state(); ERROR(fmt, ##__VA_ARGS__); }
+void _vm_error(const char *file, const char *func, int line, const char *fmt, ...);
+#define VM_ERROR(fmt, ...) _vm_error(__FILE__, __func__, __LINE__, fmt "\n", ##__VA_ARGS__)
 
 void vm_init(void);
 void vm_exec(void);
 void vm_peek(void);
 void vm_load_mes(char *name);
 void vm_call_procedure(unsigned no);
-void vm_print_state(void);
 
 // input.c
 void vm_delay(int ms);

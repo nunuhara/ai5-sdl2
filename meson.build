@@ -21,7 +21,9 @@ incdirs = include_directories('include')
 sources = [
   'src/anim.c',
   'src/asset.c',
+  'src/cmdline.c',
   'src/cursor.c',
+  'src/debug.c',
   'src/effect.c',
   'src/gfx.c',
   'src/ini.c',

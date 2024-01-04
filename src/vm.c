@@ -15,6 +15,7 @@
  */
 
 #include <stdlib.h>
+#include <stdarg.h>
 #include <string.h>
 #include <ctype.h>
 
@@ -31,6 +32,7 @@
 #include "anim.h"
 #include "asset.h"
 #include "audio.h"
+#include "debug.h"
 #include "game.h"
 #include "gfx.h"
 #include "input.h"
@@ -43,15 +45,16 @@ struct memory memory = {0};
 struct memory_ptr memory_ptr = {0};
 struct game *game = NULL;
 
-void vm_print_state(void)
+void _vm_error(const char *file, const char *func, int line, const char *fmt, ...)
 {
-	sys_warning("ip = %08x\n", vm.ip.ptr);
-	sys_warning("file = %s\n", asset_mes_name);
+	va_list ap;
+	va_start(ap, fmt);
+	sys_warning("ERROR(%s:%s:%d): ", file, func, line);
+	sys_vwarning(fmt, ap);
+	va_end(ap);
 
-	for (int i = 0; i < 26; i++) {
-		sys_warning("var16[%02d] = %04x\tvar32[%02d] = %08x\n", i, mem_get_var16(i),
-				i, mem_get_var32(i));
-	}
+	dbg_repl();
+	sys_exit(1);
 }
 
 void vm_init(void)
