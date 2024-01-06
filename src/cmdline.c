@@ -53,24 +53,21 @@ static unsigned cmd_name_max(cmdline_t cmdline)
 /*
  * Get a string from the user. The result can be modified but shouldn't be free'd.
  */
-static char *cmdline_gets(void)
+static char *cmdline_gets(const char *prompt)
 {
-	static char *line_read = NULL;
-	free(line_read);
-	line_read = readline("dbg(cmd)> ");
-	if (line_read && *line_read)
-		add_history(line_read);
-	return line_read;
+	char *line = readline(prompt);
+	if (line && *line)
+		add_history(line);
+	return line;
 }
 #else
 /*
  * Get a string from the user. The result can be modified but shouldn't be free'd.
  */
-static char *cmdline_gets(void)
+static char *cmdline_gets(const char *prompt)
 {
-	static char line[1024];
-
-	printf("dbg(cmd)> ");
+	char *line = xmalloc(1024);
+	printf("%s", prompt);
 	fflush(stdout);
 	return fgets(line, 1024, stdin);
 }
@@ -151,13 +148,14 @@ void cmdline_free(cmdline_t cmdline)
 	vector_destroy(cmdline);
 }
 
-int cmdline_repl(cmdline_t cmdline)
+int cmdline_repl(cmdline_t cmdline, const char *prompt)
 {
 	while (1) {
-		char *line = cmdline_gets();
+		char *line = cmdline_gets(prompt);
 		if (!line)
 			continue;
 		int r = execute_line(cmdline, line);
+		free(line);
 		if (r)
 			return r;
 	}

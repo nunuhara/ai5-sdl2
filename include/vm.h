@@ -28,6 +28,8 @@
 #define VM_STACK_SIZE 1024
 #define VM_MAX_PROCEDURES 150
 
+struct archive_data;
+
 struct vm_pointer {
 	uint32_t ptr;
 	uint8_t *code;
@@ -53,12 +55,13 @@ struct vm {
 };
 extern struct vm vm;
 
-void _vm_error(const char *file, const char *func, int line, const char *fmt, ...);
+_Noreturn void _vm_error(const char *file, const char *func, int line, const char *fmt, ...);
 #define VM_ERROR(fmt, ...) _vm_error(__FILE__, __func__, __LINE__, fmt "\n", ##__VA_ARGS__)
 
 void vm_init(void);
 void vm_exec(void);
 void vm_peek(void);
+void vm_load_file(struct archive_data *file, uint32_t offset);
 void vm_load_mes(char *name);
 void vm_call_procedure(unsigned no);
 

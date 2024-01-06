@@ -31,6 +31,7 @@
 #include "asset.h"
 #include "audio.h"
 #include "cursor.h"
+#include "debug.h"
 #include "game.h"
 #include "gfx.h"
 #include "ini.h"
@@ -133,7 +134,9 @@ static int cfg_handler(void *user, const char *section, const char *name, const 
 static void usage(void)
 {
 	puts("Usage: ai5-sdl2 --game=<game> [options] [inifile-or-directory]");
-	puts("    -h, --help    Display this message and exit");
+	puts("    --cg-load-frame-time=<ms>  Set the frame time for progressive CG loads");
+	puts("    -d, --debug                Start in the debugger REPL");
+	puts("    -h, --help                 Display this message and exit");
 }
 
 static _Noreturn void _usage_error(const char *fmt, ...)
@@ -173,6 +176,7 @@ enum {
 	LOPT_HELP = 256,
 	LOPT_GAME,
 	LOPT_CG_LOAD_FRAME_TIME,
+	LOPT_DEBUG,
 };
 
 int main(int argc, char *argv[])
@@ -180,11 +184,13 @@ int main(int argc, char *argv[])
 	bool have_game = false;
 	char *ini_name = NULL;
 	int progressive_frame_time = -1;
+	bool debug = false;
 
 	while (1) {
 		static struct option long_options[] = {
 			{ "game", required_argument, 0, LOPT_GAME },
 			{ "cg-load-frame-time", required_argument, 0, LOPT_CG_LOAD_FRAME_TIME },
+			{ "debug", no_argument, 0, LOPT_DEBUG },
 			{ "help", no_argument, 0, LOPT_HELP },
 			{0}
 		};
@@ -204,6 +210,10 @@ int main(int argc, char *argv[])
 			break;
 		case LOPT_CG_LOAD_FRAME_TIME:
 			progressive_frame_time = atoi(optarg);
+			break;
+		case 'd':
+		case LOPT_DEBUG:
+			debug = true;
 			break;
 		}
 	}
@@ -296,6 +306,8 @@ int main(int argc, char *argv[])
 
 	// execute start mes file
 	vm_load_mes(config.start_mes);
+	if (debug)
+		dbg_repl();
 	vm_exec();
 	return 0;
 }

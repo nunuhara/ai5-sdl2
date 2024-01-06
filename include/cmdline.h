@@ -35,7 +35,7 @@ struct cmdline_cmd {
 cmdline_t cmdline_create(struct cmdline_cmd *commands, unsigned nr_commands);
 void cmdline_free(cmdline_t cmdline);
 
-int cmdline_repl(cmdline_t cmdline);
+int cmdline_repl(cmdline_t cmdline, const char *prompt);
 void cmdline_help(cmdline_t cmdline, unsigned nr_args, char **args);
 
 #endif // AI5_CMDLINE_H

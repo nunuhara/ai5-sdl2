@@ -17,6 +17,14 @@
 #ifndef AI5_DEBUG_H
 #define AI5_DEBUG_H
 
+#include <stdint.h>
+#include <stddef.h>
+
+#define MES_STMT_BREAKPOINT 0xFF
+
 void dbg_repl(void);
+void dbg_invalidate(uint32_t addr, size_t size);
+void dbg_load_file(const char *name, uint32_t addr, size_t size);
+uint8_t dbg_handle_breakpoint(uint32_t addr);
 
 #endif // AI5_DEBUG_H

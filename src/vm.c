@@ -105,6 +105,13 @@ uint32_t vm_stack_pop(void)
 	return vm.stack[--vm.stack_ptr];
 }
 
+void vm_load_file(struct archive_data *file, uint32_t offset)
+{
+	dbg_invalidate(offsetof(struct memory, file_data) + offset, file->size);
+	memcpy(memory.file_data + offset, file->data, file->size);
+	dbg_load_file(file->name, offsetof(struct memory, file_data) + offset, file->size);
+}
+
 void vm_load_mes(char *name)
 {
 	strcpy(mem_mes_name(), name);
@@ -114,7 +121,7 @@ void vm_load_mes(char *name)
 	struct archive_data *file = asset_mes_load(name);
 	if (!file)
 		VM_ERROR("Failed to load MES file \"%s\"", name);
-	memcpy(memory.file_data, file->data, file->size);
+	vm_load_file(file, 0);
 	archive_data_release(file);
 }
 
@@ -696,6 +703,7 @@ bool vm_exec_statement(void)
 #endif
 
 	uint8_t op = vm_read_byte();
+retry:
 	switch ((uint8_t)mes_opcode_to_stmt(op)) {
 	case MES_STMT_END:     return false;
 	case MES_STMT_TXT:     stmt_txt(); break;
@@ -721,6 +729,10 @@ bool vm_exec_statement(void)
 	case MES_STMT_MENUS:   menu_exec(); break;
 	case MES_STMT_SETRD:   stmt_setrd(); break;
 	case MES_CODE_INVALID:
+		if (op == MES_STMT_BREAKPOINT) {
+			op = dbg_handle_breakpoint((vm.ip.code + vm.ip.ptr - 1) - memory_raw);
+			goto retry;
+		}
 		vm_rewind_byte();
 		if (mes_char_is_hankaku(op))
 			stmt_str();

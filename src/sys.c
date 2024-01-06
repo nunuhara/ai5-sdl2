@@ -23,6 +23,7 @@
 #include "asset.h"
 #include "audio.h"
 #include "cursor.h"
+#include "debug.h"
 #include "game.h"
 #include "gfx.h"
 #include "input.h"
@@ -194,7 +195,7 @@ void vm_read_file(const char *name, uint32_t offset)
 		WARNING("Tried to read file beyond end of buffer");
 		goto end;
 	}
-	memcpy(memory.file_data + offset, data->data, data->size);
+	vm_load_file(data, offset);
 end:
 	archive_data_release(data);
 }
@@ -227,7 +228,7 @@ void vm_load_image(const char *name, unsigned i)
 	uint32_t off = mem_get_sysvar32(mes_sysvar32_cg_offset);
 	if (off + data->size > MEMORY_FILE_DATA_SIZE)
 		VM_ERROR("CG data would exceed buffer size");
-	memcpy(memory.file_data + off, data->data, data->size);
+	vm_load_file(data, off);
 
 	// decode CG
 	struct cg *cg = cg_load_arcdata(data);
