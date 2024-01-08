@@ -155,7 +155,6 @@ void gfx_init(const char *name)
 	SDL_CTOR(SDL_CreateRenderer, gfx.renderer, gfx.window, -1, 0);
 	SDL_CALL(SDL_SetRenderDrawColor, gfx.renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
 	gfx_init_window();
-	gfx_text_init();
 	atexit(gfx_fini);
 }
 

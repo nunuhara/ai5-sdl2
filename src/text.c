@@ -41,6 +41,10 @@ static struct font fonts[MAX_FONTS] = {0};
 static int nr_fonts = 0;
 static struct font *cur_font = NULL;
 
+static char *small_font = NULL;
+static char *large_font = NULL;
+static char *eng_font = NULL;
+
 static struct font *font_lookup(int size)
 {
 	for (int i = 0; i < nr_fonts; i++) {
@@ -73,10 +77,20 @@ static struct font *font_insert(int size, TTF_Font *id, TTF_Font *id_outline)
 	return &fonts[nr_fonts++];
 }
 
-void gfx_text_init(void)
+void gfx_text_init(const char *font_path)
 {
 	if (TTF_Init() == -1)
 		ERROR("TTF_Init: %s", TTF_GetError());
+
+	if (font_path) {
+		small_font = xstrdup(font_path);
+		large_font = xstrdup(font_path);
+		eng_font = xstrdup(font_path);
+	} else {
+		small_font = xstrdup(AI5_DATA_DIR "/fonts/DotGothic16-Regular.ttf");
+		large_font = xstrdup(AI5_DATA_DIR "/fonts/Kosugi-Regular.ttf");
+		eng_font = xstrdup(AI5_DATA_DIR "/fonts/NotoSansJP-Thin.ttf");
+	}
 	gfx_text_set_size(mem_get_sysvar16(mes_sysvar16_font_height));
 }
 
@@ -217,11 +231,11 @@ void gfx_text_set_size(int size)
 		TTF_Font *f;
 		TTF_Font *f_outline = NULL;
 		if (yuno_eng) {
-			open_font(AI5_DATA_DIR "/fonts/NotoSansJP-Thin.ttf", size, &f, &f_outline);
+			open_font(eng_font, size, &f, &f_outline);
 		} else if (size <= 18) {
-			open_font(AI5_DATA_DIR "/fonts/DotGothic16-Regular.ttf", size, &f, &f_outline);
+			open_font(small_font, size, &f, &f_outline);
 		} else {
-			open_font(AI5_DATA_DIR "/fonts/Kosugi-Regular.ttf", size, &f, &f_outline);
+			open_font(large_font, size, &f, &f_outline);
 		}
 		font = font_insert(size, f, f_outline);
 	}
