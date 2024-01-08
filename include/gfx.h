@@ -31,6 +31,10 @@ void gfx_screen_dirty(void);
 unsigned gfx_current_surface(void);
 void gfx_set_screen_surface(unsigned i);
 
+// dialogs
+void gfx_error_message(const char *message);
+bool gfx_confirm_quit(void);
+
 // display operations
 void gfx_display_hide(void);
 void gfx_display_unhide(void);

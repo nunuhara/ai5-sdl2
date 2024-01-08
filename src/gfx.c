@@ -24,6 +24,34 @@
 #include "gfx_private.h"
 #include "vm.h"
 
+void gfx_error_message(const char *message)
+{
+	SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Fatal Error - AI5-SDL2", message, gfx.window);
+}
+
+bool gfx_confirm_quit(void)
+{
+	static const SDL_MessageBoxButtonData buttons[] = {
+		{ SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT, 1, "OK" },
+		{ SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, 0, "Cancel" },
+	};
+	const SDL_MessageBoxData mbox = {
+		SDL_MESSAGEBOX_INFORMATION,
+		NULL,
+		"Really Quit? - AI5-SDL2",
+		"Are you sure you want to quit?\n"
+		"Any unsaved progress will be lost.\n"
+		"Quit game?",
+		SDL_arraysize(buttons),
+		buttons,
+		NULL
+	};
+	int result = 1;
+	if (SDL_ShowMessageBox(&mbox, &result))
+		WARNING("Error displaying message box");
+	return result;
+}
+
 struct gfx gfx = { .dirty = true };
 struct gfx_view gfx_view = { 640, 400 };
 

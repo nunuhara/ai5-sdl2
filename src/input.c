@@ -85,9 +85,6 @@ void handle_events(void)
 		if (game->handle_event)
 			game->handle_event(&e);
 		switch (e.type) {
-		case SDL_QUIT:
-			sys_exit(0);
-			break;
 		case SDL_WINDOWEVENT:
 			if (e.window.windowID != gfx.window_id)
 				break;
@@ -101,7 +98,8 @@ void handle_events(void)
 				gfx_screen_dirty();
 				break;
 			case SDL_WINDOWEVENT_CLOSE:
-				sys_exit(0);
+				if (gfx_confirm_quit())
+					sys_exit(0);
 				break;
 			}
 			break;

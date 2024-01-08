@@ -48,10 +48,13 @@ struct game *game = NULL;
 void _vm_error(const char *file, const char *func, int line, const char *fmt, ...)
 {
 	va_list ap;
+	char buf[1024];
 	va_start(ap, fmt);
-	sys_warning("ERROR(%s:%s:%d): ", file, func, line);
-	sys_vwarning(fmt, ap);
+	vsnprintf(buf, 1024, fmt, ap);
 	va_end(ap);
+
+	sys_warning("ERROR(%s:%s:%d): %s", file, func, line, buf);
+	gfx_error_message(buf);
 
 	dbg_repl();
 	sys_exit(1);
