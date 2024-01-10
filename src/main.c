@@ -289,7 +289,7 @@ int main(int argc, char *argv[])
 #undef DEFAULT_NAME
 
 	string exe_name = file_replace_extension(ini_name, "EXE");
-	char *exe_path = path_get_icase(exe_name);
+	config.exe_path = path_get_icase(exe_name);
 	string_free(exe_name);
 
 	// intitialize subsystems
@@ -299,7 +299,7 @@ int main(int argc, char *argv[])
 	gfx_init(config.title);
 	gfx_text_init(font_path);
 	input_init();
-	cursor_init(exe_path);
+	cursor_init(config.exe_path);
 	audio_init();
 	vm_init();
 
@@ -307,7 +307,6 @@ int main(int argc, char *argv[])
 		gfx_set_progressive_frame_time(progressive_frame_time);
 
 	free(ini_name);
-	free(exe_path);
 
 	if (game->init)
 		game->init();

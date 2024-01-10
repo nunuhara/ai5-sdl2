@@ -301,8 +301,6 @@ void gfx_display_unhide(void)
 	gfx.dirty = true;
 }
 
-static SDL_Color palette[256];
-
 static void read_palette(SDL_Color *dst, const uint8_t *src)
 {
 	for (int i = 0; i < 256; i++) {
@@ -313,27 +311,27 @@ static void read_palette(SDL_Color *dst, const uint8_t *src)
 	}
 }
 
-static void update_palette(void)
+void gfx_update_palette(void)
 {
 	if (game->bpp != 8)
 		return;
-	SDL_CALL(SDL_SetPaletteColors, gfx_screen()->format->palette, palette, 0, 256);
+	SDL_CALL(SDL_SetPaletteColors, gfx_screen()->format->palette, gfx.palette, 0, 256);
 	gfx_dirty(gfx.screen);
 }
 
 void gfx_palette_set(const uint8_t *data)
 {
 	GFX_LOG("gfx_palette_set (...)");
-	read_palette(palette, data);
-	update_palette();
+	read_palette(gfx.palette, data);
+	gfx_update_palette();
 }
 
 void gfx_palette_set_color(uint8_t c, uint8_t r, uint8_t g, uint8_t b)
 {
-	palette[c].r = r;
-	palette[c].g = g;
-	palette[c].b = b;
-	update_palette();
+	gfx.palette[c].r = r;
+	gfx.palette[c].g = g;
+	gfx.palette[c].b = b;
+	gfx_update_palette();
 }
 
 static void pal_set_color(uint8_t *pal, uint8_t i, uint8_t r, uint8_t g, uint8_t b)
@@ -429,7 +427,7 @@ static uint8_t u8_interp(uint8_t a, uint8_t b, float rate)
 static void _gfx_palette_crossfade(SDL_Color *new, unsigned ms)
 {
 	SDL_Color old[256];
-	memcpy(old, palette, sizeof(old));
+	memcpy(old, gfx.palette, sizeof(old));
 
 	// get a list of palette indices that need to be interpolated
 	uint8_t fading[256];
@@ -448,11 +446,11 @@ static void _gfx_palette_crossfade(SDL_Color *new, unsigned ms)
 		float rate = (float)t / (float)ms;
 		for (int i = 0; i < nr_fading; i++) {
 			uint8_t c = fading[i];
-			palette[c].r = u8_interp(old[c].r, new[c].r, rate);
-			palette[c].g = u8_interp(old[c].g, new[c].g, rate);
-			palette[c].b = u8_interp(old[c].b, new[c].b, rate);
+			gfx.palette[c].r = u8_interp(old[c].r, new[c].r, rate);
+			gfx.palette[c].g = u8_interp(old[c].g, new[c].g, rate);
+			gfx.palette[c].b = u8_interp(old[c].b, new[c].b, rate);
 		}
-		update_palette();
+		gfx_update_palette();
 
 		// update
 		vm_peek();
@@ -462,11 +460,11 @@ static void _gfx_palette_crossfade(SDL_Color *new, unsigned ms)
 
 	for (int i = 0; i < nr_fading; i++) {
 		uint8_t c = fading[i];
-		palette[c].r = new[c].r;
-		palette[c].g = new[c].g;
-		palette[c].b = new[c].b;
+		gfx.palette[c].r = new[c].r;
+		gfx.palette[c].g = new[c].g;
+		gfx.palette[c].b = new[c].b;
 	}
-	update_palette();
+	gfx_update_palette();
 }
 
 void gfx_palette_crossfade(const uint8_t *data, unsigned ms)
@@ -496,7 +494,7 @@ void gfx_set_screen_surface(unsigned i)
 	if (unlikely(i >= GFX_NR_SURFACES || !gfx.surface[i].s))
 		VM_ERROR("Invalid surface number: %u", i);
 	gfx.screen = i;
-	update_palette();
+	gfx_update_palette();
 }
 
 /*

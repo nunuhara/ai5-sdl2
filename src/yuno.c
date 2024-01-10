@@ -18,6 +18,8 @@
 #include <SDL.h>
 
 #include "nulib.h"
+#include "nulib/file.h"
+#include "ai5.h"
 #include "ai5/arc.h"
 #include "ai5/cg.h"
 
@@ -26,7 +28,7 @@
 #include "gfx_private.h"
 #include "sys.h"
 #include "util.h"
-#include "vm.h"
+#include "vm_private.h"
 
 #define VAR4_SIZE 4096
 #define MEM16_SIZE 8192
@@ -79,6 +81,111 @@ static void yuno_mem_init(void)
 static void sys_22_warn(struct param_list *params)
 {
 	WARNING("System.function[22] not implemented");
+}
+
+// Locations of dream text in JP executable
+static uint32_t yume_text_loc[] = {
+	0x60fdc,
+	0x60fc8,
+	0x60fa8,
+	0x60f90,
+	0x60f68,
+	0x60f48,
+	0x60f10,
+	0x60efc,
+	0x60ec0,
+	0x60e94,
+	0x60e5c,
+	0x60e30,
+	0x60e04,
+	0x60de8,
+	0x60dcc,
+};
+
+// Locations of dream text in EN executable
+static uint32_t yume_text_loc_eng[] = {
+	0x60a00,
+	0x60a40,
+	0x60a80,
+	0x60ac0,
+	0x60b00,
+	0x60b40,
+	0x60b80,
+	0x60bc0,
+	0x60c00,
+	0x60c40,
+	0x60c80,
+	0x60cc0,
+	0x60d00,
+	0x60d40,
+	0x60d80,
+	0x60dc0,
+	0x60e00,
+};
+
+static int read_yume_text(char **dst)
+{
+	size_t size;
+	uint8_t *exe = file_read(config.exe_path, &size);
+
+	uint32_t *addrs = yume_text_loc;
+	int nr_lines = ARRAY_SIZE(yume_text_loc);
+	if (yuno_eng) {
+		addrs = yume_text_loc_eng;
+		nr_lines = ARRAY_SIZE(yume_text_loc_eng);
+	}
+
+	for (int i = 0; i < nr_lines; i++) {
+		if (addrs[i] + 64 >= size) {
+			free(exe);
+			return -1;
+		}
+	}
+	for (int i = 0; i < nr_lines; i++) {
+		dst[i] = xmalloc(64);
+		strncpy(dst[i], (char*)exe + addrs[i], 63);
+		dst[i][63] = '\0';
+	}
+
+	free(exe);
+	return nr_lines;
+}
+
+// TODO: play effect from YUME.BIN
+static void util_yume(struct param_list *params)
+{
+	char *text[17];
+	int nr_lines = read_yume_text(text);
+
+	const uint16_t start_x = mem_get_sysvar16(mes_sysvar16_text_start_x);
+	const uint16_t start_y = mem_get_sysvar16(mes_sysvar16_text_start_y);
+
+	// XXX: text colors are 0,7, but both are black
+	gfx.palette[7] = (SDL_Color) { 255, 255, 255, 255 };
+	gfx_update_palette();
+
+	gfx_fill(0, 0, 640, 400, 0, 0);
+	gfx_display_freeze();
+	for (unsigned i = 0; i < nr_lines; i++) {
+		// draw text
+		mem_set_sysvar16(mes_sysvar16_text_cursor_x, start_x);
+		mem_set_sysvar16(mes_sysvar16_text_cursor_y, start_y);
+		vm_draw_text(text[i]);
+		gfx_display_fade_in();
+
+		// wait for input
+		struct param_list wait_params = { .nr_params = 0 };
+		sys_wait(&wait_params);
+
+		// fade out
+		gfx_display_fade_out(0);
+		gfx_fill(0, 0, 640, 400, 0, 0);
+	}
+	gfx_display_unfreeze();
+
+	for (int i = 0; i < nr_lines; i++) {
+		free(text[i]);
+	}
 }
 
 static void yuno_reflector_animation(void);
@@ -151,6 +258,7 @@ struct game game_yuno = {
 		[20] = util_copy_progressive,
 		[21] = util_fade_progressive,
 		[22] = util_anim_running,
+		[26] = util_yume,
 		[100] = util_warn_unimplemented,
 		[101] = util_warn_unimplemented,
 		[200] = util_copy,

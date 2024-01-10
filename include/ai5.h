@@ -70,6 +70,8 @@ struct config {
 		bool effect;
 		bool voice;
 	} soundinfo;
+
+	char *exe_path;
 };
 
 extern struct config config;
