@@ -23,6 +23,7 @@
 #include "anim.h"
 #include "asset.h"
 #include "audio.h"
+#include "cursor.h"
 #include "game.h"
 #include "gfx.h"
 #include "input.h"
@@ -127,11 +128,11 @@ void util_get_time(struct param_list *params)
 void util_check_cursor(struct param_list *params)
 {
 	static uint32_t start_t = 0, wait_t = 0;
-	static int cursor_x = 0, cursor_y = 0;
+	static unsigned cursor_x = 0, cursor_y = 0;
 	if (!vm_expr_param(params, 1)) {
 		start_t = vm_get_ticks();
 		wait_t = vm_expr_param(params, 2);
-		input_get_cursor_pos(&cursor_x, &cursor_y);
+		cursor_get_pos(&cursor_x, &cursor_y);
 		return;
 	}
 
@@ -142,8 +143,8 @@ void util_check_cursor(struct param_list *params)
 		return;
 
 	// return TRUE if cursor didn't move
-	int x, y;
-	input_get_cursor_pos(&x, &y);
+	unsigned x, y;
+	cursor_get_pos(&x, &y);
 	if (x == cursor_x && y == cursor_y) {
 		mem_set_var16(18, 1);
 		return;

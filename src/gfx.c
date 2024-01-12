@@ -103,6 +103,46 @@ static SDL_Texture *gfx_create_texture(unsigned w, unsigned h)
 	return t;
 }
 
+void gfx_window_toggle_fullscreen(void)
+{
+	uint32_t flag = SDL_WINDOW_FULLSCREEN_DESKTOP;
+	bool fullscreen = SDL_GetWindowFlags(gfx.window) & flag;
+	SDL_SetWindowFullscreen(gfx.window, fullscreen ? 0 : flag);
+}
+
+void gfx_window_increase_integer_size(void)
+{
+	int w, h;
+	SDL_GetWindowSize(gfx.window, &w, &h);
+
+	int i = 1;
+	int target_w, target_h;
+	do {
+		target_w = gfx_view.w * i;
+		target_h = gfx_view.h * i;
+		i++;
+	} while (target_w <= w && target_h <= h);
+
+	SDL_SetWindowSize(gfx.window, target_w, target_h);
+}
+
+void gfx_window_decrease_integer_size(void)
+{
+	int w, h;
+	SDL_GetWindowSize(gfx.window, &w, &h);
+
+	int i = 1;
+	int target_w, target_h;
+	do {
+		target_w = gfx_view.w * i;
+		target_h = gfx_view.h * i;
+		i++;
+	} while (target_w < w && target_h < h);
+
+	i = max(1, i - 2);
+	SDL_SetWindowSize(gfx.window, gfx_view.w * i, gfx_view.h * i);
+}
+
 static void gfx_init_window(void)
 {
 	gfx_view.w = game->surface_sizes[0].w;

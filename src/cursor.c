@@ -700,16 +700,20 @@ void cursor_hide(void)
 void cursor_set_pos(unsigned x, unsigned y)
 {
 	CURSOR_LOG("cursor_set_pos(%u,%u)", x, y);
-	SDL_WarpMouseInWindow(gfx.window, x, y);
+	int wx, wy;
+	SDL_RenderLogicalToWindow(gfx.renderer, x, y, &wx, &wy);
+	SDL_WarpMouseInWindow(gfx.window, wx, wy);
 }
 
 void cursor_get_pos(unsigned *x_out, unsigned *y_out)
 {
 	int x, y;
 	SDL_GetMouseState(&x, &y);
-	*x_out = x < 0 ? 0 : x;
-	*y_out = y < 0 ? 0 : y;
-	//CURSOR_LOG("cursor_get_pos() -> (%u,%u)", *x_out, *y_out);
+
+	float fx, fy;
+	SDL_RenderWindowToLogical(gfx.renderer, x, y, &fx, &fy);
+	*x_out = fx < 0 ? 0 : (unsigned)fx;
+	*y_out = fy < 0 ? 0 : (unsigned)fy;
 }
 
 void cursor_swap(void)

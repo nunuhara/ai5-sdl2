@@ -109,6 +109,12 @@ void handle_events(void)
 			key_event(&e.key, true);
 			if (e.key.keysym.sym == SDLK_F12)
 				dbg_repl();
+			else if (e.key.keysym.sym == SDLK_MINUS)
+				gfx_window_decrease_integer_size();
+			else if (e.key.keysym.sym == SDLK_EQUALS)
+				gfx_window_increase_integer_size();
+			else if (e.key.keysym.sym == SDLK_F11)
+				gfx_window_toggle_fullscreen();
 			break;
 		case SDL_KEYUP:
 			if (e.key.windowID != gfx.window_id)
@@ -158,9 +164,4 @@ void input_wait_until_up(enum input_event_type type)
 		vm_peek();
 		vm_delay(16);
 	}
-}
-
-void input_get_cursor_pos(int *x, int *y)
-{
-	SDL_GetMouseState(x, y);
 }

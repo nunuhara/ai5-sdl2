@@ -35,6 +35,11 @@ void gfx_set_screen_surface(unsigned i);
 void gfx_error_message(const char *message);
 bool gfx_confirm_quit(void);
 
+// window operations
+void gfx_window_toggle_fullscreen(void);
+void gfx_window_increase_integer_size(void);
+void gfx_window_decrease_integer_size(void);
+
 // display operations
 void gfx_display_hide(void);
 void gfx_display_unhide(void);
