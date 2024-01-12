@@ -107,14 +107,13 @@ void handle_events(void)
 			if (e.key.windowID != gfx.window_id)
 				break;
 			key_event(&e.key, true);
-			if (e.key.keysym.sym == SDLK_F12)
-				dbg_repl();
-			else if (e.key.keysym.sym == SDLK_MINUS)
-				gfx_window_decrease_integer_size();
-			else if (e.key.keysym.sym == SDLK_EQUALS)
-				gfx_window_increase_integer_size();
-			else if (e.key.keysym.sym == SDLK_F11)
-				gfx_window_toggle_fullscreen();
+			switch (e.key.keysym.sym) {
+			case SDLK_F10:    gfx_screenshot(); break;
+			case SDLK_F11:    gfx_window_toggle_fullscreen(); break;
+			case SDLK_F12:    dbg_repl(); break;
+			case SDLK_MINUS:  gfx_window_decrease_integer_size(); break;
+			case SDLK_EQUALS: gfx_window_increase_integer_size(); break;
+			}
 			break;
 		case SDL_KEYUP:
 			if (e.key.windowID != gfx.window_id)

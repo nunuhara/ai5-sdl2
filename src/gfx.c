@@ -15,9 +15,13 @@
  */
 
 #include <stdlib.h>
+#include <string.h>
+#include <errno.h>
+#include <time.h>
 #include <SDL.h>
 
 #include "nulib.h"
+#include "nulib/file.h"
 #include "ai5/cg.h"
 
 #include "game.h"
@@ -141,6 +145,63 @@ void gfx_window_decrease_integer_size(void)
 
 	i = max(1, i - 2);
 	SDL_SetWindowSize(gfx.window, gfx_view.w * i, gfx_view.h * i);
+}
+
+static struct cg *gfx_surface_to_cg(SDL_Surface *s)
+{
+	struct cg *cg = xcalloc(1, sizeof(struct cg));
+	cg->metrics.w = s->w;
+	cg->metrics.h = s->h;
+	cg->metrics.bpp = 24;
+
+	cg->pixels = xcalloc(cg->metrics.w * cg->metrics.h, 4);
+	if (game->bpp == 8) {
+		for (int row = 0; row < cg->metrics.h; row++) {
+			uint8_t *src = s->pixels + s->pitch * row;
+			uint8_t *dst = cg->pixels + cg->metrics.w * 4 * row;
+			for (int col = 0; col < cg->metrics.w; col++, src++, dst += 4) {
+				SDL_Color *c = &gfx.palette[*src];
+				dst[0] = c->r;
+				dst[1] = c->g;
+				dst[2] = c->b;
+				dst[3] = 255;
+			}
+		}
+	} else {
+		for (int row = 0; row < cg->metrics.h; row++) {
+			uint8_t *src = s->pixels + s->pitch * row;
+			uint8_t *dst = cg->pixels + cg->metrics.w * 4 * row;
+			for (int col = 0; col < cg->metrics.w; col++, src += 3, dst += 4) {
+				memcpy(dst, src, 3);
+				dst[3] = 255;
+			}
+		}
+	}
+	return cg;
+}
+
+void gfx_screenshot(void)
+{
+	time_t t = time(NULL);
+	struct tm *tm = localtime(&t);
+	char name[1024];
+	strftime(name, 1024, "Screenshots/%Y%m%d_%H%M%S.png", tm);
+
+	if (mkdir_p("Screenshots") < 0) {
+		WARNING("mkdir_p: %s", strerror(errno));
+		return;
+	}
+
+	struct cg *cg = gfx_surface_to_cg(gfx_screen());
+	FILE *f = file_open_utf8(name, "wb");
+	if (!f) {
+		WARNING("file_open_utf8: %s", strerror(errno));
+		return;
+	}
+	cg_write(cg, f, CG_TYPE_PNG);
+	fclose(f);
+	cg_free(cg);
+	NOTICE("Saved screenshot to \"%s\"", name);
 }
 
 static void gfx_init_window(void)
@@ -382,24 +443,9 @@ static void pal_set_color(uint8_t *pal, uint8_t i, uint8_t r, uint8_t g, uint8_t
 	pal[i*4+3] = 0;
 }
 
-#include "nulib/file.h"
 static void gfx_dump_surface_direct(SDL_Surface *s, const char *filename)
 {
-	struct cg *cg = xcalloc(1, sizeof(struct cg));
-	cg->metrics.w = s->w;
-	cg->metrics.h = s->h;
-	cg->metrics.bpp = 16;
-
-	cg->pixels = xcalloc(cg->metrics.w * cg->metrics.h, 4);
-	for (int row = 0; row < cg->metrics.h; row++) {
-		uint8_t *src = s->pixels + s->pitch * row;
-		uint8_t *dst = cg->pixels + cg->metrics.w * 4 * row;
-		for (int col = 0; col < cg->metrics.w; col++, src += 3, dst += 4) {
-			memcpy(dst, src, 3);
-			dst[3] = 255;
-		}
-	}
-
+	struct cg *cg = gfx_surface_to_cg(s);
 	FILE *f = file_open_utf8(filename, "wb");
 	cg_write(cg, f, CG_TYPE_PNG);
 	fclose(f);

@@ -39,6 +39,7 @@ bool gfx_confirm_quit(void);
 void gfx_window_toggle_fullscreen(void);
 void gfx_window_increase_integer_size(void);
 void gfx_window_decrease_integer_size(void);
+void gfx_screenshot(void);
 
 // display operations
 void gfx_display_hide(void);
