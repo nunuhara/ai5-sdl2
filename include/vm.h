@@ -94,9 +94,12 @@ static inline void vm_timer_tick(vm_timer_t *timer, unsigned ms)
 {
 	uint32_t t = vm_get_ticks();
 	uint32_t delta_t = t - *timer;
-	*timer = t;
-	if (delta_t < ms)
+	if (delta_t < ms) {
 		vm_delay(ms - delta_t);
+		*timer = t + (ms - delta_t);
+	} else {
+		*timer = t;
+	}
 }
 
 static inline bool vm_timer_tick_async(vm_timer_t *timer, unsigned ms)

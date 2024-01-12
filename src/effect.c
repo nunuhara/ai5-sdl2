@@ -297,7 +297,7 @@ void gfx_pixelate(int x, int y, int w, int h, unsigned dst_i, unsigned mag)
 	gfx_dirty(dst_i);
 }
 
-static unsigned progressive_frame_time = 8;
+static unsigned progressive_frame_time = 4;
 
 void gfx_set_progressive_frame_time(unsigned t)
 {
