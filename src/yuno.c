@@ -259,6 +259,7 @@ struct game game_yuno = {
 		[21] = util_fade_progressive,
 		[22] = util_anim_running,
 		[26] = util_yume,
+		[27] = util_warn_unimplemented,
 		[100] = util_warn_unimplemented,
 		[101] = util_warn_unimplemented,
 		[200] = util_copy,
