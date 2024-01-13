@@ -859,6 +859,7 @@ void gfx_copy_swap(int src_x, int src_y, int w, int h, unsigned src_i, int dst_x
 		gfx_indexed_copy_swap(src_x, src_y, w, h, src, dst_x, dst_y, dst);
 	else
 		gfx_direct_copy_swap(src_x, src_y, w, h, src, dst_x, dst_y, dst);
+	gfx_dirty(src_i);
 	gfx_dirty(dst_i);
 }
 
