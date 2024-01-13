@@ -473,9 +473,10 @@ void sys_wait(struct param_list *params)
 		}
 	} else {
 		vm_timer_t timer = vm_timer_create();
-		uint32_t target_t = timer + params->params[0].val * 4;
+		vm_timer_t target_t = timer + (params->params[0].val / 4) * 15;
 		while (timer < target_t && !input_down(INPUT_SHIFT)) {
-			vm_timer_tick(&timer, 16);
+			vm_peek();
+			vm_timer_tick(&timer, min(target_t - timer, 15));
 		}
 	}
 }

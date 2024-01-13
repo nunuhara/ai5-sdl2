@@ -160,9 +160,10 @@ void util_delay(struct param_list *params)
 {
 	unsigned nr_ticks = vm_expr_param(params, 1);
 	vm_timer_t timer = vm_timer_create();
-	for (unsigned i = 0; i < nr_ticks; i++) {
+	vm_timer_t target_t = timer + nr_ticks * 15;
+	while (timer < target_t) {
 		vm_peek();
-		vm_timer_tick(&timer, 15);
+		vm_timer_tick(&timer, min(target_t - timer, 15));
 	}
 }
 
