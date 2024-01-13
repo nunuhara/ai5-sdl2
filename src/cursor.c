@@ -256,7 +256,7 @@ static uint32_t buffer_read_u32_at(struct buffer *buf, size_t off)
 static bool read_pe_header(struct buffer *buf, uint32_t *addr_out, uint32_t *size_out,
 		struct vma **vma_out, uint16_t *nr_vmas_out)
 {
-	size_t pe_loc = buf->index;
+	attr_unused size_t pe_loc = buf->index;
 	if (buffer_remaining(buf) < sizeof(struct pe_header))
 		return false;
 

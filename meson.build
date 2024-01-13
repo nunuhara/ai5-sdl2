@@ -1,10 +1,12 @@
-project('ai5_sdl2', 'c', default_options : ['c_std=c11'])
+project('ai5_sdl2', 'c', default_options : ['c_std=c11', 'b_ndebug=if-release'])
 add_project_arguments('-D_DEFAULT_SOURCE', language : 'c')
 add_project_arguments('-DAI5_DATA_DIR="' + get_option('prefix') / get_option('datadir') / 'ai5-sdl2"', language : 'c')
 
 static_libs = false
+static_link_args = []
 if host_machine.system() == 'windows'
   static_libs = true
+  static_link_args = ['-static', '-lstdc++']
 endif
 
 libm = meson.get_compiler('c').find_library('m', required: false)
@@ -57,5 +59,6 @@ install_subdir('fonts', install_dir : get_option('datadir') / 'ai5-sdl2')
 executable('ai5', sources,
   dependencies : deps,
   c_args : ['-Wno-unused-parameter'],
+  link_args : static_link_args,
   include_directories : incdirs,
   install : true)

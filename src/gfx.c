@@ -1013,7 +1013,7 @@ void gfx_swap_colors(int x, int y, int w, int h, unsigned i, uint16_t c1, uint16
 static void gfx_indexed_draw_cg(SDL_Surface *s, struct cg *cg)
 {
 	unsigned screen_w = s->w;
-	unsigned screen_h = s->h;
+	attr_unused unsigned screen_h = s->h;
 	unsigned cg_x = cg->metrics.x;
 	unsigned cg_y = cg->metrics.y;
 	unsigned cg_w = cg->metrics.w;
