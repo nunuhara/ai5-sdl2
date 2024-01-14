@@ -19,6 +19,12 @@
 
 #include "nulib.h"
 
+#ifdef NDEBUG
+#define BUILD_RELEASE
+#else
+#define BUILD_DEBUG
+#endif
+
 typedef char* string;
 
 struct config {
