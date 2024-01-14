@@ -176,6 +176,28 @@ static void set_game(const char *name)
 	}
 }
 
+static bool set_game_from_config(void)
+{
+	const char *name = NULL;
+	if (!strcmp(config.title, "～この世の果てで恋を唄う少女～")) {
+		name = "yuno";
+	} else if (!strcmp(config.title, "YU-NO - The Girl that Chants Love at the Edge of the World")) {
+		name = "yuno-eng";
+	} else if (!strcmp(config.title, "ｼｬﾝｸﾞﾘﾗ")) {
+		name = "shangrlia";
+	} else if (!strcmp(config.title, "ｼｬﾝｸﾞﾘﾗ2")) {
+		name = "shangrlia2";
+	} else if (!strcmp(config.title, "遺作９８")) {
+		name = "isaku";
+	} else if (!strcmp(config.title, "Isaku98")) {
+		name = "isaku";
+	}
+	if (!name)
+		return false;
+	set_game(name);
+	return true;
+}
+
 enum {
 	LOPT_HELP = 256,
 	LOPT_GAME,
@@ -241,18 +263,6 @@ int main(int argc, char *argv[])
 	if (argc > 1)
 		usage_error("Too many arguments");
 
-	if (!have_game) {
-		usage();
-		puts("");
-		puts("Valid game names are:");
-		for (unsigned i = 0; i < ARRAY_SIZE(ai5_games); i++) {
-			printf("    %-11s - %s\n", ai5_games[i].name, ai5_games[i].description);
-		}
-		printf("    %-11s - %s\n", "yuno-eng", "English translation of YU-NO");
-		puts("");
-		sys_error("Error: No game specified");
-	}
-
 	if (argc > 0) {
 		ustat s;
 		if (stat_utf8(argv[0], &s))
@@ -302,6 +312,20 @@ int main(int argc, char *argv[])
 	string exe_name = file_replace_extension(ini_name, "EXE");
 	config.exe_path = path_get_icase(exe_name);
 	string_free(exe_name);
+
+	if (!have_game && !set_game_from_config()) {
+		usage();
+		puts("");
+		puts("Valid game names are:");
+		for (unsigned i = 0; i < ARRAY_SIZE(ai5_games); i++) {
+			printf("    %-11s - %s\n", ai5_games[i].name, ai5_games[i].description);
+		}
+		printf("    %-11s - %s\n", "yuno-eng", "English translation of YU-NO");
+		puts("");
+		sys_error("Error: No game specified");
+	}
+
+
 
 	// intitialize subsystems
 	srand(time(NULL));
