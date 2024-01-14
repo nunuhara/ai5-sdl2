@@ -78,6 +78,8 @@ struct config {
 	} soundinfo;
 
 	char *exe_path;
+	unsigned progressive_frame_time;
+	unsigned msg_skip_delay;
 };
 
 extern struct config config;

@@ -16,6 +16,7 @@
 
 #include "nulib.h"
 #include "nulib/little_endian.h"
+#include "ai5.h"
 #include "ai5/arc.h"
 #include "ai5/cg.h"
 
@@ -462,7 +463,7 @@ void sys_wait(struct param_list *params)
 		while (true) {
 			if (input_down(INPUT_CTRL)) {
 				vm_peek();
-				vm_delay(16);
+				vm_delay(config.msg_skip_delay);
 				return;
 			}
 			if (input_down(INPUT_ACTIVATE)) {

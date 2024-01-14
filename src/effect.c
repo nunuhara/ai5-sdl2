@@ -18,6 +18,7 @@
 #include <SDL.h>
 
 #include "nulib.h"
+#include "ai5.h"
 #include "ai5/cg.h"
 
 #include "game.h"
@@ -297,13 +298,6 @@ void gfx_pixelate(int x, int y, int w, int h, unsigned dst_i, unsigned mag)
 	gfx_dirty(dst_i);
 }
 
-static unsigned progressive_frame_time = 4;
-
-void gfx_set_progressive_frame_time(unsigned t)
-{
-	progressive_frame_time = t;
-}
-
 static void fade_row(uint8_t *base, unsigned row, unsigned w, unsigned h, unsigned pitch)
 {
 	if (row >= h)
@@ -316,7 +310,7 @@ void progressive_update(vm_timer_t *timer, unsigned dst_i)
 {
 	gfx_dirty(dst_i);
 	vm_peek();
-	vm_timer_tick(timer, progressive_frame_time);
+	vm_timer_tick(timer, config.progressive_frame_time);
 }
 
 /*

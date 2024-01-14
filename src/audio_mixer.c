@@ -25,7 +25,6 @@
 #include "asset.h"
 #include "mixer.h"
 
-#define clamp(min_value, max_value, value) min(max_value, max(min_value, value))
 #define muldiv(x, y, denom) ((int64_t)(x) * (int64_t)(y) / (int64_t)(denom))
 
 /*

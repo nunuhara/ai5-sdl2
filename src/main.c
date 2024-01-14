@@ -41,7 +41,12 @@
 
 #include "../version.h"
 
-struct config config = {0};
+#define DEFAULT_PROGRESSIVE_FRAME_TIME 4
+#define DEFAULT_MSG_SKIP_DELAY 16
+struct config config = {
+	.progressive_frame_time = DEFAULT_PROGRESSIVE_FRAME_TIME,
+	.msg_skip_delay = DEFAULT_MSG_SKIP_DELAY,
+};
 bool yuno_eng = false;
 
 static int cfg_handler(void *user, const char *section, const char *name, const char *value)
@@ -135,15 +140,18 @@ static int cfg_handler(void *user, const char *section, const char *name, const 
 
 static void usage(void)
 {
-	puts("Usage: ai5 [options] [inifile-or-directory]");
-	puts("    --cg-load-frame-time=<ms>  Set the frame time for progressive CG loads");
-	puts("    -d, --debug                Start in the debugger REPL");
-	puts("    --font                     Specify the font");
-	puts("    --font-face=<n>            Specify the font face index");
-	puts("    --game=<game>              Specify the game to run");
-	puts("                               (valid options are: yuno, yuno-eng)");
-	puts("    -h, --help                 Display this message and exit");
-	puts("    --version                  Display the AI5-SDL2 version and exit");
+	printf("Usage: ai5 [options] [inifile-or-directory]\n");
+	printf("    --cg-load-frame-time=<ms>  Set the frame time for progressive CG loads (default: %u)\n",
+			DEFAULT_PROGRESSIVE_FRAME_TIME);
+	printf("    -d, --debug                Start in the debugger REPL\n");
+	printf("    --font                     Specify the font\n");
+	printf("    --font-face=<n>            Specify the font face index\n");
+	printf("    --game=<game>              Specify the game to run\n");
+	printf("                               (valid options are: yuno, yuno-eng)\n");
+	printf("    -h, --help                 Display this message and exit\n");
+	printf("    --msg-skip-delay=<ms>      Set the message skip delay time (default: %u)\n",
+			DEFAULT_MSG_SKIP_DELAY);
+	printf("    --version                  Display the AI5-SDL2 version and exit\n");
 }
 
 static _Noreturn void _usage_error(const char *fmt, ...)
@@ -211,13 +219,13 @@ enum {
 	LOPT_FONT,
 	LOPT_FONT_FACE,
 	LOPT_GAME,
+	LOPT_MSG_SKIP_DELAY,
 };
 
 int main(int argc, char *argv[])
 {
 	bool have_game = false;
 	char *ini_name = NULL;
-	int progressive_frame_time = -1;
 	bool debug = false;
 	char *font_path = NULL;
 	int font_face = -1;
@@ -230,6 +238,7 @@ int main(int argc, char *argv[])
 			{ "font", required_argument, 0, LOPT_FONT },
 			{ "font-face", required_argument, 0, LOPT_FONT_FACE },
 			{ "help", no_argument, 0, LOPT_HELP },
+			{ "msg-skip-delay", required_argument, 0, LOPT_MSG_SKIP_DELAY },
 			{ "version", no_argument, 0, LOPT_VERSION },
 			{0}
 		};
@@ -252,7 +261,7 @@ int main(int argc, char *argv[])
 			have_game = true;
 			break;
 		case LOPT_CG_LOAD_FRAME_TIME:
-			progressive_frame_time = atoi(optarg);
+			config.progressive_frame_time = clamp(0, 100, atoi(optarg));
 			break;
 		case 'd':
 		case LOPT_DEBUG:
@@ -265,6 +274,9 @@ int main(int argc, char *argv[])
 			break;
 		case LOPT_FONT_FACE:
 			font_face = atoi(optarg);
+			break;
+		case LOPT_MSG_SKIP_DELAY:
+			config.msg_skip_delay = clamp(0, 5000, atoi(optarg));
 			break;
 		}
 	}
@@ -347,9 +359,6 @@ int main(int argc, char *argv[])
 	cursor_init(config.exe_path);
 	audio_init();
 	vm_init();
-
-	if (progressive_frame_time >= 0)
-		gfx_set_progressive_frame_time(progressive_frame_time);
 
 	if (game->init)
 		game->init();
