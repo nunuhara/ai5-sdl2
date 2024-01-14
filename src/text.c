@@ -268,6 +268,7 @@ void gfx_text_set_size(int size, int weight)
 	TTF_SetFontStyle(font->id, style);
 	TTF_SetFontStyle(font->id_outline, style);
 	cur_font = font;
+	gfx.text.size = size;
 }
 
 unsigned gfx_text_size_char(uint32_t ch)

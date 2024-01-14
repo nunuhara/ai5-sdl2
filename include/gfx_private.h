@@ -64,6 +64,7 @@ struct gfx {
 		uint32_t fg;
 		SDL_Color bg_color;
 		SDL_Color fg_color;
+		unsigned size;
 	} text;
 	bool dirty;
 	bool hidden;

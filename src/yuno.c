@@ -535,6 +535,9 @@ static unsigned char_size_p[128] = {
 
 static unsigned en_char_size(unsigned ch)
 {
+	if (gfx.text.size != 16)
+		return gfx_text_size_char(ch);
+
 	if (ch < 128) {
 		if (char_size_p[ch])
 			return char_size_p[ch];
