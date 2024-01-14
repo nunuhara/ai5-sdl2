@@ -224,6 +224,8 @@ int main(int argc, char *argv[])
 		case 'd':
 		case LOPT_DEBUG:
 			debug = true;
+			debug_on_error = true;
+			debug_on_F12 = true;
 			break;
 		case LOPT_FONT:
 			font_path = optarg;

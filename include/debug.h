@@ -22,6 +22,9 @@
 
 #define MES_STMT_BREAKPOINT 0xFF
 
+extern bool debug_on_error;
+extern bool debug_on_F12;
+
 void dbg_repl(void);
 void dbg_invalidate(uint32_t addr, size_t size);
 void dbg_load_file(const char *name, uint32_t addr, size_t size);

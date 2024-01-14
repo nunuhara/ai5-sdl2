@@ -110,7 +110,7 @@ void handle_events(void)
 			switch (e.key.keysym.sym) {
 			case SDLK_F10:    gfx_screenshot(); break;
 			case SDLK_F11:    gfx_window_toggle_fullscreen(); break;
-			case SDLK_F12:    dbg_repl(); break;
+			case SDLK_F12:    if (debug_on_F12) dbg_repl(); break;
 			case SDLK_MINUS:  gfx_window_decrease_integer_size(); break;
 			case SDLK_EQUALS: gfx_window_increase_integer_size(); break;
 			}

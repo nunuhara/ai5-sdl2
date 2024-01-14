@@ -56,7 +56,8 @@ void _vm_error(const char *file, const char *func, int line, const char *fmt, ..
 	sys_warning("ERROR(%s:%s:%d): %s", file, func, line, buf);
 	gfx_error_message(buf);
 
-	dbg_repl();
+	if (debug_on_error)
+		dbg_repl();
 	sys_exit(1);
 }
 

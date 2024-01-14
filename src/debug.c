@@ -20,6 +20,7 @@
 #include "nulib.h"
 #include "nulib/file.h"
 #include "nulib/queue.h"
+#include "ai5.h"
 #include "ai5/mes.h"
 
 #include "asset.h"
@@ -32,6 +33,14 @@
 #define DBG_LOG(...) NOTICE(__VA_ARGS__)
 #else
 #define DBG_LOG(...)
+#endif
+
+#ifdef BUILD_DEBUG
+bool debug_on_error = true;
+bool debug_on_F12 = true;
+#else
+bool debug_on_error = false;
+bool debug_on_F12 = false;
 #endif
 
 static cmdline_t dbg_cmdline = vector_initializer;
