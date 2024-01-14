@@ -33,7 +33,8 @@
 
 void sys_set_font_size(struct param_list *params)
 {
-	gfx_text_set_size(mem_get_sysvar16(mes_sysvar16_font_height));
+	gfx_text_set_size(mem_get_sysvar16(mes_sysvar16_font_height),
+			mem_get_sysvar16(mes_sysvar16_font_weight));
 }
 
 static uint8_t *write_digit(uint8_t *buf, int n, bool halfwidth)

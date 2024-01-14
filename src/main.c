@@ -137,6 +137,7 @@ static void usage(void)
 	puts("    --cg-load-frame-time=<ms>  Set the frame time for progressive CG loads");
 	puts("    -d, --debug                Start in the debugger REPL");
 	puts("    --font                     Specify the font");
+	puts("    --font-face=<n>            Specify the font face index");
 	puts("    -h, --help                 Display this message and exit");
 }
 
@@ -179,6 +180,7 @@ enum {
 	LOPT_CG_LOAD_FRAME_TIME,
 	LOPT_DEBUG,
 	LOPT_FONT,
+	LOPT_FONT_FACE,
 };
 
 int main(int argc, char *argv[])
@@ -188,6 +190,7 @@ int main(int argc, char *argv[])
 	int progressive_frame_time = -1;
 	bool debug = false;
 	char *font_path = NULL;
+	int font_face = -1;
 
 	while (1) {
 		static struct option long_options[] = {
@@ -195,6 +198,7 @@ int main(int argc, char *argv[])
 			{ "cg-load-frame-time", required_argument, 0, LOPT_CG_LOAD_FRAME_TIME },
 			{ "debug", no_argument, 0, LOPT_DEBUG },
 			{ "font", required_argument, 0, LOPT_FONT },
+			{ "font-face", required_argument, 0, LOPT_FONT_FACE },
 			{ "help", no_argument, 0, LOPT_HELP },
 			{0}
 		};
@@ -221,6 +225,9 @@ int main(int argc, char *argv[])
 			break;
 		case LOPT_FONT:
 			font_path = optarg;
+			break;
+		case LOPT_FONT_FACE:
+			font_face = atoi(optarg);
 			break;
 		}
 	}
@@ -297,7 +304,7 @@ int main(int argc, char *argv[])
 	asset_init();
 	game->mem_init();
 	gfx_init(config.title);
-	gfx_text_init(font_path);
+	gfx_text_init(font_path, font_face);
 	input_init();
 	cursor_init(config.exe_path);
 	audio_init();

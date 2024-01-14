@@ -17,6 +17,7 @@
 #include <SDL_ttf.h>
 
 #include "nulib.h"
+#include "nulib/file.h"
 #include "ai5/mes.h"
 
 #include "ai5.h"
@@ -41,9 +42,17 @@ static struct font fonts[MAX_FONTS] = {0};
 static int nr_fonts = 0;
 static struct font *cur_font = NULL;
 
-static char *small_font = NULL;
-static char *large_font = NULL;
-static char *eng_font = NULL;
+enum font_type {
+	FONT_SMALL,
+	FONT_LARGE,
+	FONT_ENG,
+#define NR_FONT_TYPES (FONT_ENG+1)
+};
+
+struct font_spec {
+	char *path;
+	unsigned face;
+} font_spec[NR_FONT_TYPES] = {0};
 
 static struct font *font_lookup(int size)
 {
@@ -64,9 +73,7 @@ static struct font *font_insert(int size, TTF_Font *id, TTF_Font *id_outline)
 	// works reasonably well for most fonts.
 	int y_off = ascent - size;         // align baseline to point size
 	y_off += (size - (max_y - 2)) / 2; // center based on height of 'A'
-	// XXX: 1px border
-	if (game->bpp > 8)
-		y_off -= 1;
+	y_off -= 1;
 
 	if (nr_fonts >= MAX_FONTS)
 		ERROR("Font table is full");
@@ -77,21 +84,41 @@ static struct font *font_insert(int size, TTF_Font *id, TTF_Font *id_outline)
 	return &fonts[nr_fonts++];
 }
 
-void gfx_text_init(const char *font_path)
+void gfx_text_init(const char *font_path, int face)
 {
 	if (TTF_Init() == -1)
 		ERROR("TTF_Init: %s", TTF_GetError());
 
 	if (font_path) {
-		small_font = xstrdup(font_path);
-		large_font = xstrdup(font_path);
-		eng_font = xstrdup(font_path);
+		// XXX: we override the default face for msgothic on yuno-eng
+		int face_eng = face;
+		if (!strcasecmp(path_basename(font_path), "msgothic.ttc")) {
+			if (face < 0)
+				face_eng = 1; // MS PGothic
+		}
+		if (face < 0) face = 0;
+		if (face_eng < 0) face_eng = 0;
+
+		font_spec[FONT_SMALL].path = xstrdup(font_path);
+		font_spec[FONT_SMALL].face = face;
+		font_spec[FONT_LARGE].path = xstrdup(font_path);
+		font_spec[FONT_LARGE].face = face;
+		font_spec[FONT_ENG].path = xstrdup(font_path);
+		font_spec[FONT_ENG].face = face_eng;
 	} else {
-		small_font = xstrdup(AI5_DATA_DIR "/fonts/DotGothic16-Regular.ttf");
-		large_font = xstrdup(AI5_DATA_DIR "/fonts/Kosugi-Regular.ttf");
-		eng_font = xstrdup(AI5_DATA_DIR "/fonts/NotoSansJP-Thin.ttf");
+#ifdef _WIN32
+		font_spec[FONT_SMALL].path = xstrdup("C:/Windows/Fonts/msgothic.ttc");
+		font_spec[FONT_LARGE].path = xstrdup(font_spec[FONT_SMALL].path);
+		font_spec[FONT_ENG].path = xstrdup(font_spec[FONT_SMALL].path);
+		font_spec[FONT_ENG].face = 1;
+#else
+		font_spec[FONT_SMALL].path = xstrdup(AI5_DATA_DIR "/fonts/DotGothic16-Regular.ttf");
+		font_spec[FONT_LARGE].path = xstrdup(AI5_DATA_DIR "/fonts/Kosugi-Regular.ttf");
+		font_spec[FONT_ENG].path = xstrdup(AI5_DATA_DIR "/fonts/NotoSansJP-Thin.ttf");
+#endif
 	}
-	gfx_text_set_size(mem_get_sysvar16(mes_sysvar16_font_height));
+	gfx_text_set_size(mem_get_sysvar16(mes_sysvar16_font_height),
+			mem_get_sysvar16(mes_sysvar16_font_weight));
 }
 
 void gfx_text_set_colors(uint32_t bg, uint32_t fg)
@@ -143,6 +170,9 @@ static void glyph_blit_indexed(SDL_Surface *glyph, int dst_x, int dst_y, SDL_Sur
 		glyph_h = s->h - dst_y;
 	if (unlikely(glyph_w <= 0 || glyph_h <= 0))
 		return;
+
+	// XXX: prevent text from overflowing at bottom
+	glyph_h = min(cur_font->y_off + cur_font->size, glyph_h);
 
 	if (SDL_MUSTLOCK(glyph))
 		SDL_CALL(SDL_LockSurface, glyph);
@@ -215,30 +245,28 @@ unsigned gfx_text_draw_glyph(int x, int y, unsigned i, uint32_t ch)
 	return r;
 }
 
-static void open_font(const char *path, int size, TTF_Font **out, TTF_Font **outline_out)
+static void open_font(struct font_spec *spec, int size, TTF_Font **out, TTF_Font **outline_out)
 {
-	*out = TTF_OpenFont(path, size);
-	*outline_out = TTF_OpenFont(path, size);
-	if (!out || !outline_out)
+	*out = TTF_OpenFontIndex(spec->path, size, spec->face);
+	*outline_out = TTF_OpenFontIndex(spec->path, size, spec->face);
+	if (!*out || !*outline_out)
 		ERROR("TTF_OpenFont: %s", TTF_GetError());
 	TTF_SetFontOutline(*outline_out, 1);
 }
 
-void gfx_text_set_size(int size)
+void gfx_text_set_size(int size, int weight)
 {
 	struct font *font = font_lookup(size);
 	if (!font) {
 		TTF_Font *f;
 		TTF_Font *f_outline = NULL;
-		if (yuno_eng) {
-			open_font(eng_font, size, &f, &f_outline);
-		} else if (size <= 18) {
-			open_font(small_font, size, &f, &f_outline);
-		} else {
-			open_font(large_font, size, &f, &f_outline);
-		}
+		enum font_type type = yuno_eng ? FONT_ENG : (size <= 18 ? FONT_SMALL : FONT_LARGE);
+		open_font(&font_spec[type], size, &f, &f_outline);
 		font = font_insert(size, f, f_outline);
 	}
+	int style = weight ? TTF_STYLE_BOLD : TTF_STYLE_NORMAL;
+	TTF_SetFontStyle(font->id, style);
+	TTF_SetFontStyle(font->id_outline, style);
 	cur_font = font;
 }
 

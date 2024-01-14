@@ -19,6 +19,7 @@
 
 #include "nulib.h"
 #include "nulib/file.h"
+#include "nulib/utfsjis.h"
 #include "ai5.h"
 #include "ai5/arc.h"
 #include "ai5/cg.h"
@@ -431,4 +432,149 @@ static void yuno_reflector_animation(void)
 	frame = (frame + 1) % ARRAY_SIZE(yuno_reflector_frames);
 	t = now_t;
 	gfx_dirty(gfx.screen);
+}
+
+// character sizes for MS PGothic
+static unsigned char_size_p[128] = {
+	[' '] = 6,
+	['!'] = 5,
+	['"'] = 9,
+	['#'] = 9,
+	['$'] = 9,
+	['%'] = 9,
+	['&'] = 11,
+	['\''] = 4,
+	['('] = 6,
+	[')'] = 6,
+	['*'] = 9,
+	['+'] = 9,
+	[','] = 4,
+	['-'] = 9,
+	['.'] = 4,
+	['/'] = 9,
+	['0'] = 9,
+	['1'] = 9,
+	['2'] = 9,
+	['3'] = 9,
+	['4'] = 9,
+	['5'] = 9,
+	['6'] = 9,
+	['7'] = 9,
+	['8'] = 9,
+	['9'] = 9,
+	[':'] = 4,
+	[';'] = 4,
+	['<'] = 9,
+	['='] = 9,
+	['>'] = 9,
+	['?'] = 8,
+	['@'] = 12,
+	['A'] = 11,
+	['B'] = 11,
+	['C'] = 12,
+	['D'] = 11,
+	['E'] = 10,
+	['F'] = 10,
+	['G'] = 12,
+	['H'] = 11,
+	['I'] = 5,
+	['J'] = 10,
+	['K'] = 11,
+	['L'] = 10,
+	['M'] = 13,
+	['N'] = 11,
+	['O'] = 12,
+	['P'] = 11,
+	['Q'] = 12,
+	['R'] = 11,
+	['S'] = 11,
+	['T'] = 10,
+	['U'] = 11,
+	['V'] = 11,
+	['W'] = 13,
+	['X'] = 11,
+	['Y'] = 10,
+	['Z'] = 10,
+	['['] = 6,
+	['\\'] = 9,
+	[']'] = 6,
+	['^'] = 8,
+	['_'] = 6,
+	['`'] = 8,
+	['a'] = 9,
+	['b'] = 9,
+	['c'] = 9,
+	['d'] = 9,
+	['e'] = 9,
+	['f'] = 6,
+	['g'] = 8,
+	['h'] = 9,
+	['i'] = 4,
+	['j'] = 5,
+	['k'] = 8,
+	['l'] = 4,
+	['m'] = 13,
+	['n'] = 9,
+	['o'] = 9,
+	['p'] = 9,
+	['q'] = 9,
+	['r'] = 7,
+	['s'] = 8,
+	['t'] = 7,
+	['u'] = 9,
+	['v'] = 9,
+	['w'] = 11,
+	['x'] = 8,
+	['y'] = 9,
+	['z'] = 8,
+	['{'] = 5,
+	['|'] = 5,
+	['}'] = 5,
+	['~'] = 8,
+};
+
+static unsigned en_char_size(unsigned ch)
+{
+	if (ch < 128) {
+		if (char_size_p[ch])
+			return char_size_p[ch];
+	}
+	// full-width ':'
+	if (ch == 0xff1a)
+		return 9;
+	// full-width space
+	if (ch == 0x3000)
+		return 12;
+	return gfx_text_size_char(ch);
+}
+
+void yuno_eng_draw_text(const char *text)
+{
+	static uint16_t x_last = 0;
+	static uint16_t x_col_last = 0;
+	static uint16_t y_last = 0;
+
+	// XXX: System.text_cursor_x stores the text position as a multiple of
+	//      8, but AI5ENG.EXE continues from the precise position when
+	//      drawing characters individually. Hence this hack.
+	uint16_t x = mem_get_sysvar16(mes_sysvar16_text_cursor_x);
+	uint16_t y = mem_get_sysvar16(mes_sysvar16_text_cursor_y);
+	if (x == x_col_last && y == y_last)
+		x = x_last;
+	else
+		x *= game->x_mult;
+
+	const unsigned surface = mem_get_sysvar16(mes_sysvar16_dst_surface);
+	while (*text) {
+		int ch;
+		text = sjis_char2unicode(text, &ch);
+		gfx_text_draw_glyph(x, y, surface, ch);
+		x += en_char_size(ch);
+	}
+
+	x_last = x;
+	x_col_last = ((x+7u) & ~7u) / 8;
+	y_last = y;
+	mem_set_sysvar16(mes_sysvar16_text_cursor_x, x_col_last);
+	mem_set_sysvar16(mes_sysvar16_text_cursor_y, y_last);
 }

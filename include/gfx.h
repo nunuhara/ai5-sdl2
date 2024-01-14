@@ -81,10 +81,10 @@ void gfx_copy_progressive(int src_x, int src_y, int w, int h, unsigned src_i, in
 void gfx_scale_h(unsigned i, int mag);
 
 // text.c
-void gfx_text_init(const char *font_path);
+void gfx_text_init(const char *font_path, int face);
 void gfx_text_set_colors(uint32_t bg, uint32_t fg);
 void gfx_text_get_colors(uint32_t *bg, uint32_t *fg);
-void gfx_text_set_size(int size);
+void gfx_text_set_size(int size, int weight);
 void gfx_text_fill(int x, int y, int w, int h, unsigned i);
 void gfx_text_swap_colors(int x, int y, int w, int h, unsigned i);
 unsigned gfx_text_draw_glyph(int x, int y, unsigned i, uint32_t ch);

@@ -327,34 +327,6 @@ uint32_t vm_expr_param(struct param_list *params, int i)
 	return params->params[i].val;
 }
 
-static void draw_text_eng(const char *text)
-{
-	const unsigned surface = mem_get_sysvar16(mes_sysvar16_dst_surface);
-	uint16_t x = mem_get_sysvar16(mes_sysvar16_text_cursor_x) * game->x_mult;
-	uint16_t y = mem_get_sysvar16(mes_sysvar16_text_cursor_y);
-	while (*text) {
-		int ch;
-		bool zenkaku = SJIS_2BYTE(*text);
-		text = sjis_char2unicode(text, &ch);
-		unsigned char_size = gfx_text_size_char(ch);
-		uint16_t next_x = x + char_size;
-		// XXX: hack for spacing of zenkaku characters
-		if (zenkaku) {
-			x -= 2;
-			next_x -= 4;
-		}
-		if (next_x > mem_get_sysvar16(mes_sysvar16_text_end_x) * game->x_mult) {
-			y += mem_get_sysvar16(mes_sysvar16_line_space);
-			x = mem_get_sysvar16(mes_sysvar16_text_start_x) * game->x_mult;
-			next_x = x + char_size;
-		}
-		gfx_text_draw_glyph(x, y, surface, ch);
-		x = next_x;
-	}
-	mem_set_sysvar16(mes_sysvar16_text_cursor_x, ((x+7u) & ~7u) / 8);
-	mem_set_sysvar16(mes_sysvar16_text_cursor_y, y);
-}
-
 void vm_draw_text(const char *text)
 {
 #if 0
@@ -367,7 +339,7 @@ void vm_draw_text(const char *text)
 		return;
 	}
 	if (yuno_eng) {
-		draw_text_eng(text);
+		yuno_eng_draw_text(text);
 		return;
 	}
 	const uint16_t surface = mem_get_sysvar16(mes_sysvar16_dst_surface);
