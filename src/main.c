@@ -39,6 +39,8 @@
 #include "memory.h"
 #include "vm.h"
 
+#include "../version.h"
+
 struct config config = {0};
 bool yuno_eng = false;
 
@@ -133,12 +135,15 @@ static int cfg_handler(void *user, const char *section, const char *name, const 
 
 static void usage(void)
 {
-	puts("Usage: ai5-sdl2 --game=<game> [options] [inifile-or-directory]");
+	puts("Usage: ai5 [options] [inifile-or-directory]");
 	puts("    --cg-load-frame-time=<ms>  Set the frame time for progressive CG loads");
 	puts("    -d, --debug                Start in the debugger REPL");
 	puts("    --font                     Specify the font");
 	puts("    --font-face=<n>            Specify the font face index");
+	puts("    --game=<game>              Specify the game to run");
+	puts("                               (valid options are: yuno, yuno-eng)");
 	puts("    -h, --help                 Display this message and exit");
+	puts("    --version                  Display the AI5-SDL2 version and exit");
 }
 
 static _Noreturn void _usage_error(const char *fmt, ...)
@@ -200,11 +205,12 @@ static bool set_game_from_config(void)
 
 enum {
 	LOPT_HELP = 256,
-	LOPT_GAME,
+	LOPT_VERSION,
 	LOPT_CG_LOAD_FRAME_TIME,
 	LOPT_DEBUG,
 	LOPT_FONT,
 	LOPT_FONT_FACE,
+	LOPT_GAME,
 };
 
 int main(int argc, char *argv[])
@@ -224,10 +230,11 @@ int main(int argc, char *argv[])
 			{ "font", required_argument, 0, LOPT_FONT },
 			{ "font-face", required_argument, 0, LOPT_FONT_FACE },
 			{ "help", no_argument, 0, LOPT_HELP },
+			{ "version", no_argument, 0, LOPT_VERSION },
 			{0}
 		};
 		int option_index = 0;
-		int c = getopt_long(argc, argv, "h", long_options, &option_index);
+		int c = getopt_long(argc, argv, "hd", long_options, &option_index);
 		if (c == -1)
 			break;
 
@@ -236,6 +243,10 @@ int main(int argc, char *argv[])
 		case LOPT_HELP:
 			usage();
 			return 0;
+		case LOPT_VERSION:
+			NOTICE("AI5-SDL2 version %s", AI5_SDL2_VERSION);
+			sys_exit(0);
+			break;
 		case LOPT_GAME:
 			set_game(optarg);
 			have_game = true;
@@ -292,7 +303,7 @@ int main(int argc, char *argv[])
 			ini_name = path_get_icase("AI5WIN.INI");
 	}
 	if (!ini_name)
-		usage_error("Couldn't find AI5WIN.INI\n");
+		usage_error("Couldn't find AI5WIN.INI (not a game directory?)");
 
 	// parse ini file
 	if (ini_parse(ini_name, cfg_handler, &config) < 0)
@@ -312,6 +323,7 @@ int main(int argc, char *argv[])
 	string exe_name = file_replace_extension(ini_name, "EXE");
 	config.exe_path = path_get_icase(exe_name);
 	string_free(exe_name);
+	free(ini_name);
 
 	if (!have_game && !set_game_from_config()) {
 		usage();
@@ -324,8 +336,6 @@ int main(int argc, char *argv[])
 		puts("");
 		sys_error("Error: No game specified");
 	}
-
-
 
 	// intitialize subsystems
 	srand(time(NULL));
@@ -340,8 +350,6 @@ int main(int argc, char *argv[])
 
 	if (progressive_frame_time >= 0)
 		gfx_set_progressive_frame_time(progressive_frame_time);
-
-	free(ini_name);
 
 	if (game->init)
 		game->init();

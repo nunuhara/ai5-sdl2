@@ -12,14 +12,18 @@ endif
 libm = meson.get_compiler('c').find_library('m', required: false)
 sdl2 = dependency('sdl2', static : static_libs)
 sdl2_ttf = dependency('SDL2_ttf', static : static_libs)
-sndfile = dependency('sndfile', static : static_libs)
 
 libai5_proj = subproject('libai5')
 libai5_dep = libai5_proj.get_variable('libai5_dep')
 
 incdirs = include_directories('include')
 
+version_h = vcs_tag(fallback : 'unknown version',
+                    input : 'version.h.in',
+                    output : 'version.h')
+
 sources = [
+  version_h,
   'src/anim.c',
   'src/asset.c',
   'src/cmdline.c',
