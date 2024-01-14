@@ -12,7 +12,6 @@ endif
 libm = meson.get_compiler('c').find_library('m', required: false)
 sdl2 = dependency('sdl2', static : static_libs)
 sdl2_ttf = dependency('SDL2_ttf', static : static_libs)
-sdl2_mixer = dependency('SDL2_mixer', static : static_libs)
 sndfile = dependency('sndfile', static : static_libs)
 
 libai5_proj = subproject('libai5')

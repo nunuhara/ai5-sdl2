@@ -292,7 +292,7 @@ int main(int argc, char *argv[])
 			ini_name = path_get_icase("AI5WIN.INI");
 	}
 	if (!ini_name)
-		sys_error("Couldn't find AI5WIN.INI\n");
+		usage_error("Couldn't find AI5WIN.INI\n");
 
 	// parse ini file
 	if (ini_parse(ini_name, cfg_handler, &config) < 0)
