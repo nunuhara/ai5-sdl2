@@ -215,13 +215,13 @@ static int dbg_cmd_vm_state(unsigned nr_args, char **args)
 		enum mes_system_var16 v = mes_code_tables.int_to_sysvar16[i];
 		if (v == MES_CODE_INVALID)
 			continue;
-		printf("System.%s = %04x\n", mes_system_var16_names[v], mem_get_sysvar16(v));
+		printf("System.%s = %04x\n", mes_system_var16_names[v], mem_get_sysvar16(i));
 	}
 	for (int i = 0; i < 26; i++) {
 		enum mes_system_var32 v = mes_code_tables.int_to_sysvar32[i];
 		if (v == MES_CODE_INVALID)
 			continue;
-		printf("System.%s = %08x\n", mes_system_var32_names[v], mem_get_sysvar32(v));
+		printf("System.%s = %08x\n", mes_system_var32_names[v], mem_get_sysvar32(i));
 	}
 	putchar('\n');
 
