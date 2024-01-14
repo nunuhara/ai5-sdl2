@@ -712,8 +712,8 @@ void cursor_get_pos(unsigned *x_out, unsigned *y_out)
 
 	float fx, fy;
 	SDL_RenderWindowToLogical(gfx.renderer, x, y, &fx, &fy);
-	*x_out = fx < 0 ? 0 : (unsigned)fx;
-	*y_out = fy < 0 ? 0 : (unsigned)fy;
+	*x_out = fx < 0 ? 0 : (fx >= gfx_view.w ? gfx_view.w - 1 : (unsigned)fx);
+	*y_out = fy < 0 ? 0 : (fy >= gfx_view.h ? gfx_view.h - 1 : (unsigned)fy);
 }
 
 void cursor_swap(void)
