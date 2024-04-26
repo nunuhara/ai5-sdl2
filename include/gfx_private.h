@@ -57,6 +57,7 @@ struct gfx {
 	//      directly from indexed surfaces (...why?)
 	SDL_Surface *display;
 	SDL_Surface *scaled_display;
+	SDL_Surface *overlay;
 	SDL_Texture *texture;
 	SDL_Color palette[256];
 	struct {
@@ -72,6 +73,7 @@ struct gfx {
 extern struct gfx gfx;
 
 SDL_Surface *gfx_get_surface(unsigned i);
+SDL_Surface *gfx_get_overlay(void);
 void gfx_update_palette(void);
 bool gfx_fill_clip(SDL_Surface *s, SDL_Rect *r);
 bool gfx_copy_clip(SDL_Surface *src, SDL_Rect *src_r, SDL_Surface *dst, SDL_Point *dst_p);

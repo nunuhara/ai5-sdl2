@@ -473,39 +473,37 @@ static void update_text(struct param_list *params)
 	if (mem_get_var4(2001) != 1)
 		return;
 
-	// TODO: mark (x,y,w,h) as dirty
-	//int x = vm_expr_param(params, 2);
-	//int y = vm_expr_param(params, 3);
-	//int w = vm_expr_param(params, 4);
-	//int h = vm_expr_param(params, 5);
-
 	SDL_Surface *src = gfx_get_surface(7);
-	SDL_Surface *dst = gfx_get_surface(0);
+	SDL_Surface *dst = gfx_get_overlay();
 	if (SDL_MUSTLOCK(src))
 		SDL_CALL(SDL_LockSurface, src);
 	if (SDL_MUSTLOCK(dst))
 		SDL_CALL(SDL_LockSurface, dst);
 
-	// merge color/mask from surface 7
+	// clear overlay
+	SDL_Rect r = { 0, 336, 640, 128 };
+	SDL_CALL(SDL_FillRect, dst, &r, SDL_MapRGBA(dst->format, 0, 0, 0, 0));
+
+	// merge color/mask from surface 7 and write to overlay surface
 	// color data is at (0,   0) -> (640, 128) on surface 7
 	// mask data is at  (0, 256) -> (640, 384) on surface 7
-	// destination is   (0, 336) -> (640, 464) on surface 0
+	// destination is   (0, 336) -> (640, 464) on overlay
 	for (int row = 0; row < 128; row++) {
 		uint8_t *fnt = src->pixels + row * src->pitch;
 		uint8_t *msk = src->pixels + (row + 256) * src->pitch;
 		uint8_t *p = dst->pixels + (row + 336) * dst->pitch;
-		for (int col = 0; col < 640; col++, fnt += 3, msk += 3, p += 3) {
+		for (int col = 0; col < 640; col++, fnt += 3, msk += 3, p += 4) {
 			// XXX: only blue channel matters for mask
-			if (msk[2] == 0) {
+			if (msk[2] == 0)
 				continue;
-			} else if (msk[2] > 15) {
-				// ???: do all channels get copied here?
-				p[0] = fnt[0];
-				p[1] = fnt[1];
-				p[2] = fnt[2];
+			// ???: do all channels get copied here?
+			p[0] = fnt[0];
+			p[1] = fnt[1];
+			p[2] = fnt[2];
+			if (msk[2] > 15) {
+				p[3] = 255;
 			} else {
-				uint8_t alpha = *msk * 16 - 8;
-				alpha_blend_rgb_mono(p, fnt[2], alpha);
+				p[3] = *msk * 16 - 8;
 			}
 		}
 	}
@@ -515,7 +513,12 @@ static void update_text(struct param_list *params)
 	if (SDL_MUSTLOCK(dst))
 		SDL_UnlockSurface(dst);
 
-	gfx_dirty(0);
+	// TODO: mark (x,y,w,h) as dirty
+	//int x = vm_expr_param(params, 2);
+	//int y = vm_expr_param(params, 3);
+	//int w = vm_expr_param(params, 4);
+	//int h = vm_expr_param(params, 5);
+	gfx_screen_dirty();
 }
 
 static void sys_22(struct param_list *params)
@@ -535,6 +538,11 @@ static void util_7(struct param_list *params)
 static void util_11(struct param_list *params)
 {
 	mem_set_var32(18, 0);
+}
+
+static void util_12(struct param_list *params)
+{
+	WARNING("Util.function[12] not implemented");
 }
 
 static void util_15(struct param_list *params)
@@ -603,6 +611,7 @@ struct game game_ai_shimai = {
 	.util = {
 		[7] = util_7,
 		[11] = util_11,
+		[12] = util_12,
 		[15] = util_15,
 		[16] = util_16,
 	},

@@ -117,6 +117,18 @@ static SDL_Texture *gfx_create_texture(unsigned w, unsigned h)
 	return t;
 }
 
+SDL_Surface *gfx_get_overlay(void)
+{
+	if (gfx.overlay)
+		return gfx.overlay;
+	SDL_Surface *s;
+	SDL_CTOR(SDL_CreateRGBSurfaceWithFormat, s, 0, gfx_view.w, gfx_view.h,
+			32, SDL_PIXELFORMAT_RGBA32);
+	SDL_CALL(SDL_FillRect, s, NULL, SDL_MapRGBA(s->format, 0, 0, 0, 0));
+	gfx.overlay = s;
+	return s;
+}
+
 void gfx_window_toggle_fullscreen(void)
 {
 	uint32_t flag = SDL_WINDOW_FULLSCREEN_DESKTOP;
@@ -265,6 +277,8 @@ static void gfx_fini(void)
 		}
 		SDL_FreeSurface(gfx.display);
 		SDL_FreeSurface(gfx.scaled_display);
+		if (gfx.overlay)
+			SDL_FreeSurface(gfx.overlay);
 		SDL_DestroyTexture(gfx.texture);
 		SDL_DestroyRenderer(gfx.renderer);
 		SDL_DestroyWindow(gfx.window);
@@ -304,6 +318,8 @@ void gfx_update(void)
 	struct gfx_surface *screen = &gfx.surface[gfx.screen];
 	SDL_Rect r = { 0, 0, gfx_view.w, gfx_view.h };
 	SDL_CALL(SDL_BlitSurface, screen->s, &r, gfx.display, &r);
+	if (gfx.overlay)
+		SDL_CALL(SDL_BlitSurface, gfx.overlay, &r, gfx.display, &r);
 	if (screen->scaled) {
 		SDL_Rect src = screen->src;
 		SDL_Rect dst = screen->dst;
