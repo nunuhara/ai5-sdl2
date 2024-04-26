@@ -174,6 +174,9 @@ static void set_game(const char *name)
 	ai5_set_game(name);
 	switch (ai5_target_game) {
 #ifdef BUILD_DEBUG
+	case GAME_AI_SHIMAI:
+		game = &game_ai_shimai;
+		break;
 	case GAME_ISAKU:
 		game = &game_isaku;
 		break;
@@ -204,6 +207,8 @@ static bool set_game_from_config(void)
 		name = "isaku";
 	} else if (!strcmp(config.title, "Isaku98")) {
 		name = "isaku";
+	} else if (!strcmp(config.title, "AISHIMAI")) {
+		name = "aishimai";
 	}
 	if (!name)
 		return false;

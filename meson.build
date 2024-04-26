@@ -24,6 +24,7 @@ version_h = vcs_tag(fallback : 'unknown version',
 
 sources = [
   version_h,
+  'src/aishimai.c',
   'src/anim.c',
   'src/asset.c',
   'src/cmdline.c',

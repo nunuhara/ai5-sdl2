@@ -389,7 +389,10 @@ static void stmt_txt(void)
 	vm_read_byte();
 unterminated:
 	str[str_i] = 0;
-	vm_draw_text(str);
+	if (game->custom_TXT)
+		game->custom_TXT(str);
+	else
+		vm_draw_text(str);
 }
 
 static void stmt_str(void)

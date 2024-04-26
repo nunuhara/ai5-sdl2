@@ -42,6 +42,17 @@ static struct audio_ch bgm_channel   = { .id = MIXER_MUSIC,  .volume = 31 };
 static struct audio_ch se_channel    = { .id = MIXER_EFFECT, .volume = 31 };
 static struct audio_ch voice_channel = { .id = MIXER_VOICE,  .volume = 31 };
 
+static struct audio_ch aux_channel[] = {
+	{ .id = MIXER_MUSIC, .volume = 31 },
+	{ .id = MIXER_MUSIC, .volume = 31 },
+	{ .id = MIXER_MUSIC, .volume = 31 },
+};
+
+static inline bool aux_channel_valid(int no)
+{
+	return no >= 0 && no <= 2;
+}
+
 void audio_init(void)
 {
 	mixer_init();
@@ -76,6 +87,16 @@ void audio_voice_stop(void)
 {
 	AUDIO_LOG("audio_voice_stop()");
 	audio_ch_stop(&voice_channel);
+}
+
+void audio_aux_stop(int no)
+{
+	AUDIO_LOG("audio_aux_stop(%d)", no);
+	if (!aux_channel_valid(no)) {
+		WARNING("Invalid aux channel: %d", no);
+		return;
+	}
+	audio_ch_stop(&aux_channel[no]);
 }
 
 // XXX: Volume is a value in the range [0,31], which corresponds to the range
@@ -129,6 +150,16 @@ void audio_voice_play(const char *name)
 {
 	AUDIO_LOG("audio_voice_play(\"%s\")", name);
 	audio_ch_play(&voice_channel, name, false);
+}
+
+void audio_aux_play(const char *name, int no)
+{
+	AUDIO_LOG("audio_aux_play(\"%s\", %d)", name, no);
+	if (!aux_channel_valid(no)) {
+		WARNING("Invalid aux channel: %d", no);
+		return;
+	}
+	audio_ch_play(&aux_channel[no], name, false);
 }
 
 static void audio_ch_set_volume(struct audio_ch *ch, uint8_t vol)

@@ -57,7 +57,7 @@ enum game_flag {
 #define FLAG_ALWAYS_ON 0xffff
 
 struct game {
-	struct { uint16_t w, h; } surface_sizes[10];
+	struct { uint16_t w, h; } surface_sizes[12];
 	unsigned bpp;
 	unsigned x_mult;
 	bool use_effect_arc;
@@ -71,11 +71,13 @@ struct game {
 	void (*handle_event)(SDL_Event *e);
 	void (*mem_init)(void);
 	void (*mem_restore)(void);
+	void (*custom_TXT)(const char *text);
 	void (*util[GAME_MAX_UTIL])(struct param_list*);
 	void (*sys[GAME_MAX_SYS])(struct param_list*);
 	uint32_t flags[GAME_NR_FLAGS];
 };
 
+extern struct game game_ai_shimai;
 extern struct game game_isaku;
 extern struct game game_shangrlia;
 extern struct game game_yuno;

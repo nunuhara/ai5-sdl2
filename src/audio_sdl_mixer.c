@@ -49,9 +49,20 @@ struct channel {
 	int repeat;
 	struct fade fade;
 };
-struct channel bgm_channel   = { .id = 0, .volume = 31, .repeat = -1 };
-struct channel se_channel    = { .id = 1, .volume = 31 };
-struct channel voice_channel = { .id = 2, .volume = 31 };
+static struct channel bgm_channel   = { .id = 0, .volume = 31, .repeat = -1 };
+static struct channel se_channel    = { .id = 1, .volume = 31 };
+static struct channel voice_channel = { .id = 2, .volume = 31 };
+
+static struct channel aux_channel[] = {
+	{ .id = 3, .volume = 31 },
+	{ .id = 4, .volume = 31 },
+	{ .id = 5, .volume = 31 },
+};
+
+static inline bool aux_channel_valid(int no)
+{
+	return no >= 0 && no <= 2;
+}
 
 void audio_fini(void)
 {
@@ -100,6 +111,16 @@ void audio_voice_stop(void)
 	channel_stop(&voice_channel);
 }
 
+void audio_aux_stop(int no)
+{
+	AUDIO_LOG("audio_aux_stop(%d)", no);
+	if (!aux_channel_valid(no)) {
+		WARNING("Invalid aux channel: %d", no);
+		return;
+	}
+	channel_stop(&aux_channel[no]);
+}
+
 static void channel_fade_end(struct channel *ch)
 {
 	assert(ch->fade.fading);
@@ -134,6 +155,9 @@ void audio_update(void)
 
 	channel_update(&bgm_channel, t);
 	channel_update(&se_channel, t);
+	for (int i = 0; i < ARRAY_SIZE(aux_channel); i++) {
+		channel_update(&aux_channel[i], t);
+	}
 }
 
 // XXX: Volume is a value in the range [0,31], which corresponds to the range
@@ -153,10 +177,17 @@ static int get_linear_volume(uint8_t vol)
 static struct archive_data *load_data(unsigned id, const char *name)
 {
 	switch (id) {
-	case 0: return asset_bgm_load(name);
-	case 1: return asset_effect_load(name);
-	case 2: return asset_voice_load(name);
-	default: VM_ERROR("Invalid channel id: %u", id);
+	case 0:
+	case 3:
+	case 4:
+	case 5:
+		return asset_bgm_load(name);
+	case 1:
+		return asset_effect_load(name);
+	case 2:
+		return asset_voice_load(name);
+	default:
+		VM_ERROR("Invalid channel id: %u", id);
 	}
 }
 
@@ -202,6 +233,16 @@ void audio_voice_play(const char *name)
 {
 	AUDIO_LOG("audio_voice_play(\"%s\")", name);
 	channel_play(&voice_channel, name, false);
+}
+
+void audio_aux_play(const char *name, int no)
+{
+	AUDIO_LOG("audio_aux_play(\"%s\", %s, %d)", name, no);
+	if (!aux_channel_valid(no)) {
+		WARNING("Invalid aux channel: %d", no);
+		return;
+	}
+	channel_play(&aux_channel[no], name, false);
 }
 
 static void channel_set_volume(struct channel *ch, uint8_t vol)

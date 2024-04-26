@@ -46,7 +46,7 @@ void gfx_display_hide(void);
 void gfx_display_unhide(void);
 void gfx_display_freeze(void);
 void gfx_display_unfreeze(void);
-void gfx_display_fade_out(uint16_t vm_color);
+void gfx_display_fade_out(uint32_t vm_color);
 void gfx_display_fade_in(void);
 
 // palette operations
@@ -65,7 +65,7 @@ void gfx_copy_swap(int src_x, int src_y, int src_w, int src_h, unsigned src_i, i
 void gfx_compose(int fg_x, int fg_y, int w, int h, unsigned fg_i, int bg_x, int bg_y,
 		unsigned bg_i, int dst_x, int dst_y, unsigned dst_i, uint16_t mask_color);
 void gfx_invert_colors(int x, int y, int w, int h, unsigned i);
-void gfx_fill(int x, int y, int w, int h, unsigned i, uint16_t c);
+void gfx_fill(int x, int y, int w, int h, unsigned i, uint32_t c);
 void gfx_swap_colors(int x, int y, int w, int h, unsigned i, uint16_t c1, uint16_t c2);
 void gfx_draw_cg(unsigned i, struct cg *cg);
 

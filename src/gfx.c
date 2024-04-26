@@ -28,6 +28,16 @@
 #include "gfx_private.h"
 #include "vm.h"
 
+#define gfx_decode_direct(color) _gfx_decode_direct(color, __func__)
+static inline SDL_Color _gfx_decode_direct(uint32_t color, const char *func)
+{
+	if (game->bpp == 16)
+		return gfx_decode_bgr555(color);
+	if (game->bpp == 24)
+		return gfx_decode_bgr(color);
+	VM_ERROR("Invalid bpp for %s", func);
+}
+
 void gfx_error_message(const char *message)
 {
 	SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Fatal Error - AI5-SDL2", message, gfx.window);
@@ -325,13 +335,13 @@ void gfx_display_unfreeze(void)
 #define FADE_ALPHA_STEP 4
 #define FADE_FRAME_TIME 16
 
-void gfx_display_fade_out(uint16_t vm_color)
+void gfx_display_fade_out(uint32_t vm_color)
 {
 	GFX_LOG("gfx_display_fade_out %u", vm_color);
 	gfx.hidden = true;
 
 	// create mask texture with solid color
-	SDL_Color c = gfx_decode_bgr555(vm_color);
+	SDL_Color c = gfx_decode_direct(vm_color);
 	SDL_CALL(SDL_FillRect, gfx.display, NULL, SDL_MapRGB(gfx.display->format, c.r, c.g, c.b));
 	SDL_Texture *mask = gfx_create_texture(gfx_view.w, gfx_view.h);
 	SDL_CALL(SDL_UpdateTexture, mask, NULL, gfx.display->pixels, gfx.display->pitch);
@@ -786,12 +796,7 @@ static void gfx_indexed_copy_masked(int src_x, int src_y, int w, int h, SDL_Surf
 static void gfx_direct_copy_masked(int src_x, int src_y, int w, int h, SDL_Surface *src,
 		int dst_x, int dst_y, SDL_Surface *dst, uint16_t mask_color)
 {
-	SDL_Color mask;
-	if (game->bpp == 16)
-		mask = gfx_decode_bgr555(mask_color);
-	else
-		VM_ERROR("Unsupported bpp for gfx_direct_copy_masked");
-
+	SDL_Color mask = gfx_decode_direct(mask_color);
 	SDL_Rect src_r = { src_x, src_y, w, h };
 	SDL_Rect dst_r = { dst_x, dst_y, w, h };
 	SDL_CALL(SDL_SetColorKey, src, SDL_TRUE, SDL_MapRGB(src->format, mask.r, mask.g, mask.b));
@@ -920,18 +925,14 @@ static void gfx_indexed_fill(int x, int y, int w, int h, SDL_Surface *dst, uint8
 	SDL_CALL(SDL_FillRect, dst, &rect, c);
 }
 
-static void gfx_direct_fill(int x, int y, int w, int h, SDL_Surface *dst, uint16_t color)
+static void gfx_direct_fill(int x, int y, int w, int h, SDL_Surface *dst, uint32_t color)
 {
-	SDL_Color c;
-	if (game->bpp == 16)
-		c = gfx_decode_bgr555(color);
-	else
-		VM_ERROR("Invalid bpp for gfx_direct_fill");
+	SDL_Color c = gfx_decode_direct(color);
 	SDL_Rect rect = { x, y, w, h };
 	SDL_CALL(SDL_FillRect, dst, &rect, SDL_MapRGB(dst->format, c.r, c.g, c.b));
 }
 
-void gfx_fill(int x, int y, int w, int h, unsigned i, uint16_t c)
+void gfx_fill(int x, int y, int w, int h, unsigned i, uint32_t c)
 {
 	GFX_LOG("gfx_fill[%u] %u(%d,%d) @ (%d,%d)", c, i, x, y, w, h);
 	SDL_Surface *dst = gfx_get_surface(i);
@@ -983,8 +984,8 @@ static void gfx_direct_swap_colors(SDL_Rect r, SDL_Surface *dst, uint16_t _c1,
 		return;
 
 	// transcode color to RGB24
-	SDL_Color color1 = gfx_decode_bgr555(_c1);
-	SDL_Color color2 = gfx_decode_bgr555(_c2);
+	SDL_Color color1 = gfx_decode_direct(_c1);
+	SDL_Color color2 = gfx_decode_direct(_c2);
 	uint32_t c1 = color1.r | (color1.g << 8) | (color1.b << 16);
 	uint32_t c2 = color2.r | (color2.g << 8) | (color2.b << 16);
 	direct_foreach_px(p, dst, &r,

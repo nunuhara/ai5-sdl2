@@ -88,4 +88,13 @@ static inline SDL_Color gfx_decode_bgr555(uint16_t c)
 	};
 }
 
+static inline SDL_Color gfx_decode_bgr(uint32_t c)
+{
+	return (SDL_Color) {
+		.r = (c >> 16) & 0xff,
+		.g = (c >> 8) & 0xff,
+		.b = c & 0xff,
+	};
+}
+
 #endif // AI5_GFX_PRIVATE_H
