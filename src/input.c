@@ -39,17 +39,21 @@ enum input_event_type input_event_from_keycode(SDL_Keycode k)
 {
 	switch (k) {
 	case SDLK_KP_ENTER:
-	case SDLK_RETURN: return INPUT_ACTIVATE;
-	case SDLK_ESCAPE: return INPUT_CANCEL;
-	case SDLK_UP:     return INPUT_UP;
-	case SDLK_DOWN:   return INPUT_DOWN;
-	case SDLK_LEFT:   return INPUT_LEFT;
-	case SDLK_RIGHT:  return INPUT_RIGHT;
-	case SDLK_LSHIFT: return INPUT_SHIFT;
-	case SDLK_RSHIFT: return INPUT_SHIFT;
-	case SDLK_RCTRL:  return INPUT_CTRL;
-	case SDLK_LCTRL:  return INPUT_CTRL;
-	default:          return INPUT_NONE;
+	case SDLK_RETURN:    return INPUT_ACTIVATE;
+	case SDLK_ESCAPE:    return INPUT_CANCEL;
+	case SDLK_UP:        return INPUT_UP;
+	case SDLK_DOWN:      return INPUT_DOWN;
+	case SDLK_LEFT:      return INPUT_LEFT;
+	case SDLK_RIGHT:     return INPUT_RIGHT;
+	case SDLK_LSHIFT:
+	case SDLK_RSHIFT:    return INPUT_SHIFT;
+	case SDLK_RCTRL:
+	case SDLK_LCTRL:     return INPUT_CTRL;
+	case SDLK_SPACE:     return INPUT_SPACE;
+	case SDLK_BACKSPACE: return INPUT_BACKSPACE;
+	case SDLK_PAGEUP:    return INPUT_PAGE_UP;
+	case SDLK_PAGEDOWN:  return INPUT_PAGE_DOWN;
+	default:             return INPUT_NONE;
 	}
 }
 

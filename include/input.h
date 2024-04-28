@@ -29,8 +29,12 @@ enum input_event_type {
 	INPUT_RIGHT = 5,
 	INPUT_SHIFT = 6,
 	INPUT_CTRL = 7,
+	INPUT_SPACE = 9,
+	INPUT_BACKSPACE = 10,
+	INPUT_PAGE_UP = 11,
+	INPUT_PAGE_DOWN = 12,
 };
-#define INPUT_NR_INPUTS (INPUT_CTRL+1)
+#define INPUT_NR_INPUTS (INPUT_PAGE_DOWN+1)
 
 void input_init(void);
 void handle_events(void);
