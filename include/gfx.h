@@ -59,11 +59,15 @@ void gfx_palette_crossfade_to(uint8_t r, uint8_t g, uint8_t b, unsigned ms);
 void gfx_copy(int src_x, int src_y, int src_w, int src_h, unsigned src_i, int dst_x,
 		int dst_y, unsigned dst_i);
 void gfx_copy_masked(int src_x, int src_y, int src_w, int src_h, unsigned src_i, int dst_x,
-		int dst_y, unsigned dst_i, uint16_t mask_color);
+		int dst_y, unsigned dst_i, uint32_t mask_color);
 void gfx_copy_swap(int src_x, int src_y, int src_w, int src_h, unsigned src_i, int dst_x,
 		int dst_y, unsigned dst_i);
 void gfx_compose(int fg_x, int fg_y, int w, int h, unsigned fg_i, int bg_x, int bg_y,
 		unsigned bg_i, int dst_x, int dst_y, unsigned dst_i, uint16_t mask_color);
+void gfx_blend(int src_x, int src_y, int w, int h, unsigned src_i, int dst_x, int dst_y,
+		unsigned dst_i, uint8_t alpha);
+void gfx_blend_masked(int src_x, int src_y, int w, int h, unsigned src_i, int dst_x,
+		int dst_y, unsigned dst_i, uint8_t *mask);
 void gfx_invert_colors(int x, int y, int w, int h, unsigned i);
 void gfx_fill(int x, int y, int w, int h, unsigned i, uint32_t c);
 void gfx_swap_colors(int x, int y, int w, int h, unsigned i, uint16_t c1, uint16_t c2);

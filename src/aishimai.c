@@ -99,6 +99,9 @@ static void ai_shimai_mem_init(void)
 //   * 0 -> greyscale
 //   * !0 -> redscale
 
+// XXX: many functions below assume pixel format
+_Static_assert(GFX_DIRECT_FORMAT == SDL_PIXELFORMAT_RGB24);
+
 /*
  * Get character index from table.
  */
@@ -453,11 +456,11 @@ static void ai_shimai_sys_graphics(struct param_list *params)
 {
 	switch (vm_expr_param(params, 0)) {
 	case 0: sys_graphics_copy(params); break;
-	case 1: sys_graphics_copy_masked(params); break;
+	case 1: sys_graphics_copy_masked24(params); break;
 	case 2: sys_graphics_fill_bg(params); break;
 	case 4: sys_graphics_swap_bg_fg(params); break;
-	//case 6: sys_graphics_blend(params); break;
-	//case 7: TODO
+	case 6: sys_graphics_blend(params); break;
+	case 7: sys_graphics_blend_masked(params); break;
 	default: VM_ERROR("System.Graphics.function[%u] not implemented",
 				 params->params[0].val);
 	}

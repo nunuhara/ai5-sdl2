@@ -358,6 +358,22 @@ void sys_graphics_copy_masked(struct param_list *params)
 			mem_get_sysvar16(mes_sysvar16_mask_color));
 }
 
+void sys_graphics_copy_masked24(struct param_list *params)
+{
+	// System.Grahpics.copy_masked(src_x, src_y, src_br_x, src_br_y, src_i, dst_x, dst_y, dst_i)
+	int src_x = vm_expr_param(params, 1);
+	int src_y = vm_expr_param(params, 2);
+	int src_w = (vm_expr_param(params, 3) - src_x) + 1;
+	int src_h = (vm_expr_param(params, 4) - src_y) + 1;
+	unsigned src_i = vm_expr_param(params, 5);
+	int dst_x = vm_expr_param(params, 6);
+	int dst_y = vm_expr_param(params, 7);
+	unsigned dst_i = vm_expr_param(params, 8);
+	gfx_copy_masked(src_x * game->x_mult, src_y, src_w * game->x_mult, src_h, src_i,
+			dst_x * game->x_mult, dst_y, dst_i,
+			mem_get_sysvar32(mes_sysvar32_mask_color));
+}
+
 void sys_graphics_fill_bg(struct param_list *params)
 {
 	// System.Graphics.fill_bg(x, y, br_x, br_y)
@@ -412,6 +428,47 @@ void sys_graphics_compose(struct param_list *params)
 	gfx_compose(fg_x * game->x_mult, fg_y, w * game->x_mult, h, fg_i, bg_x * game->x_mult,
 			bg_y, bg_i, dst_x * game->x_mult, dst_y, dst_i,
 			mem_get_sysvar16(mes_sysvar16_mask_color));
+}
+
+void sys_graphics_blend(struct param_list *params)
+{
+	// System.Graphics.blend(src_x, src_y, src_br_x, src_br_y, src_i, dst_x, dst_y, dst_i)
+	int src_x = vm_expr_param(params, 1);
+	int src_y = vm_expr_param(params, 2);
+	int src_w = (vm_expr_param(params, 3) - src_x) + 1;
+	int src_h = (vm_expr_param(params, 4) - src_y) + 1;
+	unsigned src_i = vm_expr_param(params, 5);
+	int dst_x = vm_expr_param(params, 6);
+	int dst_y = vm_expr_param(params, 7);
+	unsigned dst_i = vm_expr_param(params, 8);
+	unsigned alpha = vm_expr_param(params, 9);
+	if (alpha < 1)
+		return;
+	if (alpha > 15)
+		gfx_copy(src_x * game->x_mult, src_y, src_w * game->x_mult, src_h, src_i,
+				dst_x * game->x_mult, dst_y, dst_i);
+	else
+		gfx_blend(src_x * game->x_mult, src_y, src_w * game->x_mult, src_h, src_i,
+				dst_x * game->x_mult, dst_y, dst_i, alpha * 16 - 8);
+}
+
+void sys_graphics_blend_masked(struct param_list *params)
+{
+	// System.Graphics.blend(src_x, src_y, src_br_x, src_br_y, src_i, dst_x, dst_y, dst_i)
+	int src_x = vm_expr_param(params, 1);
+	int src_y = vm_expr_param(params, 2);
+	int w = (vm_expr_param(params, 3) - src_x) + 1;
+	int h = (vm_expr_param(params, 4) - src_y) + 1;
+	unsigned src_i = vm_expr_param(params, 5);
+	int dst_x = vm_expr_param(params, 6);
+	int dst_y = vm_expr_param(params, 7);
+	unsigned dst_i = vm_expr_param(params, 8);
+	uint8_t *mask = memory_raw + vm_expr_param(params, 9) + 4;
+	if (!mem_ptr_valid(mask, w * h))
+		VM_ERROR("Invalid mask pointer");
+
+	gfx_blend_masked(src_x * game->x_mult, src_y, w * game->x_mult, h, src_i,
+			dst_x * game->x_mult, dst_y, dst_i, mask);
 }
 
 void sys_graphics_invert_colors(struct param_list *params)

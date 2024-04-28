@@ -783,7 +783,7 @@ void gfx_copy(int src_x, int src_y, int w, int h, unsigned src_i, int dst_x, int
 		unsigned dst_i)
 {
 	GFX_LOG("gfx_copy %u(%d,%d) -> %u(%d,%d) @ (%d,%d)",
-			src_i, src_x, src_y, dst_i, dst_x, dst_y, src_w, src_h);
+			src_i, src_x, src_y, dst_i, dst_x, dst_y, w, h);
 	SDL_Surface *src = gfx_get_surface(src_i);
 	SDL_Surface *dst = gfx_get_surface(dst_i);
 	if (game->bpp == 8)
@@ -810,7 +810,7 @@ static void gfx_indexed_copy_masked(int src_x, int src_y, int w, int h, SDL_Surf
 }
 
 static void gfx_direct_copy_masked(int src_x, int src_y, int w, int h, SDL_Surface *src,
-		int dst_x, int dst_y, SDL_Surface *dst, uint16_t mask_color)
+		int dst_x, int dst_y, SDL_Surface *dst, uint32_t mask_color)
 {
 	SDL_Color mask = gfx_decode_direct(mask_color);
 	SDL_Rect src_r = { src_x, src_y, w, h };
@@ -821,10 +821,10 @@ static void gfx_direct_copy_masked(int src_x, int src_y, int w, int h, SDL_Surfa
 }
 
 void gfx_copy_masked(int src_x, int src_y, int w, int h, unsigned src_i, int dst_x,
-		int dst_y, unsigned dst_i, uint16_t mask_color)
+		int dst_y, unsigned dst_i, uint32_t mask_color)
 {
 	GFX_LOG("gfx_copy_masked[%u] %u(%d,%d) -> %u(%d,%d) @ (%d,%d)", mask_color,
-			src_i, src_x, src_y, dst_i, dst_x, dst_y, src_w, src_h);
+			src_i, src_x, src_y, dst_i, dst_x, dst_y, w, h);
 	SDL_Surface *src = gfx_get_surface(src_i);
 	SDL_Surface *dst = gfx_get_surface(dst_i);
 	if (game->bpp == 8)
@@ -873,7 +873,7 @@ void gfx_copy_swap(int src_x, int src_y, int w, int h, unsigned src_i, int dst_x
 		int dst_y, unsigned dst_i)
 {
 	GFX_LOG("gfx_copy_swap %u(%d,%d) -> %u(%d,%d) @ (%d,%d)",
-			src_i, src_x, src_y, dst_i, dst_x, dst_y, src_w, src_h);
+			src_i, src_x, src_y, dst_i, dst_x, dst_y, w, h);
 	SDL_Surface *src = gfx_get_surface(src_i);
 	SDL_Surface *dst = gfx_get_surface(dst_i);
 	if (game->bpp == 8)
@@ -914,6 +914,67 @@ void gfx_compose(int fg_x, int fg_y, int w, int h, unsigned fg_i, int bg_x, int 
 	else
 		gfx_direct_compose(fg_x, fg_y, w, h, fg, bg_x, bg_y, bg, dst_x, dst_y, dst,
 				mask_color);
+	gfx_dirty(dst_i);
+}
+
+void gfx_blend(int src_x, int src_y, int w, int h, unsigned src_i, int dst_x, int dst_y,
+		unsigned dst_i, uint8_t alpha)
+{
+	GFX_LOG("gfx_blend %u(%d,%d) -> %u(%d,%d) @ (%d,%d) @ %u",
+			src_i, src_x, src_y, dst_i, dst_x, dst_y, w, h, alpha);
+	if (game->bpp == 8)
+		VM_ERROR("Invalid bpp for gfx_blend");
+
+	SDL_Surface *src = gfx_get_surface(src_i);
+	SDL_Surface *dst = gfx_get_surface(dst_i);
+	SDL_Rect src_r = { src_x, src_y, w, h };
+	SDL_Rect dst_r = { dst_x, dst_y, w, h };
+
+	SDL_CALL(SDL_SetSurfaceBlendMode, src, SDL_BLENDMODE_BLEND);
+	SDL_CALL(SDL_SetSurfaceAlphaMod, src, alpha);
+	SDL_CALL(SDL_BlitSurface, src, &src_r, dst, &dst_r);
+	SDL_CALL(SDL_SetSurfaceAlphaMod, src, 255);
+	SDL_CALL(SDL_SetSurfaceBlendMode, src, SDL_BLENDMODE_NONE);
+
+	gfx_dirty(dst_i);
+}
+
+_Static_assert(GFX_DIRECT_FORMAT == SDL_PIXELFORMAT_RGB24);
+static void alpha_blend(uint8_t *bg, uint8_t *fg, uint8_t alpha)
+{
+	uint32_t a = (uint32_t)alpha + 1;
+	uint32_t inv_a = 256 - (uint32_t)alpha;
+	bg[0] = (uint8_t)((a * fg[0] + inv_a * bg[0]) >> 8);
+	bg[1] = (uint8_t)((a * fg[1] + inv_a * bg[1]) >> 8);
+	bg[2] = (uint8_t)((a * fg[2] + inv_a * bg[2]) >> 8);
+}
+
+void gfx_blend_masked(int src_x, int src_y, int w, int h, unsigned src_i, int dst_x,
+		int dst_y, unsigned dst_i, uint8_t *mask)
+{
+	GFX_LOG("gfx_blend_masked %u(%d,%d) -> %u(%d,%d) @ (%d,%d)",
+			src_i, src_x, src_y, dst_i, dst_x, dst_y, w, h);
+	if (game->bpp == 8)
+		VM_ERROR("Invalid bpp for gfx_blend_masked");
+	SDL_Surface *src = gfx_get_surface(src_i);
+	SDL_Surface *dst = gfx_get_surface(dst_i);
+	SDL_Rect src_r = { src_x, src_y, w, h };
+	SDL_Point dst_p = { dst_x, dst_y };
+	// FIXME: mask pointer not adjusted here
+	if (!gfx_copy_begin(src, &src_r, dst, &dst_p))
+		return;
+
+	direct_foreach_px2(src_px, dst_px, src, &src_r, dst, &dst_p,
+		if (*mask == 0) {
+			// nothing
+		} else if (*mask > 15) {
+			memcpy(dst_px, src_px, GFX_DIRECT_BPP / 8);
+		} else {
+			alpha_blend(dst_px, src_px, *mask * 16 - 8);
+		}
+		mask++;
+	);
+
 	gfx_dirty(dst_i);
 }
 
