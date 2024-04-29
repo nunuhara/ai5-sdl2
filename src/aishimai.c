@@ -14,6 +14,8 @@
  * along with this program; if not, see <http://gnu.org/licenses/>.
  */
 
+#include <time.h>
+
 #include "nulib.h"
 #include "ai5/anim.h"
 #include "ai5/mes.h"
@@ -32,6 +34,12 @@
 #define VAR4_SIZE 2048
 #define MEM16_SIZE 4096
 
+#define VAR16_OFF    (MEMORY_MES_NAME_SIZE + VAR4_SIZE + 4)
+#define SYSVAR16_OFF (VAR16_OFF + 26 * 2)
+#define VAR32_OFF    (SYSVAR16_OFF + 24 * 2)
+#define SYSVAR32_OFF (VAR32_OFF + 26 * 4)
+#define HEAP_OFF     (SYSVAR32_OFF + 62 * 4)
+
 static void ai_shimai_mem_restore(void)
 {
 	mem_set_sysvar16_ptr(MEMORY_MES_NAME_SIZE + VAR4_SIZE + 56);
@@ -45,7 +53,7 @@ static void ai_shimai_mem_restore(void)
 
 	uint16_t flags = mem_get_sysvar16(mes_sysvar16_flags);
 	mem_set_sysvar16(mes_sysvar16_flags, (flags & 0xffbf) | 0x21);
-	mem_set_sysvar16(0, 2632);
+	mem_set_sysvar16(0, HEAP_OFF);
 }
 
 static void ai_shimai_mem_init(void)
@@ -54,10 +62,10 @@ static void ai_shimai_mem_init(void)
 	// (needed because var4 size changes per game)
 	uint32_t off = MEMORY_MES_NAME_SIZE + VAR4_SIZE;
 	memory_ptr.system_var16_ptr = memory_raw + off;
-	memory_ptr.var16 = memory_raw + off + 4;
-	memory_ptr.system_var16 = memory_raw + off + 56;
-	memory_ptr.var32 = memory_raw + off + 104;
-	memory_ptr.system_var32 = memory_raw + off + 208;
+	memory_ptr.var16 = memory_raw + VAR16_OFF;
+	memory_ptr.system_var16 = memory_raw + SYSVAR16_OFF;
+	memory_ptr.var32 = memory_raw + off + VAR32_OFF;
+	memory_ptr.system_var32 = memory_raw + SYSVAR32_OFF;
 
 	mem_set_sysvar16(mes_sysvar16_flags, 0x60f);
 	mem_set_sysvar16(mes_sysvar16_text_start_x, 0);
@@ -383,24 +391,84 @@ static void ai_shimai_sys_anim(struct param_list *params)
 	}
 }
 
-static void ai_shimai_sys_savedata(struct param_list *params)
+static void ai_shimai_resume_load(const char *save_name)
 {
-	char save_name[7];
+	uint8_t buf[MEMORY_VAR4_OFFSET + VAR4_SIZE];
+	uint8_t *var4 = buf + MEMORY_VAR4_OFFSET;
+	uint8_t *mem_var4 = memory_raw + MEMORY_VAR4_OFFSET;
+	savedata_read(save_name, memory_raw, 0, MEM16_SIZE);
+	savedata_read("FLAG00", buf, MEMORY_VAR4_OFFSET, VAR4_SIZE);
+
+	memcpy(mem_var4 + 700, var4 + 700, 181);
+	memcpy(mem_var4 + 1065, var4 + 1065, 735);
+	mem_var4[2005] = var4[2005];
+	mem_var4[2009] = var4[2009];
+
+	ai_shimai_mem_restore();
+	vm_load_mes(mem_mes_name());
+	vm_flag_on(FLAG_RETURN);
+}
+
+static void ai_shimai_load_var4(const char *save_name)
+{
+	savedata_load_var4(save_name);
+	ai_shimai_mem_restore();
+}
+
+static void ai_shimai_load_extra_var32(const char *save_name)
+{
+	// sysvar32[12] -> sysvar32[61]
+	savedata_read(save_name, memory_raw, SYSVAR32_OFF + (12 * 4), 50 * 4);
+}
+
+static void ai_shimai_save_extra_var32(const char *save_name)
+{
+	// sysvar32[12] -> sysvar32[61]
+	savedata_write(save_name, memory_raw, SYSVAR32_OFF + (12 * 4), 50 * 4);
+}
+
+static void ai_shimai_load_heap(const char *save_name, int start, int count)
+{
+	if (count <= 0 || start < 0 || start + count > 1464) {
+		WARNING("Invalid heap load: %d+%d", start, count);
+		return;
+	}
+	savedata_read(save_name, memory_raw, HEAP_OFF + start, count);
+}
+
+static void ai_shimai_save_heap(const char *save_name, int start, int count)
+{
+	if (count <= 0 || start < 0 || start + count > 1464) {
+		WARNING("Invalid heap save: %d+%d", start, count);
+		return;
+	}
+	savedata_write(save_name, memory_raw, HEAP_OFF + start, count);
+}
+
+const char *save_name(struct param_list *params)
+{
+	static char save_name[7];
 	uint32_t save_no = vm_expr_param(params, 1);
 	if (save_no > 99)
 		VM_ERROR("Invalid save number: %u", save_no);
 	sprintf(save_name, "FLAG%02u", save_no);
+	return save_name;
+}
 
+static void ai_shimai_sys_savedata(struct param_list *params)
+{
 	switch (vm_expr_param(params, 0)) {
-	case 0: savedata_resume_load(save_name); break;
-	case 1: savedata_resume_save(save_name); break;
-	case 2: savedata_load_var4(save_name); break;
-	case 3: savedata_save_union_var4(save_name); break;
-	//case 4: savedata_load_extra_var32(save_name); break;
-	//case 5: savedata_save_extra_var32(save_name); break;
-	//case 6: savedata_clear_var4(save_name); break;
-	//case 7: savedata_load_heap(save_name); break;
-	//case 8: savedata_save_heap(save_name); break;
+	case 0: ai_shimai_resume_load(save_name(params)); break;
+	case 1: savedata_resume_save(save_name(params)); break;
+	case 2: ai_shimai_load_var4(save_name(params)); break;
+	case 3: savedata_save_union_var4(save_name(params)); break;
+	case 4: ai_shimai_load_extra_var32(save_name(params)); break;
+	case 5: ai_shimai_save_extra_var32(save_name(params)); break;
+	case 6: memset(memory_raw + MEMORY_VAR4_OFFSET, 0, VAR4_SIZE); break;
+	case 7: ai_shimai_load_heap(save_name(params), vm_expr_param(params, 2),
+				vm_expr_param(params, 3)); break;
+	case 8: ai_shimai_save_heap(save_name(params), vm_expr_param(params, 2),
+				vm_expr_param(params, 3)); break;
 	default: VM_ERROR("System.SaveData.function[%u] not implemented",
 				 params->params[0].val);
 	}
@@ -502,6 +570,19 @@ static void ai_shimai_sys_graphics(struct param_list *params)
 	}
 }
 
+static void ai_shimai_get_time(struct param_list *params)
+{
+	time_t t = time(NULL);
+	struct tm *tm = localtime(&t);
+	mem_set_var16(0, tm->tm_year + 1900);
+	mem_set_var16(1, tm->tm_mon + 1);
+	mem_set_var16(2, tm->tm_wday);
+	mem_set_var16(3, tm->tm_mday);
+	mem_set_var16(4, tm->tm_hour);
+	mem_set_var16(5, tm->tm_min);
+	mem_set_var16(6, max(tm->tm_sec, 59));
+}
+
 static void sys_19(struct param_list *params)
 {
 	WARNING("System.function[19] not implemented");
@@ -585,6 +666,22 @@ static void sys_22(struct param_list *params)
 	}
 }
 
+static void sys_23(struct param_list *params)
+{
+	// TODO: IME
+	switch (vm_expr_param(params, 0)) {
+	case 2: mem_set_var16(18, 0); break;
+	case 3: mem_set_var16(18, 0);
+		mem_set_var32(18, 0); break;
+	case 4: mem_set_var16(18, 0); break;
+	case 5: mem_set_var16(18, 0); break;
+	case 6: mem_set_var16(18, 0); break;
+	case 7: mem_set_var16(18, 0); break;
+	}
+	//WARNING("System.function[23].function[%u] not implemented",
+	//		params->params[0].val);
+}
+
 static void util_6(struct param_list *params)
 {
 	mem_set_var32(18, 0);
@@ -659,14 +756,14 @@ struct game game_ai_shimai = {
 		[13] = sys_farcall,
 		[14] = sys_get_cursor_segment,
 		[15] = sys_menu_get_no,
-		//[16] = sys_get_time,
+		[16] = ai_shimai_get_time,
 		[17] = NULL,
 		[18] = sys_check_input,
 		[19] = sys_19,
 		[20] = NULL,
 		[21] = sys_strlen,
 		[22] = sys_22,
-		//[23] = TODO
+		[23] = sys_23,
 	},
 	.util = {
 		[6] = util_6,
