@@ -338,7 +338,12 @@ static void ai_shimai_sys_cursor(struct param_list *params)
 	case 1: cursor_hide(); break;
 	case 2: sys_cursor_save_pos(params); break;
 	case 3: cursor_set_pos(vm_expr_param(params, 1), vm_expr_param(params, 2)); break;
-	case 4: cursor_load(vm_expr_param(params, 1) + 15); break;
+	case 4:
+		if (vm_expr_param(params, 1) == 0)
+			cursor_unload();
+		else
+			cursor_load(vm_expr_param(params, 1));
+		break;
 	case 5: uk = 0; break;
 	case 6: mem_set_var16(18, 0); break;
 	case 7: mem_set_var32(18, uk); break;
@@ -406,18 +411,46 @@ static void ai_shimai_sys_audio(struct param_list *params)
 	case 2: audio_bgm_fade(0, 2000, true, false); break;
 	case 6: audio_aux_play(vm_string_param(params, 1), vm_expr_param(params, 2)); break;
 	case 7: audio_aux_stop(vm_expr_param(params, 1)); break;
+	case 8: audio_aux_fade_out(0, false, vm_expr_param(params, 1)); break;
+	case 9: audio_aux_fade_out(0, true, vm_expr_param(params, 1)); break;
 	default: VM_ERROR("System.Audio.function[%u] not implemented",
 				 params->params[0].val);
 	}
 }
 
+static char prepared_voice[STRING_PARAM_SIZE] = {0};
+static bool have_prepared_voice = false;
+
 static void ai_shimai_sys_voice(struct param_list *params)
 {
+
 	if (!vm_flag_is_on(FLAG_VOICE_ENABLE))
 		return;
+	if (params->nr_params > 2 && vm_expr_param(params, 2) != 0) {
+		// TODO
+		WARNING("VOICESUB not implemented");
+		return;
+	}
 	switch (vm_expr_param(params, 0)) {
 	case 0: audio_voice_play(vm_string_param(params, 1)); break;
 	case 1: audio_voice_stop(); break;
+	//case 2: audio_voice_play_sync(vm_string_param(params, 1)); break;
+	case 3:
+		strcpy(prepared_voice, vm_string_param(params, 1));
+		have_prepared_voice = true;
+		break;
+	case 4:
+		if (have_prepared_voice) {
+			audio_voice_play(prepared_voice);
+			have_prepared_voice = 0;
+			mem_set_var32(18, 1);
+		} else {
+			mem_set_var32(18, 0);
+		}
+		break;
+	case 5:
+		mem_set_var32(18, audio_voice_is_playing());
+		break;
 	default: WARNING("System.Voice.function[%u] not implemented",
 				 params->params[0].val);
 	}
@@ -524,13 +557,34 @@ static void update_text(struct param_list *params)
 	gfx_screen_dirty();
 }
 
+static void clear_text(struct param_list *params)
+{
+	SDL_Surface *dst = gfx_get_overlay();
+	SDL_Rect r = { 0, 336, 640, 128 };
+	SDL_CALL(SDL_FillRect, dst, &r, SDL_MapRGBA(dst->format, 0, 0, 0, 0));
+
+	// TODO: mark (x,y,w,h) as dirty
+	//int x = vm_expr_param(params, 2);
+	//int y = vm_expr_param(params, 3);
+	//int w = vm_expr_param(params, 4);
+	//int h = vm_expr_param(params, 5);
+	gfx_screen_dirty();
+
+}
+
 static void sys_22(struct param_list *params)
 {
 	switch (vm_expr_param(params, 0)) {
 	case 1:  update_text(params); break;
+	case 2:  clear_text(params); break;
 	default: WARNING("System.function[22].function[%u] not implemented",
 				 params->params[0].val);
 	}
+}
+
+static void util_6(struct param_list *params)
+{
+	mem_set_var32(18, 0);
 }
 
 static void util_7(struct param_list *params)
@@ -543,9 +597,9 @@ static void util_11(struct param_list *params)
 	mem_set_var32(18, 0);
 }
 
-static void util_12(struct param_list *params)
+static void util_set_prepared_voice(struct param_list *params)
 {
-	WARNING("Util.function[12] not implemented");
+	have_prepared_voice = !!vm_expr_param(params, 1);
 }
 
 static void util_15(struct param_list *params)
@@ -612,9 +666,10 @@ struct game game_ai_shimai = {
 		//[23] = TODO
 	},
 	.util = {
+		[6] = util_6,
 		[7] = util_7,
 		[11] = util_11,
-		[12] = util_12,
+		[12] = util_set_prepared_voice,
 		[15] = util_15,
 		[16] = util_16,
 	},

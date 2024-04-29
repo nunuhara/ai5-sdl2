@@ -216,6 +216,16 @@ void audio_bgm_fade_out(uint8_t vol, bool sync)
 	audio_ch_fade_out(&bgm_channel, vol, sync);
 }
 
+void audio_aux_fade_out(uint8_t vol, bool sync, int no)
+{
+	AUDIO_LOG("audio_aux_fade_out(%u,%s,%d)", vol, sync ? "true" : "false", no);
+	if (!aux_channel_valid(no)) {
+		WARNING("Invalid aux channel: %d", no);
+		return;
+	}
+	audio_ch_fade_out(&aux_channel[no], vol, sync);
+}
+
 void audio_bgm_fade(uint8_t vol, int t, bool stop, bool sync)
 {
 	AUDIO_LOG("audio_bgm_fade(%u,%d,%s,%s)", vol, t, stop ? "true" : "false",
@@ -266,6 +276,11 @@ bool audio_se_is_playing(void)
 	return audio_ch_is_playing(&se_channel);
 }
 
+bool audio_voice_is_playing(void)
+{
+	AUDIO_LOG("audio_voice_is_playing()");
+	return audio_ch_is_playing(&voice_channel);
+}
 static bool audio_ch_is_fading(struct audio_ch *ch)
 {
 	return ch->ch && channel_is_fading(ch->ch);

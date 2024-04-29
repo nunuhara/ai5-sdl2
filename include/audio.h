@@ -40,8 +40,10 @@ void audio_se_fade(uint8_t vol, int t, bool stop, bool sync);
 
 void audio_voice_play(const char *name);
 void audio_voice_stop(void);
+bool audio_voice_is_playing(void);
 
 void audio_aux_play(const char *name, int no);
 void audio_aux_stop(int no);
+void audio_aux_fade_out(uint8_t vol, bool sync, int no);
 
 #endif // AI5_AUDIO_H
