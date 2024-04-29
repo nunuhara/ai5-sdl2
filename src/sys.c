@@ -109,7 +109,7 @@ void sys_cursor(struct param_list *params)
 	case 1: cursor_unload(); break;
 	case 2: sys_cursor_save_pos(params); break;
 	case 3: cursor_set_pos(vm_expr_param(params, 1), vm_expr_param(params, 2)); break;
-	case 4: cursor_load(vm_expr_param(params, 1)); break;
+	case 4: cursor_load(vm_expr_param(params, 1) * 2, 2, NULL); break;
 	case 5: cursor_show(); break;
 	case 6: cursor_hide(); break;
 	default: VM_ERROR("System.Cursor.function[%u] not implemented", params->params[0].val);

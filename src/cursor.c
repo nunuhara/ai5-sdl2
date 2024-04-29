@@ -491,12 +491,15 @@ int read_group_cursor(struct buffer *b, struct resource *res)
 	return buffer_read_u16(b);
 }
 
+#define CURSOR_MAX_FRAMES 4
 static SDL_Cursor *system_cursor = NULL;
 static SDL_Cursor **cursors = NULL;
 static int nr_cursors = 0;
 static int current_cursor = 0;
 static bool cursor_animating = false;
-static bool cursor_frame = 0;
+static atomic_uint cursor_nr_frames = 2;
+static atomic_uint cursor_frame = 0;
+static atomic_uint cursor_frame_time[CURSOR_MAX_FRAMES] = { 500, 500 };
 
 void read_cursors(struct buffer *b, struct resource *root)
 {
@@ -557,13 +560,12 @@ static void cursor_fini(void)
 	free(cursors);
 }
 
-#define CURSOR_SWAP_INTERVAL 500
 static uint32_t anim_cb(uint32_t interval, void *_)
 {
 	SDL_Event event = {0};
 	event.type = cursor_swap_event;
 	SDL_PushEvent(&event);
-	return CURSOR_SWAP_INTERVAL;
+	return cursor_frame_time[(cursor_frame + 1) % cursor_nr_frames];
 }
 
 void cursor_init(const char *exe_path)
@@ -636,7 +638,7 @@ void cursor_init(const char *exe_path)
 	read_cursors(&buf, root);
 	atexit(cursor_fini);
 
-	SDL_AddTimer(CURSOR_SWAP_INTERVAL, anim_cb, NULL);
+	SDL_AddTimer(cursor_frame_time[0], anim_cb, NULL);
 
 	free_resources(root);
 	free(buf.buf);
@@ -656,18 +658,33 @@ error:
 #define CURSOR_LOG(...)
 #endif
 
-void cursor_load(unsigned no)
+void cursor_load(unsigned no, unsigned nr_frames, unsigned *frame_time)
 {
-	CURSOR_LOG("cursor_load(%u)", no);
-	if (no*2 + 1 >= nr_cursors) {
-		WARNING("Invalid cursor number: %u", no);
+	assert(nr_frames <= CURSOR_MAX_FRAMES);
+	CURSOR_LOG("cursor_load(%u,%u)", no, nr_frames);
+	if (no + nr_frames > nr_cursors) {
+		WARNING("Invalid cursor number: %u+%u", no, nr_frames);
 		return;
 	}
-	if (!cursors[no*2] || !cursors[no*2+1])
-		return;
+	for (unsigned i = 0; i < nr_frames; i++) {
+		if (!cursors[no+i]) {
+			WARNING("Frame %u not loaded for cursor %u", i, no);
+			return;
+		}
+	}
 	current_cursor = no;
+	if (frame_time) {
+		for (unsigned i = 0; i < nr_frames; i++) {
+			cursor_frame_time[i] = frame_time[i];
+		}
+	} else {
+		cursor_frame_time[0] = 500;
+		cursor_frame_time[1] = 500;
+	}
+	cursor_nr_frames = nr_frames;
+	cursor_frame = nr_frames - 1;
 	cursor_animating = true;
-	SDL_SetCursor(cursors[no*2]);
+	cursor_swap();
 }
 
 void cursor_unload(void)
@@ -680,7 +697,11 @@ void cursor_unload(void)
 void cursor_reload(void)
 {
 	CURSOR_LOG("cursor_reload()");
-	cursor_load(current_cursor);
+	unsigned frame_time[CURSOR_MAX_FRAMES];
+	for (int i = 0; i < cursor_nr_frames; i++) {
+		frame_time[i] = cursor_frame_time[i];
+	}
+	cursor_load(current_cursor, cursor_nr_frames, frame_time);
 }
 
 void cursor_show(void)
@@ -721,10 +742,6 @@ void cursor_swap(void)
 	if (!cursor_animating)
 		return;
 
-	cursor_frame = !cursor_frame;
-	if (cursor_frame) {
-		SDL_SetCursor(cursors[current_cursor*2+1]);
-	} else {
-		SDL_SetCursor(cursors[current_cursor*2]);
-	}
+	cursor_frame = (cursor_frame + 1) % cursor_nr_frames;
+	SDL_SetCursor(cursors[current_cursor + cursor_frame]);
 }

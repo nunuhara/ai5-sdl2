@@ -18,7 +18,7 @@
 #define AI5_CURSOR_H
 
 void cursor_init(const char *exe_path);
-void cursor_load(unsigned no);
+void cursor_load(unsigned no, unsigned nr_frames, unsigned *frame_time);
 void cursor_unload(void);
 void cursor_reload(void);
 void cursor_show(void);

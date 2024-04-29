@@ -86,7 +86,7 @@ static void isaku_sys_cursor(struct param_list *params)
 	case 1: cursor_hide(); break;
 	case 2: sys_cursor_save_pos(params); break;
 	case 3: cursor_set_pos(vm_expr_param(params, 1), vm_expr_param(params, 2)); break;
-	case 4: cursor_load(vm_expr_param(params, 1) + 15); break;
+	case 4: cursor_load((vm_expr_param(params, 1) + 15) * 2, 2, NULL); break;
 	case 5: uk = 0; break;
 	case 6: mem_set_var16(18, 0); break;
 	case 7: mem_set_var32(18, uk); break;

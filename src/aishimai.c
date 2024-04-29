@@ -333,16 +333,19 @@ static void ai_shimai_TXT(const char *txt)
 static void ai_shimai_sys_cursor(struct param_list *params)
 {
 	static uint32_t uk = 0;
+	static unsigned cursor1_frame_time[4] = { 200, 200, 200, 500 };
 	switch (vm_expr_param(params, 0)) {
 	case 0: cursor_show(); break;
 	case 1: cursor_hide(); break;
 	case 2: sys_cursor_save_pos(params); break;
 	case 3: cursor_set_pos(vm_expr_param(params, 1), vm_expr_param(params, 2)); break;
 	case 4:
-		if (vm_expr_param(params, 1) == 0)
-			cursor_unload();
-		else
-			cursor_load(vm_expr_param(params, 1));
+		switch (vm_expr_param(params, 1)) {
+		case 0: cursor_unload(); break;
+		case 1: cursor_load(0, 4, cursor1_frame_time); break;
+		case 2: cursor_load(4, 2, NULL); break;
+		default: WARNING("Invalid cursor number: %u", vm_expr_param(params, 1));
+		}
 		break;
 	case 5: uk = 0; break;
 	case 6: mem_set_var16(18, 0); break;
