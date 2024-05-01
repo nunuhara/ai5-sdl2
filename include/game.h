@@ -36,8 +36,14 @@ enum game_flag {
 	FLAG_RETURN,
 	// cleared/restored on procedure call
 	FLAG_PROC_CLEAR,
+	// enables backlog
+	FLAG_LOG_ENABLE,
+	// controls whether text is written to backlog
+	FLAG_LOG_TEXT,
 	// message history?
 	FLAG_LOG,
+	// controls whether system calls are written to backlog
+	FLAG_LOG_SYS,
 	// enables loading of palette in System.load_image
 	FLAG_LOAD_PALETTE,
 	// enables System.Voice subsystem

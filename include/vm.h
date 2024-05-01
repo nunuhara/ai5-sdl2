@@ -69,7 +69,7 @@ void vm_call_procedure(unsigned no);
 void vm_delay(int ms);
 uint32_t vm_get_ticks(void);
 
-static inline bool vm_flag_is_on(enum game_flag flag)
+attr_warn_unused_result static inline bool vm_flag_is_on(enum game_flag flag)
 {
 	if (game->flags[flag] == FLAG_ALWAYS_ON)
 		return true;

@@ -32,6 +32,7 @@
 #include "anim.h"
 #include "asset.h"
 #include "audio.h"
+#include "backlog.h"
 #include "debug.h"
 #include "game.h"
 #include "gfx.h"
@@ -68,7 +69,10 @@ void vm_init(void)
 
 uint8_t vm_read_byte(void)
 {
-	return vm.ip.code[vm.ip.ptr++];
+	uint8_t c = vm.ip.code[vm.ip.ptr++];
+	if (vm_flag_is_on(FLAG_LOG))
+		backlog_push_byte(c);
+	return c;
 }
 
 uint8_t vm_peek_byte(void)
@@ -371,10 +375,17 @@ void vm_draw_text(const char *text)
 
 #define TXT_BUF_SIZE 4096
 
-static void stmt_txt(void)
+static void stmt_txt(bool with_op)
 {
 	size_t str_i = 0;
 	char str[TXT_BUF_SIZE];
+
+	if (vm_flag_is_on(FLAG_LOG_ENABLE) && vm_flag_is_on(FLAG_LOG_TEXT)) {
+		backlog_prepare();
+		vm_flag_on(FLAG_LOG);
+		if (with_op)
+			backlog_push_byte(mes_code_tables.stmt_op_to_int[MES_STMT_TXT]);
+	}
 
 	uint8_t c;
 	while ((c = vm_peek_byte())) {
@@ -393,12 +404,25 @@ unterminated:
 		game->custom_TXT(str);
 	else
 		vm_draw_text(str);
+
+	if (vm_flag_is_on(FLAG_LOG_ENABLE) && vm_flag_is_on(FLAG_LOG_TEXT))
+		vm_flag_off(FLAG_LOG);
 }
 
-static void stmt_str(void)
+static void stmt_str(bool with_op)
 {
 	size_t str_i = 0;
 	char str[TXT_BUF_SIZE];
+
+	if (vm_flag_is_on(FLAG_LOG_ENABLE) && vm_flag_is_on(FLAG_LOG_TEXT)) {
+		backlog_prepare();
+		vm_flag_on(FLAG_LOG);
+		if (with_op)
+			backlog_push_byte(mes_code_tables.stmt_op_to_int[MES_STMT_STR]);
+	}
+
+	if (vm_flag_is_on(FLAG_LOG_ENABLE) && vm_flag_is_on(FLAG_LOG_TEXT))
+		vm_flag_on(FLAG_LOG);
 
 	uint8_t c;
 	while ((c = vm_peek_byte())) {
@@ -414,6 +438,9 @@ static void stmt_str(void)
 unterminated:
 	str[str_i] = 0;
 	vm_draw_text(str);
+
+	if (vm_flag_is_on(FLAG_LOG_ENABLE) && vm_flag_is_on(FLAG_LOG_TEXT))
+		vm_flag_off(FLAG_LOG);
 }
 
 static void stmt_setrbc(void)
@@ -545,6 +572,11 @@ static void stmt_jmp(void)
 
 static void stmt_sys(void)
 {
+	if (vm_flag_is_on(FLAG_LOG_ENABLE) && vm_flag_is_on(FLAG_LOG_SYS)) {
+		vm_flag_on(FLAG_LOG);
+		backlog_push_byte(mes_code_tables.stmt_op_to_int[MES_STMT_SYS]);
+	}
+
 	uint32_t no = vm_eval();
 	struct param_list params = {0};
 	read_params(&params);
@@ -555,6 +587,9 @@ static void stmt_sys(void)
 		VM_ERROR("System.function[%u] not implemented", no);
 
 	game->sys[no](&params);
+
+	if (vm_flag_is_on(FLAG_LOG_ENABLE) && vm_flag_is_on(FLAG_LOG_SYS))
+		vm_flag_off(FLAG_LOG);
 }
 
 static void stmt_goto(void)
@@ -685,8 +720,8 @@ bool vm_exec_statement(void)
 retry:
 	switch ((uint8_t)mes_opcode_to_stmt(op)) {
 	case MES_STMT_END:     return false;
-	case MES_STMT_TXT:     stmt_txt(); break;
-	case MES_STMT_STR:     stmt_str(); break;
+	case MES_STMT_TXT:     stmt_txt(true); break;
+	case MES_STMT_STR:     stmt_str(true); break;
 	case MES_STMT_SETRBC:  stmt_setrbc(); break;
 	case MES_STMT_SETV:    stmt_setv(); break;
 	case MES_STMT_SETRBE:  stmt_setrbe(); break;
@@ -714,9 +749,9 @@ retry:
 		}
 		vm_rewind_byte();
 		if (mes_char_is_hankaku(op))
-			stmt_str();
+			stmt_str(false);
 		else
-			stmt_txt();
+			stmt_txt(false);
 		break;
 	}
 	return true;

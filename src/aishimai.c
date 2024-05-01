@@ -22,6 +22,7 @@
 
 #include "anim.h"
 #include "audio.h"
+#include "backlog.h"
 #include "cursor.h"
 #include "game.h"
 #include "gfx_private.h"
@@ -507,10 +508,14 @@ static void ai_shimai_sys_voice(struct param_list *params)
 	case 1: audio_voice_stop(); break;
 	//case 2: audio_voice_play_sync(vm_string_param(params, 1)); break;
 	case 3:
+		if (vm_flag_is_on(FLAG_LOG))
+			backlog_set_has_voice();
 		strcpy(prepared_voice, vm_string_param(params, 1));
 		have_prepared_voice = true;
 		break;
 	case 4:
+		if (vm_flag_is_on(FLAG_LOG))
+			backlog_set_has_voice();
 		if (have_prepared_voice) {
 			audio_voice_play(prepared_voice);
 			have_prepared_voice = 0;
@@ -583,9 +588,18 @@ static void ai_shimai_get_time(struct param_list *params)
 	mem_set_var16(6, max(tm->tm_sec, 59));
 }
 
-static void sys_19(struct param_list *params)
+static void ai_shimai_backlog(struct param_list *params)
 {
-	WARNING("System.function[19] not implemented");
+	switch (vm_expr_param(params, 0)) {
+	case 0: backlog_clear(); break;
+	case 1: backlog_prepare(); break;
+	case 2: backlog_commit(); break;
+	case 3: mem_set_var32(18, backlog_count()); break;
+	case 4: mem_set_var32(18, backlog_get_pointer(vm_expr_param(params, 1))); break;
+	case 5: mem_set_var16(18, backlog_has_voice(vm_expr_param(params, 1))); break;
+	default: WARNING("System.Backlog.function[%u] not implemented",
+				 params->params[0].val);
+	}
 }
 
 static void update_text(struct param_list *params)
@@ -682,18 +696,33 @@ static void sys_23(struct param_list *params)
 	//		params->params[0].val);
 }
 
-static void util_6(struct param_list *params)
+static void util_get_mess(struct param_list *params)
 {
+	// TODO: return "CONFIG.MESS" value from ini
 	mem_set_var32(18, 0);
 }
 
-static void util_7(struct param_list *params)
+static void util_write_backlog_header(struct param_list *params)
 {
-	WARNING("Util.function[7] not implemented");
+	backlog_push_byte(16);
+	backlog_push_byte(2);
+	backlog_push_byte(8);
+	backlog_push_byte(255);
+	backlog_push_byte(0);
 }
 
-static void util_11(struct param_list *params)
+static void util_line(struct param_list *params)
 {
+	uint16_t cursor_y = mem_get_sysvar16(mes_sysvar16_text_cursor_y);
+	uint16_t line_space = mem_get_sysvar16(mes_sysvar16_line_space);
+	uint16_t start_x = mem_get_sysvar16(mes_sysvar16_text_start_x);
+	mem_set_sysvar16(mes_sysvar16_text_cursor_y, cursor_y + line_space);
+	mem_set_sysvar16(mes_sysvar16_text_cursor_x, start_x);
+}
+
+static void util_get_imode(struct param_list *params)
+{
+	// TODO: return "CONFIG.IMODE" value from ini
 	mem_set_var32(18, 0);
 }
 
@@ -707,8 +736,9 @@ static void util_15(struct param_list *params)
 	WARNING("Util.function[15] not implemented");
 }
 
-static void util_16(struct param_list *params)
+static void util_get_cut(struct param_list *params)
 {
+	// TODO: return "CONFIG.CUT" value from ini
 	mem_set_var32(18, 1);
 }
 
@@ -759,24 +789,29 @@ struct game game_ai_shimai = {
 		[16] = ai_shimai_get_time,
 		[17] = NULL,
 		[18] = sys_check_input,
-		[19] = sys_19,
+		[19] = ai_shimai_backlog,
 		[20] = NULL,
 		[21] = sys_strlen,
 		[22] = sys_22,
 		[23] = sys_23,
 	},
 	.util = {
-		[6] = util_6,
-		[7] = util_7,
-		[11] = util_11,
+		[6] = util_get_mess,
+		[7] = util_write_backlog_header,
+		[8] = util_line,
+		[11] = util_get_imode,
 		[12] = util_set_prepared_voice,
 		[15] = util_15,
-		[16] = util_16,
+		[16] = util_get_cut,
 	},
 	.flags = {
 		[FLAG_ANIM_ENABLE]  = 0x0004,
 		[FLAG_MENU_RETURN]  = 0x0008,
 		[FLAG_RETURN]       = 0x0010,
+		[FLAG_LOG_ENABLE]   = 0x0020,
+		[FLAG_LOG_TEXT]     = 0x0040,
+		[FLAG_LOG]          = 0x0080,
 		[FLAG_VOICE_ENABLE] = 0x0100,
+		[FLAG_LOG_SYS]      = 0x1000,
 	}
 };

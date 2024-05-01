@@ -30,6 +30,9 @@
 
 #define MEMORY_MENU_ENTRY_MAX 200
 
+#define MEMORY_BACKLOG_DATA_SIZE 2048
+#define MEMORY_BACKLOG_NR_ENTRIES 64
+
 /* 16-bit address space. We can't use this struct because the size of var4
  * varies by game. The inline functions below should be used to access values
  * in this area.
@@ -53,6 +56,7 @@ struct memory {
 	uint8_t palette[0x400];
 	uint32_t menu_entry_addresses[MEMORY_MENU_ENTRY_MAX];
 	uint32_t menu_entry_numbers[MEMORY_MENU_ENTRY_MAX];
+	uint8_t backlog[MEMORY_BACKLOG_DATA_SIZE * MEMORY_BACKLOG_NR_ENTRIES];
 };
 
 struct memory_ptr {

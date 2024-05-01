@@ -27,6 +27,7 @@ sources = [
   'src/aishimai.c',
   'src/anim.c',
   'src/asset.c',
+  'src/backlog.c',
   'src/cmdline.c',
   'src/cursor.c',
   'src/debug.c',
