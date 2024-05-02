@@ -341,7 +341,6 @@ static void ai_shimai_TXT(const char *txt)
 
 static void ai_shimai_sys_cursor(struct param_list *params)
 {
-	static uint32_t uk = 0;
 	static unsigned cursor1_frame_time[4] = { 200, 200, 200, 500 };
 	switch (vm_expr_param(params, 0)) {
 	case 0: cursor_show(); break;
@@ -356,11 +355,7 @@ static void ai_shimai_sys_cursor(struct param_list *params)
 		default: WARNING("Invalid cursor number: %u", vm_expr_param(params, 1));
 		}
 		break;
-	case 5: uk = 0; break;
-	case 6: mem_set_var16(18, 0); break;
-	case 7: mem_set_var32(18, uk); break;
-	case 8: uk = vm_expr_param(params, 1); break;
-	default: VM_ERROR("System.Cursor.function[%u] not implemented",
+	default: WARNING("System.Cursor.function[%u] not implemented",
 				 params->params[0].val);
 	}
 }
@@ -386,8 +381,8 @@ static void ai_shimai_sys_anim(struct param_list *params)
 	case 5: anim_stop_all(); break;
 	case 6: anim_halt_all(); break;
 	case 7: anim_reset_all(); break;
-	case 8: anim_exec_copy_call(vm_anim_param(params, 1)); break;
-	default: VM_ERROR("System.Anim.function[%u] not implemented",
+	//case 8: TODO
+	default: WARNING("System.Anim.function[%u] not implemented",
 				 params->params[0].val);
 	}
 }
