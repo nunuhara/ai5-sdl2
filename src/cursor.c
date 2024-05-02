@@ -497,6 +497,7 @@ static SDL_Cursor **cursors = NULL;
 static int nr_cursors = 0;
 static int current_cursor = 0;
 static bool cursor_animating = false;
+static bool cursor_loaded = false;
 static atomic_uint cursor_nr_frames = 2;
 static atomic_uint cursor_frame = 0;
 static atomic_uint cursor_frame_time[CURSOR_MAX_FRAMES] = { 500, 500 };
@@ -684,6 +685,7 @@ void cursor_load(unsigned no, unsigned nr_frames, unsigned *frame_time)
 	cursor_nr_frames = nr_frames;
 	cursor_frame = nr_frames - 1;
 	cursor_animating = true;
+	cursor_loaded = true;
 	cursor_swap();
 }
 
@@ -691,6 +693,7 @@ void cursor_unload(void)
 {
 	CURSOR_LOG("cursor_unload()");
 	cursor_animating = false;
+	cursor_loaded = false;
 	SDL_SetCursor(system_cursor);
 }
 
@@ -707,7 +710,8 @@ void cursor_reload(void)
 void cursor_show(void)
 {
 	CURSOR_LOG("cursor_show()");
-	cursor_animating = true;
+	if (cursor_loaded)
+		cursor_animating = true;
 	SDL_ShowCursor(SDL_ENABLE);
 }
 
