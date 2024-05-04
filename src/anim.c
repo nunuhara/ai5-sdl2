@@ -81,6 +81,13 @@ static void check_slot(unsigned i)
 		VM_ERROR("Invalid animation slot index: %u", i);
 }
 
+static uint32_t get_mask_color(void)
+{
+	if (game->bpp == 24)
+		return mem_get_sysvar32(mes_sysvar32_mask_color);
+	return mem_get_sysvar16(mes_sysvar16_mask_color);
+}
+
 static void _anim_init_stream(unsigned slot, unsigned stream)
 {
 	struct anim_stream *anim = &streams[slot];
@@ -231,8 +238,7 @@ static bool anim_stream_draw(struct anim_stream *anim, uint8_t i)
 		gfx_copy_masked(call.copy.src.x, call.copy.src.y, call.copy.dim.w,
 				call.copy.dim.h, call.copy.src.i,
 				call.copy.dst.x + anim->off.x, call.copy.dst.y + anim->off.y,
-				call.copy.dst.i,
-				mem_get_sysvar16(mes_sysvar16_mask_color));
+				call.copy.dst.i, get_mask_color());
 		break;
 	case ANIM_DRAW_OP_SWAP:
 		STREAM_LOG("SWAP %u(%u,%u) -> %u(%u,%u) @ (%u,%u);", call.copy.src.i,
@@ -255,8 +261,7 @@ static bool anim_stream_draw(struct anim_stream *anim, uint8_t i)
 				call.compose.bg.y, call.compose.bg.i,
 				call.compose.dst.x + anim->off.x,
 				call.compose.dst.y + anim->off.y,
-				call.compose.dst.i,
-				mem_get_sysvar16(mes_sysvar16_mask_color));
+				call.compose.dst.i, get_mask_color());
 		break;
 	case ANIM_DRAW_OP_SET_COLOR:
 		break;
@@ -376,6 +381,5 @@ void anim_exec_copy_call(unsigned stream)
 	uint8_t *call = data + 2 + 100 * 4 + (no - 20) * anim_draw_call_size;
 	gfx_copy_masked(le_get16(call, 2), le_get16(call, 4), le_get16(call, 6),
 			le_get16(call, 8), 1, le_get16(call, 10), le_get16(call, 12),
-			mem_get_sysvar16(mes_sysvar16_dst_surface),
-			mem_get_sysvar16(mes_sysvar16_mask_color));
+			mem_get_sysvar16(mes_sysvar16_dst_surface), get_mask_color());
 }
