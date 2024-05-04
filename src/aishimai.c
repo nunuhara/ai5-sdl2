@@ -701,6 +701,19 @@ static void sys_23(struct param_list *params)
 	//		params->params[0].val);
 }
 
+static void util_shift_screen(struct param_list *params)
+{
+	int32_t x = vm_expr_param(params, 1);
+	int32_t y = vm_expr_param(params, 2);
+
+	vm_timer_t timer = vm_timer_create();
+	SDL_Rect src_r = { 0, 0, 640, 480 };
+	SDL_Rect dst_r = { x, y, 640, 480 };
+	SDL_CALL(SDL_RenderCopy, gfx.renderer, gfx.texture, &src_r, &dst_r);
+	SDL_RenderPresent(gfx.renderer);
+	vm_timer_tick(&timer, 16);
+}
+
 static void util_location_index(struct param_list *params)
 {
 	static const char *out_loc[5] = {
@@ -889,6 +902,7 @@ struct game game_ai_shimai = {
 		[23] = sys_23,
 	},
 	.util = {
+		[0] = util_shift_screen,
 		[4] = util_location_index,
 		[5] = util_location_zoom,
 		[6] = util_get_mess,
