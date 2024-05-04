@@ -691,6 +691,94 @@ static void sys_23(struct param_list *params)
 	//		params->params[0].val);
 }
 
+static void util_location_index(struct param_list *params)
+{
+	static const char *out_loc[5] = {
+		"\x8a\x77\x8d\x5a",         // 学校
+		"\x96\x6b\x91\xf2\x89\xc6", // 北沢家
+		"\x8e\x96\x96\xb1\x8f\x8a", // 事務所
+		"\x96\xec\x90\xec\x89\xc6", // 野川家
+		NULL
+	};
+	static const char *school_loc[6] = {
+		"\x8a\x77\x8d\x5a\x82\xcc\x8a\x4f",         //"学校の外",
+		"\x91\xcc\x88\xe7\x8f\x80\x94\xf5\x8e\xba", //"体育準備室",
+		"\x94\xfc\x8f\x70\x8f\x80\x94\xf5\x8e\xba", //"美術準備室",
+		"\x8d\x5a\x8e\xc9\x82\xcc\x89\xae\x8f\xe3", //"校舎の屋上",
+		"\x8b\xb3\x8e\xba",                         //"教室",
+		NULL
+	};
+	const char **options = vm_expr_param(params, 1) ? school_loc : out_loc;
+	const char *loc = mem_get_cstring(vm_expr_param(params, 2) + 1);
+	if (!loc)
+		VM_ERROR("Invalid cstring parameter");
+
+	for (int i = 0; options[i]; i++) {
+		if (!strcmp(options[i], loc)) {
+			mem_set_var16(18, i);
+			return;
+		}
+	}
+	mem_set_var16(18, 255);
+}
+
+static void util_location_zoom(struct param_list *params)
+{
+	static const unsigned out_coords[5][2] = {
+		{  60, 8   },
+		{ 129, 320 },
+		{ 416, 312 },
+		{ 368, 40  },
+		{   0, 0   },
+	};
+	static const unsigned school_coords[5][2] = {
+		{ 452, 336 },
+		{  20, 304 },
+		{ 436, 32  },
+		{   8, 8   },
+		{ 216, 204 },
+	};
+
+	// get coordinates of zoom area
+	unsigned x, y;
+	unsigned school = vm_expr_param(params, 1);
+	unsigned loc = vm_expr_param(params, 2);
+	if ((!school && loc > 3) || loc > 4) {
+		WARNING("Invalid location index: %u:%u", school, loc);
+		return;
+	}
+	if (school) {
+		x = school_coords[loc][0];
+		y = school_coords[loc][1];
+	} else {
+		x = out_coords[loc][0];
+		y = out_coords[loc][1];
+	}
+
+	vm_timer_t timer = vm_timer_create();
+	SDL_Surface *dst = gfx_get_surface(0);
+	SDL_Surface *src = gfx_get_surface(2);
+	float step_x = (float)x * (1.f / 7.f);
+	float step_y = (float)y * (1.f / 7.f);
+	float step_w = 460 * (1.f / 7.f);
+	float step_h = 344 * (1.f / 7.f);
+	for (int i = 1; i < 7; i++) {
+		SDL_Rect src_r = { 0, 0, 640, 480 };
+		SDL_Rect dst_r = {
+			.x = x - step_x * i,
+			.y = y - step_y * i,
+			.w = 180 + step_w * i,
+			.h = 136 + step_h * i
+		};
+		SDL_CALL(SDL_BlitScaled, src, &src_r, dst, &dst_r);
+		gfx_dirty(0);
+		vm_peek();
+		vm_timer_tick(&timer, 50);
+	}
+	SDL_CALL(SDL_BlitSurface, src, NULL, dst, NULL);
+	gfx_dirty(0);
+}
+
 static void util_get_mess(struct param_list *params)
 {
 	// TODO: return "CONFIG.MESS" value from ini
@@ -791,6 +879,8 @@ struct game game_ai_shimai = {
 		[23] = sys_23,
 	},
 	.util = {
+		[4] = util_location_index,
+		[5] = util_location_zoom,
 		[6] = util_get_mess,
 		[7] = util_write_backlog_header,
 		[8] = util_line,
@@ -808,5 +898,6 @@ struct game game_ai_shimai = {
 		[FLAG_LOG]          = 0x0080,
 		[FLAG_VOICE_ENABLE] = 0x0100,
 		[FLAG_LOG_SYS]      = 0x1000,
+		[FLAG_WAIT_KEYUP]   = FLAG_ALWAYS_ON,
 	}
 };

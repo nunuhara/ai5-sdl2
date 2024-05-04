@@ -142,4 +142,16 @@ static inline void mem_set_sysvar32(unsigned i, uint32_t v)
 	le_put32(memory_ptr.system_var32, i*4, v);
 }
 
+static inline char *mem_get_cstring(uint32_t ptr)
+{
+	uint8_t *p = memory_raw + ptr;
+	for (int i = 0; true; i++) {
+		if (p >= memory_end)
+			return NULL;
+		if (!p[i])
+			break;
+	}
+	return (char*)p;
+}
+
 #endif // AI5_MEMORY_H
