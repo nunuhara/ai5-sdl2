@@ -17,6 +17,7 @@
 #include <time.h>
 
 #include "nulib.h"
+#include "ai5.h"
 #include "ai5/anim.h"
 #include "ai5/mes.h"
 
@@ -563,7 +564,16 @@ static void ai_shimai_sys_graphics(struct param_list *params)
 	case 1: sys_graphics_copy_masked24(params); break;
 	case 2: sys_graphics_fill_bg(params); break;
 	case 4: sys_graphics_swap_bg_fg(params); break;
-	case 6: sys_graphics_blend(params); break;
+	case 6: {
+		vm_timer_t timer = vm_timer_create();
+		sys_graphics_blend(params);
+		// XXX: The game calls this function in a loop to implement a
+		//      crossfade effect. We throttle it here so that the
+		//      effect is visible on modern systems.
+		if (!input_down(INPUT_CTRL))
+			vm_timer_tick(&timer, config.progressive_frame_time * 4);
+		break;
+	}
 	case 7: sys_graphics_blend_masked(params); break;
 	default: VM_ERROR("System.Graphics.function[%u] not implemented",
 				 params->params[0].val);
