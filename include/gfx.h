@@ -70,7 +70,7 @@ void gfx_blend_masked(int src_x, int src_y, int w, int h, unsigned src_i, int ds
 		int dst_y, unsigned dst_i, uint8_t *mask);
 void gfx_invert_colors(int x, int y, int w, int h, unsigned i);
 void gfx_fill(int x, int y, int w, int h, unsigned i, uint32_t c);
-void gfx_swap_colors(int x, int y, int w, int h, unsigned i, uint16_t c1, uint16_t c2);
+void gfx_swap_colors(int x, int y, int w, int h, unsigned i, uint32_t c1, uint32_t c2);
 void gfx_draw_cg(unsigned i, struct cg *cg);
 
 // effect.c

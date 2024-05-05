@@ -1054,8 +1054,8 @@ static void gfx_direct_set_pixel(uint8_t *dst, uint32_t c)
 	dst[2] = (c >> 16) & 0xff;
 }
 
-static void gfx_direct_swap_colors(SDL_Rect r, SDL_Surface *dst, uint16_t _c1,
-		uint16_t _c2)
+static void gfx_direct_swap_colors(SDL_Rect r, SDL_Surface *dst, uint32_t _c1,
+		uint32_t _c2)
 {
 	if (!gfx_fill_begin(dst, &r))
 		return;
@@ -1065,6 +1065,7 @@ static void gfx_direct_swap_colors(SDL_Rect r, SDL_Surface *dst, uint16_t _c1,
 	SDL_Color color2 = gfx_decode_direct(_c2);
 	uint32_t c1 = color1.r | (color1.g << 8) | (color1.b << 16);
 	uint32_t c2 = color2.r | (color2.g << 8) | (color2.b << 16);
+
 	direct_foreach_px(p, dst, &r,
 		uint32_t c = gfx_direct_get_pixel(p);
 		if (c == c2)
@@ -1076,7 +1077,7 @@ static void gfx_direct_swap_colors(SDL_Rect r, SDL_Surface *dst, uint16_t _c1,
 	gfx_fill_end(dst);
 }
 
-void gfx_swap_colors(int x, int y, int w, int h, unsigned i, uint16_t c1, uint16_t c2)
+void gfx_swap_colors(int x, int y, int w, int h, unsigned i, uint32_t c1, uint32_t c2)
 {
 	GFX_LOG("gfx_swap_colors[%u,%u] %u(%d,%d) @ (%d,%d)", c1, c2, i, x, y, w, h);
 	SDL_Surface *s = gfx_get_surface(i);

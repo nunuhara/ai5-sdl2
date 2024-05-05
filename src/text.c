@@ -129,6 +129,10 @@ void gfx_text_set_colors(uint32_t bg, uint32_t fg)
 		gfx.text.bg_color = gfx_decode_bgr555(bg);
 		gfx.text.fg_color = gfx_decode_bgr555(fg);
 	}
+	else if (game->bpp == 24) {
+		gfx.text.bg_color = gfx_decode_bgr(bg);
+		gfx.text.fg_color = gfx_decode_bgr(fg);
+	}
 }
 
 void gfx_text_get_colors(uint32_t *bg, uint32_t *fg)
@@ -213,7 +217,6 @@ static unsigned gfx_text_draw_glyph_indexed(int x, int y, SDL_Surface *dst, uint
 
 static unsigned gfx_text_draw_glyph_direct(int x, int y, SDL_Surface *dst, uint32_t ch)
 {
-	// TODO: decode from system variable
 	SDL_Surface *outline = TTF_RenderGlyph32_Blended(cur_font->id_outline, ch, gfx.text.bg_color);
 	SDL_Surface *glyph = TTF_RenderGlyph32_Blended(cur_font->id, ch, gfx.text.fg_color);
 	if (!outline || !glyph)
