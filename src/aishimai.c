@@ -17,6 +17,8 @@
 #include <time.h>
 
 #include "nulib.h"
+#include "nulib/string.h"
+#include "nulib/utfsjis.h"
 #include "ai5.h"
 #include "ai5/anim.h"
 #include "ai5/mes.h"
@@ -319,7 +321,11 @@ static void render_text_select(const char *txt)
 static void ai_shimai_TXT(const char *txt)
 {
 	if (mem_get_var4(2002) != 0) {
-		render_text_select(txt);
+		if (mem_get_var4(2002) < 4)
+			render_text_select(txt);
+		else {
+			vm_draw_text(txt);
+		}
 		return;
 	}
 
@@ -356,6 +362,7 @@ static void ai_shimai_sys_cursor(struct param_list *params)
 		default: WARNING("Invalid cursor number: %u", vm_expr_param(params, 1));
 		}
 		break;
+	case 5: break;
 	default: WARNING("System.Cursor.function[%u] not implemented",
 				 params->params[0].val);
 	}
@@ -685,20 +692,267 @@ static void sys_22(struct param_list *params)
 	}
 }
 
-static void sys_23(struct param_list *params)
+#define IME_BUF_LEN 1024
+static uint8_t ime_buf[IME_BUF_LEN] = {0};
+static unsigned ime_cursor_pos = 0;
+static bool ime_cursor_inside = false;
+static bool ime_enabled = false;
+static bool ime_composition_started = false;
+static bool ime_composition_finished = false;
+
+#if 0
+#define IME_LOG(...) NOTICE(__VA_ARGS__)
+#else
+#define IME_LOG(...)
+#endif
+
+static void ime_reset(void)
 {
-	// TODO: IME
-	switch (vm_expr_param(params, 0)) {
-	case 2: mem_set_var16(18, 0); break;
-	case 3: mem_set_var16(18, 0);
-		mem_set_var32(18, 0); break;
-	case 4: mem_set_var16(18, 0); break;
-	case 5: mem_set_var16(18, 0); break;
-	case 6: mem_set_var16(18, 0); break;
-	case 7: mem_set_var16(18, 0); break;
+	ime_enabled = true;
+	ime_composition_started = false;
+	ime_composition_finished = false;
+}
+
+static void ime_enable(void)
+{
+	IME_LOG("ime_enable()");
+	ime_reset();
+	memset(ime_buf, 0, sizeof(ime_buf));
+	SDL_StartTextInput();
+}
+
+static void ime_disable(void)
+{
+	IME_LOG("ime_disable()");
+	SDL_StopTextInput();
+	ime_reset();
+}
+
+/*
+ * Calculate the byte-offset for a (character-indexed) cursor position
+ * in a sjis string.
+ */
+static unsigned calc_cursor_pos(const char *sjis, unsigned cursor)
+{
+	unsigned len = 0;
+	for (unsigned i = 0; i < cursor && *sjis; i++) {
+		if (SJIS_2BYTE(*sjis)) {
+			len += 2;
+			sjis += 2;
+		} else {
+			len++;
+			sjis++;
+		}
 	}
-	//WARNING("System.function[23].function[%u] not implemented",
-	//		params->params[0].val);
+	return len;
+}
+
+static uint16_t hanzen_table[256] = {
+	['a'] = 0x8281, ['A'] = 0x8260,
+	['b'] = 0x8282, ['B'] = 0x8261,
+	['c'] = 0x8283, ['C'] = 0x8262,
+	['d'] = 0x8284, ['D'] = 0x8263,
+	['e'] = 0x8285, ['E'] = 0x8264,
+	['f'] = 0x8286, ['F'] = 0x8265,
+	['g'] = 0x8287, ['G'] = 0x8266,
+	['h'] = 0x8288, ['H'] = 0x8267,
+	['i'] = 0x8289, ['I'] = 0x8268,
+	['j'] = 0x828a, ['J'] = 0x8269,
+	['k'] = 0x828b, ['K'] = 0x826a,
+	['l'] = 0x828c, ['L'] = 0x826b,
+	['m'] = 0x828d, ['M'] = 0x826c,
+	['n'] = 0x828e, ['N'] = 0x826d,
+	['o'] = 0x828f, ['O'] = 0x826e,
+	['p'] = 0x8290, ['P'] = 0x826f,
+	['q'] = 0x8291, ['Q'] = 0x8270,
+	['r'] = 0x8292, ['R'] = 0x8271,
+	['s'] = 0x8293, ['S'] = 0x8272,
+	['t'] = 0x8294, ['T'] = 0x8273,
+	['u'] = 0x8295, ['U'] = 0x8274,
+	['v'] = 0x8296, ['V'] = 0x8275,
+	['w'] = 0x8297, ['W'] = 0x8276,
+	['x'] = 0x8298, ['X'] = 0x8277,
+	['y'] = 0x8299, ['Y'] = 0x8278,
+	['z'] = 0x829a, ['Z'] = 0x8279,
+	[0xa1] = 0x8142,
+	[0xa2] = 0x8175,
+	[0xa3] = 0x8176,
+	[0xa4] = 0x8141,
+	[0xa5] = 0x8145,
+	[0xa6] = 0x8392,
+	[0xa7] = 0x8340,
+	[0xa8] = 0x8342,
+	[0xa9] = 0x8344,
+	[0xaa] = 0x8346,
+	[0xab] = 0x8348,
+	[0xac] = 0x8383,
+	[0xad] = 0x8385,
+	[0xae] = 0x8387,
+	[0xaf] = 0x8362,
+	[0xb0] = 0x815b,
+	[0xb1] = 0x8341,
+	[0xb2] = 0x8343,
+	[0xb3] = 0x8345,
+	[0xb4] = 0x8347,
+	[0xb5] = 0x8349,
+	[0xb6] = 0x834a,
+	[0xb7] = 0x834c,
+	[0xb8] = 0x834e,
+	[0xb9] = 0x8350,
+	[0xba] = 0x8352,
+	[0xbb] = 0x8354,
+	[0xbc] = 0x8356,
+	[0xbd] = 0x8358,
+	[0xbe] = 0x835a,
+	[0xbf] = 0x835c,
+	[0xc0] = 0x835e,
+	[0xc1] = 0x8360,
+	[0xc2] = 0x8363,
+	[0xc3] = 0x8365,
+	[0xc4] = 0x8367,
+	[0xc5] = 0x8369,
+	[0xc6] = 0x836a,
+	[0xc7] = 0x836b,
+	[0xc8] = 0x836c,
+	[0xc9] = 0x836d,
+	[0xca] = 0x836e,
+	[0xcb] = 0x8371,
+	[0xcc] = 0x8374,
+	[0xcd] = 0x8377,
+	[0xce] = 0x837a,
+	[0xcf] = 0x837d,
+	[0xd0] = 0x837e,
+	[0xd1] = 0x8380,
+	[0xd2] = 0x8381,
+	[0xd3] = 0x8382,
+	[0xd4] = 0x8384,
+	[0xd5] = 0x8386,
+	[0xd6] = 0x8388,
+	[0xd7] = 0x8389,
+	[0xd8] = 0x838a,
+	[0xd9] = 0x838b,
+	[0xda] = 0x838c,
+	[0xdb] = 0x838d,
+	[0xdc] = 0x838f,
+	[0xdd] = 0x8393,
+	[0xde] = 0x814a,
+	[0xdf] = 0x814b,
+};
+
+/*
+ * Convert hankaku characters to zenkaku.
+ */
+string ime_convert_zenkaku(string in)
+{
+	unsigned han_count = 0;
+	for (char *p = in; *p; p++) {
+		if (!SJIS_2BYTE(*p))
+			han_count++;
+		else
+			p++;
+	}
+	if (han_count == 0)
+		return in;
+
+	string out = string_new_len(NULL, string_length(in) + han_count);
+	for (char *p_in = in, *p_out = out; *p_in; p_in++, p_out += 2) {
+		if (!SJIS_2BYTE(*p_in)) {
+			if (hanzen_table[(uint8_t)*p_in]) {
+				p_out[0] = hanzen_table[(uint8_t)*p_in] >> 8;
+				p_out[1] = hanzen_table[(uint8_t)*p_in] & 0xff;
+			} else {
+				p_out[0] = 0x81;
+				p_out[1] = 0x48;
+			}
+		} else {
+			p_out[0] = p_in[0];
+			p_out[1] = p_in[1];
+			p_in++;
+		}
+	}
+	string_free(in);
+	return out;
+}
+
+static void _ime_set_text(string sjis)
+{
+	size_t len = min(1023, string_length(sjis));
+	memcpy((char*)ime_buf, sjis, len);
+	ime_buf[len] = '\0';
+}
+
+/*
+ * Set the intermediate composition text.
+ */
+static void ime_set_text(const char *utf8, int cursor)
+{
+	string sjis = utf8_cstring_to_sjis(utf8, 0);
+	ime_cursor_pos = calc_cursor_pos(sjis, cursor);
+	ime_cursor_inside = sjis[ime_cursor_pos] != '\0';
+	IME_LOG("ime_set_text(\"%s\", %u, %s)", sjis, ime_cursor_pos, ime_cursor_inside ? "true" : "false");
+	_ime_set_text(sjis);
+}
+
+/*
+ * Finalize the composition text.
+ */
+static void ime_commit_text(const char *utf8)
+{
+	string sjis = ime_convert_zenkaku(utf8_cstring_to_sjis(utf8, 0));
+	ime_composition_started = false;
+	ime_composition_finished = true;
+	ime_cursor_pos = 0;
+	ime_cursor_inside = false;
+	IME_LOG("ime_commit_text(\"%s\")", sjis);
+	_ime_set_text(sjis);
+}
+
+static void sys_ime_get_text(struct param_list *params)
+{
+	uint8_t *out = memory_raw + vm_expr_param(params, 1);
+	unsigned out_len = vm_expr_param(params, 2);
+	if (!mem_ptr_valid(out, out_len + 2))
+		VM_ERROR("Invalid output buffer for System.IME.get_string");
+	if (!memchr(out, 0, out_len + 2)) {
+		WARNING("Output buffer is not null-terminated");
+		out[out_len] = 0;
+		out[out_len + 1] = 0;
+	}
+
+	int32_t ord = strcmp((char*)out, (char*)ime_buf);
+	size_t copy_len = min(out_len, strlen((char*)ime_buf));
+	memcpy(out, ime_buf, copy_len);
+	out[copy_len] = 0;
+	out[copy_len + 1] = 0;
+	ime_buf[copy_len] = 0;
+	ime_buf[copy_len + 1] = 0;
+
+	mem_set_var16(18, copy_len);
+	mem_set_var32(18, ord);
+
+	if (ord)
+		IME_LOG("ime_get_text(...) -> %s, %u, %d", (char*)out, (unsigned)copy_len, ord);
+}
+
+static void sys_ime_strcmp(struct param_list *params)
+{
+	char *str = mem_get_cstring(vm_expr_param(params, 1));
+	mem_set_var16(18, strcmp(str, (char*)ime_buf));
+	//IME_LOG("ime_strcmp(...) -> %u", mem_get_var16(18));
+}
+
+static void sys_ime(struct param_list *params)
+{
+	switch (vm_expr_param(params, 0)) {
+	case 0: ime_enable(); break;
+	case 1: ime_disable(); break;
+	case 2: mem_set_var16(18, ime_composition_started); break;
+	case 3: sys_ime_get_text(params); break;
+	case 4: mem_set_var16(18, ime_cursor_inside); break; // ???
+	case 5: mem_set_var16(18, ime_cursor_pos); break;
+	case 6: sys_ime_strcmp(params); break;
+	case 7: mem_set_var16(18, ime_composition_finished ? 2 : 0); break;
+	}
 }
 
 static void util_shift_screen(struct param_list *params)
@@ -712,6 +966,59 @@ static void util_shift_screen(struct param_list *params)
 	SDL_CALL(SDL_RenderCopy, gfx.renderer, gfx.texture, &src_r, &dst_r);
 	SDL_RenderPresent(gfx.renderer);
 	vm_timer_tick(&timer, 16);
+}
+
+static void util_copy_to_surface_7(struct param_list *params)
+{
+	// XXX: this is dead code...? Only used in MES.ARC:DEFMAIN.MES,
+	//      NOT in DATA.ARC:DEFMAIN.MES (which is the real DEFMAIN).
+	int x = vm_expr_param(params, 1);
+	int y = vm_expr_param(params, 2);
+	int w = vm_expr_param(params, 3);
+	int h = vm_expr_param(params, 4);
+	gfx_copy(x, y, w, h, 0, 0, 0, 7);
+}
+
+static void util_strcpy(struct param_list *params)
+{
+	uint8_t *dst = memory_raw + vm_expr_param(params, 1);
+	char *src = mem_get_cstring(vm_expr_param(params, 2));
+	if (!mem_ptr_valid(dst, strlen(src) + 1))
+		VM_ERROR("Invalid destination for strcpy");
+	strcpy((char*)dst, src);
+}
+
+static void util_strcpy2(struct param_list *params)
+{
+	uint8_t *src = memory_raw + vm_expr_param(params, 1);
+	uint8_t *dst = memory_raw + vm_expr_param(params, 2);
+	unsigned count = vm_expr_param(params, 3);
+	unsigned off = vm_expr_param(params, 4);
+
+	if (!mem_ptr_valid(src + off + 1, count))
+		VM_ERROR("Invalid source for strcpy2");
+	if (!mem_ptr_valid(dst, count + 2))
+		VM_ERROR("Invalid destination for strcpy2");
+
+	// don't read from 2nd byte of zenkaku character
+	if (off > 1 && (off & 1) && mes_char_is_zenkaku(src[off - 1]))
+		off++;
+	src = src + off;
+
+	unsigned i;
+	for (i = 0; i < count && src[i]; i++) {
+		dst[i] = src[i];
+		if (mes_char_is_zenkaku(src[i])) {
+			i++;
+			dst[i] = src[i];
+		}
+	}
+	i = min(i, count);
+	dst[i] = 0;
+	dst[i+1] = 0;
+
+	mem_set_var16(18, i);
+	mem_set_var32(18, off);
 }
 
 static void util_location_index(struct param_list *params)
@@ -826,6 +1133,17 @@ static void util_line(struct param_list *params)
 	mem_set_sysvar16(mes_sysvar16_text_cursor_x, start_x);
 }
 
+static void util_save_voice(struct param_list *params)
+{
+	WARNING("Util.save_voice not implemented");
+}
+
+static void util_quit(struct param_list *params)
+{
+	if (gfx_confirm_quit())
+		sys_exit(0);
+}
+
 static void util_get_imode(struct param_list *params)
 {
 	// TODO: return "CONFIG.IMODE" value from ini
@@ -846,6 +1164,36 @@ static void util_get_cut(struct param_list *params)
 {
 	// TODO: return "CONFIG.CUT" value from ini
 	mem_set_var32(18, 1);
+}
+
+static void ai_shimai_init(void)
+{
+	gfx_text_set_colors(0, 0xffffff);
+}
+
+static void ai_shimai_handle_event(SDL_Event *e)
+{
+	if (!ime_enabled)
+		return;
+	switch (e->type) {
+	case SDL_TEXTINPUT:
+		IME_LOG("ime_text_input_event(...)");
+		ime_commit_text(e->text.text);
+		break;
+	case SDL_TEXTEDITING:
+		// XXX: ignore spurious editing events
+		if (!ime_composition_started && !e->edit.text[0])
+			break;
+		IME_LOG("ime_text_editing_event(...)");
+		if (!e->edit.text[0]) {
+			// XXX: end composition when compstr is empty
+			ime_commit_text(e->edit.text);
+		} else {
+			ime_composition_started = true;
+			ime_set_text(e->edit.text, e->edit.start);
+		}
+		break;
+	}
 }
 
 struct game game_ai_shimai = {
@@ -871,9 +1219,10 @@ struct game game_ai_shimai = {
 	.proc_clears_flag = true,
 	.var4_size = VAR4_SIZE,
 	.mem16_size = MEM16_SIZE,
-	.handle_event = NULL,
+	.handle_event = ai_shimai_handle_event,
 	.mem_init = ai_shimai_mem_init,
 	.mem_restore = ai_shimai_mem_restore,
+	.init = ai_shimai_init,
 	.custom_TXT = ai_shimai_TXT,
 	.sys = {
 		[0]  = sys_set_font_size,
@@ -899,15 +1248,20 @@ struct game game_ai_shimai = {
 		[20] = NULL,
 		[21] = sys_strlen,
 		[22] = sys_22,
-		[23] = sys_23,
+		[23] = sys_ime,
 	},
 	.util = {
 		[0] = util_shift_screen,
+		[1] = util_copy_to_surface_7,
+		[2] = util_strcpy,
+		[3] = util_strcpy2,
 		[4] = util_location_index,
 		[5] = util_location_zoom,
 		[6] = util_get_mess,
 		[7] = util_write_backlog_header,
 		[8] = util_line,
+		[9] = util_save_voice,
+		[10] = util_quit,
 		[11] = util_get_imode,
 		[12] = util_set_prepared_voice,
 		[15] = util_15,
