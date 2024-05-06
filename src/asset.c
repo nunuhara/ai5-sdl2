@@ -28,6 +28,7 @@ static struct {
 	struct archive *mes;
 	struct archive *bgm;
 	struct archive *voice;
+	struct archive *voicesub;
 	struct archive *effect;
 	struct archive *data;
 	struct archive *priv;
@@ -38,6 +39,7 @@ char *asset_cg_name = NULL;
 char *asset_bgm_name = NULL;
 char *asset_effect_name = NULL;
 char *asset_voice_name = NULL;
+char *asset_voicesub_name = NULL;
 char *asset_data_name = NULL;
 
 void asset_init(void)
@@ -52,6 +54,7 @@ void asset_init(void)
 	ARC_OPEN(mes, ERROR);
 	ARC_OPEN(bgm, WARNING);
 	ARC_OPEN(voice, WARNING);
+	ARC_OPEN(voicesub, WARNING);
 	ARC_OPEN(effect, WARNING);
 	ARC_OPEN(data, WARNING);
 	ARC_OPEN(priv, WARNING);
@@ -65,6 +68,7 @@ void asset_fini(void)
 	ARC_CLOSE(mes);
 	ARC_CLOSE(bgm);
 	ARC_CLOSE(voice);
+	ARC_CLOSE(voicesub);
 	ARC_CLOSE(effect);
 	ARC_CLOSE(data);
 	ARC_CLOSE(priv);
@@ -166,6 +170,18 @@ struct archive_data *asset_voice_load(const char *name)
 	if (!arc.voice)
 		return asset_fs_load(name);
 	struct archive_data *file = archive_get(arc.voice, name);
+	if (!file)
+		return NULL;
+	free(asset_voice_name);
+	asset_voice_name = xstrdup(name);
+	return file;
+}
+
+struct archive_data *asset_voicesub_load(const char *name)
+{
+	if (!arc.voicesub)
+		return asset_fs_load(name);
+	struct archive_data *file = archive_get(arc.voicesub, name);
 	if (!file)
 		return NULL;
 	free(asset_voice_name);

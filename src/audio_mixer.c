@@ -542,9 +542,10 @@ error:
 static struct archive_data *load_data(const char *name, enum mix_channel mixer)
 {
 	switch (mixer) {
-	case MIXER_MUSIC:  return asset_bgm_load(name);
-	case MIXER_EFFECT: return asset_effect_load(name);
-	case MIXER_VOICE:  return asset_voice_load(name);
+	case MIXER_MUSIC:    return asset_bgm_load(name);
+	case MIXER_EFFECT:   return asset_effect_load(name);
+	case MIXER_VOICE:    return asset_voice_load(name);
+	case MIXER_VOICESUB: return asset_voicesub_load(name);
 	default: ERROR("Invalid mixer");
 	}
 }
@@ -580,16 +581,18 @@ void channel_close(struct channel *ch)
 
 void mixer_init(void)
 {
-	nr_mixers = 4;
+	nr_mixers = 5;
 	mixers = xcalloc(nr_mixers, sizeof(struct mixer));
 	mixers[MIXER_MUSIC].name = strdup("Music");
 	mixers[MIXER_EFFECT].name = strdup("Sound");
 	mixers[MIXER_VOICE].name = strdup("Voice");
+	mixers[MIXER_VOICESUB].name = strdup("VoiceSub");
 	mixers[MIXER_MASTER].name = strdup("Master");
 	master = &mixers[MIXER_MASTER];
 	mixers[MIXER_MUSIC].parent = master;
 	mixers[MIXER_EFFECT].parent = master;
 	mixers[MIXER_VOICE].parent = master;
+	mixers[MIXER_VOICESUB].parent = master;
 
 	// initialize mixers
 	for (int i = 0; i < nr_mixers; i++) {

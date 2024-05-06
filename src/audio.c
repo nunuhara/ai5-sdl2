@@ -38,9 +38,10 @@ struct audio_ch {
 	char *file_name;
 	uint8_t volume;
 };
-static struct audio_ch bgm_channel   = { .id = MIXER_MUSIC,  .volume = 31 };
-static struct audio_ch se_channel    = { .id = MIXER_EFFECT, .volume = 31 };
-static struct audio_ch voice_channel = { .id = MIXER_VOICE,  .volume = 31 };
+static struct audio_ch bgm_channel      = { .id = MIXER_MUSIC,    .volume = 31 };
+static struct audio_ch se_channel       = { .id = MIXER_EFFECT,   .volume = 31 };
+static struct audio_ch voice_channel    = { .id = MIXER_VOICE,    .volume = 31 };
+static struct audio_ch voicesub_channel = { .id = MIXER_VOICESUB, .volume = 31 };
 
 static struct audio_ch aux_channel[] = {
 	{ .id = MIXER_MUSIC, .volume = 31 },
@@ -87,6 +88,12 @@ void audio_voice_stop(void)
 {
 	AUDIO_LOG("audio_voice_stop()");
 	audio_ch_stop(&voice_channel);
+}
+
+void audio_voicesub_stop(void)
+{
+	AUDIO_LOG("audio_voicesub_stop()");
+	audio_ch_stop(&voicesub_channel);
 }
 
 void audio_aux_stop(int no)
@@ -150,6 +157,12 @@ void audio_voice_play(const char *name)
 {
 	AUDIO_LOG("audio_voice_play(\"%s\")", name);
 	audio_ch_play(&voice_channel, name, false);
+}
+
+void audio_voicesub_play(const char *name)
+{
+	AUDIO_LOG("audio_voicesub_play(\"%s\")", name);
+	audio_ch_play(&voicesub_channel, name, false);
 }
 
 void audio_aux_play(const char *name, int no)
@@ -281,6 +294,13 @@ bool audio_voice_is_playing(void)
 	AUDIO_LOG("audio_voice_is_playing()");
 	return audio_ch_is_playing(&voice_channel);
 }
+
+bool audio_voicesub_is_playing(void)
+{
+	AUDIO_LOG("audio_voicesub_is_playing()");
+	return audio_ch_is_playing(&voicesub_channel);
+}
+
 static bool audio_ch_is_fading(struct audio_ch *ch)
 {
 	return ch->ch && channel_is_fading(ch->ch);

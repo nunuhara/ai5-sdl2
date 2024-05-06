@@ -49,14 +49,15 @@ struct channel {
 	int repeat;
 	struct fade fade;
 };
-static struct channel bgm_channel   = { .id = 0, .volume = 31, .repeat = -1 };
-static struct channel se_channel    = { .id = 1, .volume = 31 };
-static struct channel voice_channel = { .id = 2, .volume = 31 };
+static struct channel bgm_channel      = { .id = 0, .volume = 31, .repeat = -1 };
+static struct channel se_channel       = { .id = 1, .volume = 31 };
+static struct channel voice_channel    = { .id = 2, .volume = 31 };
+static struct channel voicesub_channel = { .id = 3, .volume = 31 };
 
 static struct channel aux_channel[] = {
-	{ .id = 3, .volume = 31 },
 	{ .id = 4, .volume = 31 },
 	{ .id = 5, .volume = 31 },
+	{ .id = 6, .volume = 31 },
 };
 
 static inline bool aux_channel_valid(int no)
@@ -109,6 +110,12 @@ void audio_voice_stop(void)
 {
 	AUDIO_LOG("audio_voice_stop()");
 	channel_stop(&voice_channel);
+}
+
+void audio_voicesub_stop(void)
+{
+	AUDIO_LOG("audio_voicesub_stop()");
+	channel_stop(&voicesub_channel);
 }
 
 void audio_aux_stop(int no)
@@ -178,14 +185,16 @@ static struct archive_data *load_data(unsigned id, const char *name)
 {
 	switch (id) {
 	case 0:
-	case 3:
 	case 4:
 	case 5:
+	case 6:
 		return asset_bgm_load(name);
 	case 1:
 		return asset_effect_load(name);
 	case 2:
 		return asset_voice_load(name);
+	case 3:
+		return asset_voicesub_load(name);
 	default:
 		VM_ERROR("Invalid channel id: %u", id);
 	}
@@ -233,6 +242,12 @@ void audio_voice_play(const char *name)
 {
 	AUDIO_LOG("audio_voice_play(\"%s\")", name);
 	channel_play(&voice_channel, name, false);
+}
+
+void audio_voicesub_play(const char *name)
+{
+	AUDIO_LOG("audio_voicesub_play(\"%s\")", name);
+	channel_play(&voicesub_channel, name, false);
 }
 
 void audio_aux_play(const char *name, int no)
@@ -373,6 +388,12 @@ bool audio_voice_is_playing(void)
 {
 	AUDIO_LOG("audio_voice_is_playing()");
 	return channel_is_playing(&voice_channel);
+}
+
+bool audio_voicesub_is_playing(void)
+{
+	AUDIO_LOG("audio_voicesub_is_playing()");
+	return channel_is_playing(&voicesub_channel);
 }
 
 static bool channel_is_fading(struct channel *ch)

@@ -749,3 +749,15 @@ void cursor_swap(void)
 	cursor_frame = (cursor_frame + 1) % cursor_nr_frames;
 	SDL_SetCursor(cursors[current_cursor + cursor_frame]);
 }
+
+static enum cursor_direction cursor_dir = CURSOR_DIR_NONE;
+
+void cursor_set_direction(enum cursor_direction dir)
+{
+	cursor_dir = dir;
+}
+
+enum cursor_direction cursor_get_direction(void)
+{
+	return cursor_dir;
+}

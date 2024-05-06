@@ -27,4 +27,13 @@ void cursor_set_pos(unsigned x, unsigned y);
 void cursor_get_pos(unsigned *x, unsigned *y);
 void cursor_swap(void);
 
+enum cursor_direction {
+	CURSOR_DIR_NONE = 0,
+	CURSOR_DIR_UP   = 1,
+	CURSOR_DIR_DOWN = 2,
+};
+
+void cursor_set_direction(enum cursor_direction dir);
+enum cursor_direction cursor_get_direction(void);
+
 #endif // AI5_CURSOR_H

@@ -42,6 +42,10 @@ void audio_voice_play(const char *name);
 void audio_voice_stop(void);
 bool audio_voice_is_playing(void);
 
+void audio_voicesub_play(const char *name);
+void audio_voicesub_stop(void);
+bool audio_voicesub_is_playing(void);
+
 void audio_aux_play(const char *name, int no);
 void audio_aux_stop(int no);
 void audio_aux_fade_out(uint8_t vol, bool sync, int no);

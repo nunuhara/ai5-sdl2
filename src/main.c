@@ -80,6 +80,8 @@ static int cfg_handler(void *user, const char *section, const char *name, const 
 		config->file.bgm.arc = atoi(value);
 	} else if (MATCH("FILE", "bARCVOICE")) {
 		config->file.voice.arc = atoi(value);
+	} else if (MATCH("FILE", "bARCVOICESUB")) {
+		config->file.voicesub.arc = atoi(value);
 	} else if (MATCH("FILE", "bARCEFFECT")) {
 		config->file.effect.arc = atoi(value);
 	} else if (MATCH("FILE", "bARCDATA")) {
@@ -94,6 +96,8 @@ static int cfg_handler(void *user, const char *section, const char *name, const 
 		config->file.bgm.name = string_new(value);
 	} else if (MATCH("FILE", "ARCVOICENAME")) {
 		config->file.voice.name = string_new(value);
+	} else if (MATCH("FILE", "ARCVOICESUBNAME")) {
+		config->file.voicesub.name = string_new(value);
 	} else if (MATCH("FILE", "ARCEFFECTNAME")) {
 		config->file.effect.name = string_new(value);
 	} else if (MATCH("FILE", "ARCDATANAME")) {

@@ -134,6 +134,12 @@ void handle_events(void)
 				break;
 			mouse_event(&e.button, false);
 			break;
+		case SDL_MOUSEWHEEL:
+			if (e.wheel.y > 0)
+				cursor_set_direction(CURSOR_DIR_UP);
+			else if (e.wheel.y < 0)
+				cursor_set_direction(CURSOR_DIR_DOWN);
+			break;
 		default:
 			if (e.type == cursor_swap_event)
 				cursor_swap();

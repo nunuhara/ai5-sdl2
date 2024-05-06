@@ -32,6 +32,7 @@ struct config {
 	string title;
 	string start_mes;
 	bool voice;
+	bool voicesub;
 	bool sound;
 	bool music;
 	bool effect;
@@ -44,6 +45,7 @@ struct config {
 		struct { bool arc; string name; } mes;
 		struct { bool arc; string name; } bgm;
 		struct { bool arc; string name; } voice;
+		struct { bool arc; string name; } voicesub;
 		struct { bool arc; string name; } effect;
 		struct { bool arc; string name; } data;
 		struct { bool arc; string name; } priv;

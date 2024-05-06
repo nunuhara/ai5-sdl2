@@ -362,7 +362,11 @@ static void ai_shimai_sys_cursor(struct param_list *params)
 		default: WARNING("Invalid cursor number: %u", vm_expr_param(params, 1));
 		}
 		break;
-	case 5: break;
+	case 5: cursor_set_direction(CURSOR_DIR_NONE);
+	case 6:
+		mem_set_var32(18, cursor_get_direction());
+		cursor_set_direction(CURSOR_DIR_NONE);
+		break;
 	default: WARNING("System.Cursor.function[%u] not implemented",
 				 params->params[0].val);
 	}
@@ -502,8 +506,13 @@ static void ai_shimai_sys_voice(struct param_list *params)
 	if (!vm_flag_is_on(FLAG_VOICE_ENABLE))
 		return;
 	if (params->nr_params > 2 && vm_expr_param(params, 2) != 0) {
-		// TODO
-		WARNING("VOICESUB not implemented");
+		switch (vm_expr_param(params, 0)) {
+		case 0: audio_voicesub_play(vm_string_param(params, 1)); break;
+		case 1: audio_voicesub_stop(); break;
+		case 5: mem_set_var32(18, audio_voicesub_is_playing()); break;
+		default: WARNING("System.Voice(sub).function[%u] not implemented",
+					 params->params[0].val);
+		}
 		return;
 	}
 	switch (vm_expr_param(params, 0)) {
