@@ -82,6 +82,8 @@ void gfx_fade_progressive(int x, int y, int w, int h, unsigned dst_i);
 void gfx_copy_progressive(int src_x, int src_y, int w, int h, unsigned src_i, int dst_x,
 		int dst_y, unsigned dst_i);
 void gfx_scale_h(unsigned i, int mag);
+void gfx_zoom(int src_x, int src_y, int w, int h, unsigned src_i, unsigned dst_i,
+		unsigned ms);
 
 // text.c
 void gfx_text_init(const char *font_path, int face);

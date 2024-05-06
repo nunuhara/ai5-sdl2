@@ -1094,28 +1094,7 @@ static void util_location_zoom(struct param_list *params)
 		y = out_coords[loc][1];
 	}
 
-	vm_timer_t timer = vm_timer_create();
-	SDL_Surface *dst = gfx_get_surface(0);
-	SDL_Surface *src = gfx_get_surface(2);
-	float step_x = (float)x * (1.f / 7.f);
-	float step_y = (float)y * (1.f / 7.f);
-	float step_w = 460 * (1.f / 7.f);
-	float step_h = 344 * (1.f / 7.f);
-	for (int i = 1; i < 7; i++) {
-		SDL_Rect src_r = { 0, 0, 640, 480 };
-		SDL_Rect dst_r = {
-			.x = x - step_x * i,
-			.y = y - step_y * i,
-			.w = 180 + step_w * i,
-			.h = 136 + step_h * i
-		};
-		SDL_CALL(SDL_BlitScaled, src, &src_r, dst, &dst_r);
-		gfx_dirty(0);
-		vm_peek();
-		vm_timer_tick(&timer, 50);
-	}
-	SDL_CALL(SDL_BlitSurface, src, NULL, dst, NULL);
-	gfx_dirty(0);
+	gfx_zoom(x, y, 180, 136, 2, 0, 350);
 }
 
 static void util_get_mess(struct param_list *params)
@@ -1162,6 +1141,41 @@ static void util_get_imode(struct param_list *params)
 static void util_set_prepared_voice(struct param_list *params)
 {
 	have_prepared_voice = !!vm_expr_param(params, 1);
+}
+
+static void util_cgmode_zoom(struct param_list *params)
+{
+	unsigned x = vm_expr_param(params, 1);
+	unsigned y = vm_expr_param(params, 2);
+	gfx_zoom(x, y, 160, 120, 5, 0, 350);
+}
+
+static void util_scroll(struct param_list *params)
+{
+	int end = vm_expr_param(params, 1);
+	if (end > 1280) {
+		WARNING("Invalid end argument to Util.scroll: %d", end);
+		return;
+	}
+	end = -end;
+
+	vm_timer_t timer = vm_timer_create();
+	SDL_Surface *src = gfx_get_surface(1);
+	SDL_Surface *dst = gfx_get_surface(0);
+	SDL_Rect src_r = { 0, 0, 400, 1280 };
+	for (int y = 479; y >= end; y--) {
+		SDL_Rect dst_r = { 120, y, 400, 1280 - y };
+		SDL_CALL(SDL_BlitSurface, src, &src_r, dst, &dst_r);
+
+		gfx_dirty(0);
+		vm_peek();
+		if (input_down(INPUT_CANCEL)) {
+			mem_set_var32(18, 1);
+			return;
+		}
+		vm_timer_tick(&timer, 16);
+	}
+	mem_set_var32(18, 0);
 }
 
 static void util_15(struct param_list *params)
@@ -1273,6 +1287,8 @@ struct game game_ai_shimai = {
 		[10] = util_quit,
 		[11] = util_get_imode,
 		[12] = util_set_prepared_voice,
+		[13] = util_cgmode_zoom,
+		[14] = util_scroll,
 		[15] = util_15,
 		[16] = util_get_cut,
 	},

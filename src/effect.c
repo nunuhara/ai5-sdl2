@@ -457,3 +457,32 @@ void gfx_scale_h(unsigned i, int mag)
 	gfx_dirty(i);
 	gfx_update();
 }
+
+void gfx_zoom(int src_x, int src_y, int w, int h, unsigned src_i, unsigned dst_i,
+		unsigned ms)
+{
+	unsigned steps = roundf((float)ms / 32.f);
+
+	vm_timer_t timer = vm_timer_create();
+	SDL_Surface *dst = gfx_get_surface(dst_i);
+	SDL_Surface *src = gfx_get_surface(src_i);
+	float step_x = (float)src_x * (1.f / (float)steps);
+	float step_y = (float)src_y * (1.f / (float)steps);
+	float step_w = (640 - w) * (1.f / (float)steps);
+	float step_h = (480 - h) * (1.f / (float)steps);
+	for (unsigned i = 1; i < steps; i++) {
+		SDL_Rect src_r = { 0, 0, 640, 480 };
+		SDL_Rect dst_r = {
+			.x = src_x - step_x * i,
+			.y = src_y - step_y * i,
+			.w = w + step_w * i,
+			.h = h + step_h * i
+		};
+		SDL_CALL(SDL_BlitScaled, src, &src_r, dst, &dst_r);
+		gfx_dirty(dst_i);
+		vm_peek();
+		vm_timer_tick(&timer, 32);
+	}
+	SDL_CALL(SDL_BlitSurface, src, NULL, dst, NULL);
+	gfx_dirty(dst_i);
+}
