@@ -41,6 +41,8 @@ void handle_events(void);
 bool input_down(enum input_event_type type);
 void input_wait_until_up(enum input_event_type type);
 
+void clipboard_set(const char *text);
+
 extern uint32_t cursor_swap_event;
 
 #endif // AI5_INPUT_H

@@ -174,3 +174,8 @@ void input_wait_until_up(enum input_event_type type)
 		vm_delay(16);
 	}
 }
+
+void clipboard_set(const char *text)
+{
+	SDL_SetClipboardText(text);
+}

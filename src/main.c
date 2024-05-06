@@ -155,6 +155,8 @@ static void usage(void)
 	printf("    -h, --help                 Display this message and exit\n");
 	printf("    --msg-skip-delay=<ms>      Set the message skip delay time (default: %u)\n",
 			DEFAULT_MSG_SKIP_DELAY);
+	printf("    --texthook-clipboard       Copy text to the system clipboard\n");
+	printf("    --texthook-stdout          Copy text to standard output\n");
 	printf("    --version                  Display the AI5-SDL2 version and exit\n");
 }
 
@@ -229,6 +231,8 @@ enum {
 	LOPT_FONT_FACE,
 	LOPT_GAME,
 	LOPT_MSG_SKIP_DELAY,
+	LOPT_TEXTHOOK_CLIPBOARD,
+	LOPT_TEXTHOOK_STDOUT,
 };
 
 int main(int argc, char *argv[])
@@ -248,6 +252,8 @@ int main(int argc, char *argv[])
 			{ "font-face", required_argument, 0, LOPT_FONT_FACE },
 			{ "help", no_argument, 0, LOPT_HELP },
 			{ "msg-skip-delay", required_argument, 0, LOPT_MSG_SKIP_DELAY },
+			{ "texthook-clipboard", no_argument, 0, LOPT_TEXTHOOK_CLIPBOARD },
+			{ "texthook-stdout", no_argument, 0, LOPT_TEXTHOOK_STDOUT },
 			{ "version", no_argument, 0, LOPT_VERSION },
 			{0}
 		};
@@ -286,6 +292,12 @@ int main(int argc, char *argv[])
 			break;
 		case LOPT_MSG_SKIP_DELAY:
 			config.msg_skip_delay = clamp(0, 5000, atoi(optarg));
+			break;
+		case LOPT_TEXTHOOK_CLIPBOARD:
+			config.texthook_clipboard = true;
+			break;
+		case LOPT_TEXTHOOK_STDOUT:
+			config.texthook_stdout = true;
 			break;
 		}
 	}

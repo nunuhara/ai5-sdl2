@@ -82,6 +82,8 @@ struct config {
 	char *exe_path;
 	unsigned progressive_frame_time;
 	unsigned msg_skip_delay;
+	bool texthook_clipboard;
+	bool texthook_stdout;
 };
 
 extern struct config config;
