@@ -219,9 +219,9 @@ static void sys_display_freeze_unfreeze(struct param_list *params)
 static void sys_display_fade_out_fade_in(struct param_list *params)
 {
 	if (params->nr_params > 1) {
-		gfx_display_fade_out(vm_expr_param(params, 1));
+		gfx_display_fade_out(vm_expr_param(params, 1), 1000);
 	} else {
-		gfx_display_fade_in();
+		gfx_display_fade_in(1000);
 	}
 }
 
@@ -230,10 +230,10 @@ static void sys_display_scan_out_scan_in(struct param_list *params)
 {
 	if (params->nr_params > 1) {
 		WARNING("System.Display.scan_out unimplemented");
-		gfx_display_fade_out(vm_expr_param(params, 1));
+		gfx_display_fade_out(vm_expr_param(params, 1), 1000);
 	} else {
 		WARNING("System.Display.scan_in unimplemented");
-		gfx_display_fade_in();
+		gfx_display_fade_in(1000);
 	}
 }
 

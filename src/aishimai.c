@@ -576,9 +576,9 @@ static void ai_shimai_sys_display(struct param_list *params)
 		break;
 	case 1:
 		if (params->nr_params > 1) {
-			gfx_display_fade_out(vm_expr_param(params, 1));
+			gfx_display_fade_out(vm_expr_param(params, 1), 250);
 		} else {
-			gfx_display_fade_in();
+			gfx_display_fade_in(250);
 		}
 		break;
 	default: VM_ERROR("System.Display.function[%u] not implemented",

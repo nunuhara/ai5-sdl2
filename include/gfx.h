@@ -46,8 +46,8 @@ void gfx_display_hide(void);
 void gfx_display_unhide(void);
 void gfx_display_freeze(void);
 void gfx_display_unfreeze(void);
-void gfx_display_fade_out(uint32_t vm_color);
-void gfx_display_fade_in(void);
+void gfx_display_fade_out(uint32_t vm_color, unsigned ms);
+void gfx_display_fade_in(unsigned ms);
 
 // palette operations
 void gfx_palette_set(const uint8_t *data);

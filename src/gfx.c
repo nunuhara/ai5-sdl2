@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <math.h>
 #include <time.h>
 #include <SDL.h>
 
@@ -348,13 +349,14 @@ void gfx_display_unfreeze(void)
 	gfx.dirty = true;
 }
 
-#define FADE_ALPHA_STEP 4
 #define FADE_FRAME_TIME 16
 
-void gfx_display_fade_out(uint32_t vm_color)
+void gfx_display_fade_out(uint32_t vm_color, unsigned ms)
 {
-	GFX_LOG("gfx_display_fade_out %u", vm_color);
+	GFX_LOG("gfx_display_fade_out(%u,%u)", vm_color, ms);
 	gfx.hidden = true;
+
+	int step = roundf(256.f / ((float)ms / FADE_FRAME_TIME));
 
 	// create mask texture with solid color
 	SDL_Color c = gfx_decode_direct(vm_color);
@@ -364,7 +366,7 @@ void gfx_display_fade_out(uint32_t vm_color)
 	SDL_CALL(SDL_SetTextureBlendMode, mask, SDL_BLENDMODE_BLEND);
 
 	vm_timer_t timer = vm_timer_create();
-	for (int i = 0; i < 256; i += FADE_ALPHA_STEP) {
+	for (int i = 0; i < 256; i += step) {
 		SDL_CALL(SDL_SetTextureAlphaMod, mask, i);
 		SDL_CALL(SDL_RenderClear, gfx.renderer);
 		SDL_CALL(SDL_RenderCopy, gfx.renderer, gfx.texture, NULL, NULL);
@@ -381,9 +383,11 @@ void gfx_display_fade_out(uint32_t vm_color)
 	SDL_RenderPresent(gfx.renderer);
 }
 
-void gfx_display_fade_in(void)
+void gfx_display_fade_in(unsigned ms)
 {
-	GFX_LOG("gfx_display_fade_in");
+	GFX_LOG("gfx_display_fade_in(%u)", ms);
+
+	int step = roundf(256.f / ((float)ms / FADE_FRAME_TIME));
 	SDL_Texture *mask = gfx_create_texture(gfx_view.w, gfx_view.h);
 	SDL_CALL(SDL_UpdateTexture, mask, NULL, gfx.display->pixels, gfx.display->pitch);
 	SDL_CALL(SDL_SetTextureBlendMode, mask, SDL_BLENDMODE_BLEND);
@@ -392,7 +396,7 @@ void gfx_display_fade_in(void)
 	SDL_CALL(SDL_UpdateTexture, gfx.texture, NULL, gfx.display->pixels, gfx.display->pitch);
 
 	vm_timer_t timer = vm_timer_create();
-	for (int i = 255; i >= 0; i -= FADE_ALPHA_STEP) {
+	for (int i = 255; i >= 0; i -= step) {
 		SDL_CALL(SDL_SetTextureAlphaMod, mask, i);
 		SDL_CALL(SDL_RenderClear, gfx.renderer);
 		SDL_CALL(SDL_RenderCopy, gfx.renderer, gfx.texture, NULL, NULL);

@@ -172,14 +172,14 @@ static void util_yume(struct param_list *params)
 		mem_set_sysvar16(mes_sysvar16_text_cursor_x, start_x);
 		mem_set_sysvar16(mes_sysvar16_text_cursor_y, start_y);
 		vm_draw_text(text[i]);
-		gfx_display_fade_in();
+		gfx_display_fade_in(1000);
 
 		// wait for input
 		struct param_list wait_params = { .nr_params = 0 };
 		sys_wait(&wait_params);
 
 		// fade out
-		gfx_display_fade_out(0);
+		gfx_display_fade_out(0, 1000);
 		gfx_fill(0, 0, 640, 400, 0, 0);
 	}
 	gfx_display_unfreeze();
