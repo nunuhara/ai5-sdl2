@@ -484,10 +484,23 @@ static void ai_shimai_sys_savedata(struct param_list *params)
 
 static void ai_shimai_sys_audio(struct param_list *params)
 {
+	static bool have_next = false;
+	static char next[128] = {0};
 	switch (vm_expr_param(params, 0)) {
 	case 0: audio_bgm_play(vm_string_param(params, 1), true); break;
 	case 1: audio_bgm_stop(); break;
-	case 2: audio_bgm_fade(0, 2000, true, false); break;
+	case 2: audio_bgm_fade(0, 3000, true, false); break;
+	case 3: audio_bgm_fade(0, 3000, true, true); break;
+	case 4:
+		strcpy(next, vm_string_param(params, 1));
+		have_next = true;
+		break;
+	case 5:
+		if (have_next) {
+			audio_bgm_play(next, true);
+			have_next = false;
+		}
+		break;
 	case 6: audio_aux_play(vm_string_param(params, 1), vm_expr_param(params, 2)); break;
 	case 7: audio_aux_stop(vm_expr_param(params, 1)); break;
 	case 8: audio_aux_fade_out(0, false, vm_expr_param(params, 1)); break;
