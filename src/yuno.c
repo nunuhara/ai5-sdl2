@@ -24,11 +24,16 @@
 #include "ai5/arc.h"
 #include "ai5/cg.h"
 
+#include "anim.h"
 #include "asset.h"
+#include "audio.h"
+#include "classics.h"
+#include "cursor.h"
 #include "game.h"
 #include "gfx_private.h"
+#include "input.h"
+#include "savedata.h"
 #include "sys.h"
-#include "util.h"
 #include "vm_private.h"
 
 #define VAR4_SIZE 4096
@@ -79,9 +84,191 @@ static void yuno_mem_init(void)
 	yuno_mem_restore();
 }
 
-static void sys_22_warn(struct param_list *params)
+static void yuno_load_image(struct param_list *params)
+{
+	// XXX: animations are not halted when loading an image in YUNO
+	_sys_load_image(vm_string_param(params, 0), mem_get_sysvar16(mes_sysvar16_dst_surface));
+}
+
+static void sys_22(struct param_list *params)
 {
 	WARNING("System.function[22] not implemented");
+}
+
+static void yuno_set_screen_surface(struct param_list *params)
+{
+	gfx_set_screen_surface(vm_expr_param(params, 0));
+}
+
+static void util_blink_fade(struct param_list *params)
+{
+	gfx_blink_fade(64, 0, 512, 288, 0);
+}
+
+static void util_scale_h(struct param_list *params)
+{
+	union {
+		uint16_t u;
+		int16_t i;
+	} cast = {
+		.u = vm_expr_param(params, 1)
+	};
+
+	gfx_scale_h(gfx_current_surface(), cast.i);
+}
+
+static void util_invert_colors(struct param_list *params)
+{
+	int x = vm_expr_param(params, 1);
+	int y = vm_expr_param(params, 2);
+	int w = (vm_expr_param(params, 3) - x) + 1;
+	int h = (vm_expr_param(params, 4) - y) + 1;
+	gfx_invert_colors(x, y, w, h, 0);
+}
+
+static void util_fade(struct param_list *params)
+{
+	int x = vm_expr_param(params, 1);
+	int y = vm_expr_param(params, 2);
+	int w = (vm_expr_param(params, 3) - x) + 1;
+	int h = (vm_expr_param(params, 4) - y) + 1;
+	unsigned dst_i = vm_expr_param(params, 5);
+	bool down = vm_expr_param(params, 6) == 1;
+	int src_i = vm_expr_param(params, 7) == 0 ? -1 : 2;
+
+	if (down)
+		gfx_fade_down(x * game->x_mult, y, w * game->x_mult, h, dst_i, src_i);
+	else
+		gfx_fade_right(x * game->x_mult, y, w * game->x_mult, h, dst_i, src_i);
+}
+
+static void util_savedata_stash_name(struct param_list *params)
+{
+	savedata_stash_name();
+}
+
+static void util_pixelate(struct param_list *params)
+{
+	int x = vm_expr_param(params, 1);
+	int y = vm_expr_param(params, 2);
+	int w = (vm_expr_param(params, 3) - x) + 1;
+	int h = (vm_expr_param(params, 4) - y) + 1;
+	unsigned dst_i = vm_expr_param(params, 5);
+	unsigned mag = vm_expr_param(params, 6);
+
+	gfx_pixelate(x * game->x_mult, y, w * game->x_mult, h, dst_i, mag);
+}
+
+static void util_get_time(struct param_list *params)
+{
+	static uint32_t start_t = 0;
+	if (!vm_expr_param(params, 1)) {
+		start_t = vm_get_ticks();
+		return;
+	}
+
+	// return hours:minutes:seconds
+	uint32_t elapsed = (vm_get_ticks() - start_t) / 1000;
+	mem_set_var16(7, elapsed / 3600);
+	mem_set_var16(12, (elapsed % 3600) / 60);
+	mem_set_var16(18, elapsed % 60);
+}
+
+// wait for cursor to rest for a given interval
+static void util_check_cursor(struct param_list *params)
+{
+	static uint32_t start_t = 0, wait_t = 0;
+	static unsigned cursor_x = 0, cursor_y = 0;
+	if (!vm_expr_param(params, 1)) {
+		start_t = vm_get_ticks();
+		wait_t = vm_expr_param(params, 2);
+		cursor_get_pos(&cursor_x, &cursor_y);
+		return;
+	}
+
+	// check timer
+	uint32_t current_t = vm_get_ticks();
+	mem_set_var16(18, 0);
+	if (current_t < start_t + wait_t)
+		return;
+
+	// return TRUE if cursor didn't move
+	unsigned x, y;
+	cursor_get_pos(&x, &y);
+	if (x == cursor_x && y == cursor_y) {
+		mem_set_var16(18, 1);
+		return;
+	}
+
+	// otherwise restart timer
+	start_t = current_t;
+	cursor_x = x;
+	cursor_y = y;
+}
+
+static void util_delay(struct param_list *params)
+{
+	unsigned nr_ticks = vm_expr_param(params, 1);
+	vm_timer_t timer = vm_timer_create();
+	vm_timer_t target_t = timer + nr_ticks * 15;
+	while (timer < target_t) {
+		vm_peek();
+		vm_timer_tick(&timer, min(target_t - timer, 15));
+	}
+}
+
+static char *saved_cg_name = NULL;
+static char *saved_data_name = NULL;
+
+static bool saved_anim_running[10] = {0};
+
+static void util_save_animation(struct param_list *params)
+{
+	free(saved_cg_name);
+	free(saved_data_name);
+	saved_cg_name = asset_cg_name ? xstrdup(asset_cg_name) : NULL;
+	saved_data_name = asset_data_name ? xstrdup(asset_data_name) : NULL;
+}
+
+static void util_restore_animation(struct param_list *params)
+{
+	if (!saved_cg_name || !saved_data_name)
+		VM_ERROR("No saved animation in Util.restore_animation");
+	_sys_load_image(saved_cg_name, 1);
+	vm_load_data_file(saved_data_name, mem_get_sysvar32(mes_sysvar32_data_offset));
+	for (int i = 0; i < 10; i++) {
+		if (saved_anim_running[i]) {
+			anim_init_stream(i, i);
+			anim_start(i);
+		}
+	}
+}
+
+static void util_anim_save_running(struct param_list *params)
+{
+	bool running = false;
+	for (int i = 0; i < 10; i++) {
+		saved_anim_running[i] = anim_stream_running(i);
+		running |= saved_anim_running[i];
+	}
+	mem_set_var16(18, running);
+}
+
+static void util_copy_progressive(struct param_list *params)
+{
+	unsigned dst_i = vm_expr_param(params, 1);
+	gfx_copy_progressive(64, 0, 512, 288, 2, 64, 0, dst_i);
+}
+
+static void util_fade_progressive(struct param_list *params)
+{
+	unsigned dst_i = vm_expr_param(params, 1);
+	gfx_fade_progressive(64, 0, 512, 288, dst_i);
+}
+
+static void util_anim_running(struct param_list *params)
+{
+	mem_set_var16(18, anim_running());
 }
 
 // Locations of dream text in JP executable
@@ -189,6 +376,75 @@ static void util_yume(struct param_list *params)
 	}
 }
 
+static void util_copy(struct param_list *params)
+{
+	int src_x = vm_expr_param(params, 1);
+	int src_y = vm_expr_param(params, 2);
+	int w = (vm_expr_param(params, 3) - src_x) + 1;
+	int h = (vm_expr_param(params, 4) - src_y) + 1;
+	unsigned src_i = vm_expr_param(params, 5);
+	int dst_x = vm_expr_param(params, 6);
+	int dst_y = vm_expr_param(params, 7);
+	unsigned dst_i = vm_expr_param(params, 8);
+	gfx_copy(src_x, src_y, w, h, src_i, dst_x, dst_y, dst_i);
+}
+
+static void util_bgm_play(struct param_list *params)
+{
+	audio_bgm_play(vm_string_param(params, 1), false);
+}
+
+static void util_bgm_is_playing(struct param_list *params)
+{
+	mem_set_var16(18, audio_is_playing(AUDIO_CH_BGM));
+}
+
+static void util_se_is_playing(struct param_list *params)
+{
+	mem_set_var16(18, audio_is_playing(AUDIO_CH_SE(0)));
+}
+
+static void util_get_ticks(struct param_list *params)
+{
+	mem_set_var32(16, vm_get_ticks());
+}
+
+static void util_wait_until(struct param_list *params)
+{
+	if (!vm.procedures[110].code || !vm.procedures[111].code)
+		VM_ERROR("procedures 110-111 not defined in Util.wait_until");
+
+	uint32_t stop_t = vm_expr_param(params, 1);
+	vm_timer_t t = vm_timer_create();
+	do {
+		vm_peek();
+		if (input_down(INPUT_ACTIVATE)) {
+			vm_call_procedure(110);
+			return;
+		} else if (input_down(INPUT_CANCEL)) {
+			vm_call_procedure(111);
+			return;
+		}
+
+		vm_timer_tick(&t, 16);
+	} while (t < stop_t);
+}
+
+static void util_wait_until2(struct param_list *params)
+{
+	uint32_t stop_t = vm_expr_param(params, 1);
+	vm_timer_t t = vm_timer_create();
+	while (t < stop_t) {
+		vm_peek();
+		vm_timer_tick(&t, 16);
+	}
+}
+
+static void util_bgm_is_fading(struct param_list *params)
+{
+	mem_set_var32(13, audio_is_fading(AUDIO_CH_BGM));
+}
+
 static void yuno_reflector_animation(void);
 
 static void yuno_update(void)
@@ -222,27 +478,27 @@ struct game game_yuno = {
 	.sys = {
 		[0] = sys_set_font_size,
 		[1] = sys_display_number,
-		[2] = sys_cursor,
-		[3] = sys_anim,
-		[4] = sys_savedata,
-		[5] = sys_audio,
+		[2] = classics_cursor,
+		[3] = classics_anim,
+		[4] = classics_savedata,
+		[5] = classics_audio,
 		[6] = NULL,
 		[7] = sys_file,
-		[8] = sys_load_image,
-		[9] = sys_palette,
-		[10] = sys_graphics_classics,
+		[8] = yuno_load_image,
+		[9] = classics_palette,
+		[10] = classics_graphics,
 		[11] = sys_wait,
 		[12] = sys_set_text_colors_indexed,
 		[13] = sys_farcall,
-		[14] = sys_get_cursor_segment_classics,
+		[14] = classics_get_cursor_segment,
 		[15] = sys_menu_get_no,
 		[18] = sys_check_input,
 		[21] = sys_strlen,
-		[22] = sys_22_warn,
-		[23] = sys_set_screen_surface,
+		[22] = sys_22,
+		[23] = yuno_set_screen_surface,
 	},
 	.util = {
-		[1] = util_get_text_colors,
+		[1] = classics_get_text_colors,
 		[3] = util_noop,
 		[5] = util_blink_fade,
 		[6] = util_scale_h,

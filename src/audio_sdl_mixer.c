@@ -26,12 +26,6 @@
 #include "game.h"
 #include "vm.h"
 
-#if 0
-#define AUDIO_LOG(...) NOTICE(__VA_ARGS__)
-#else
-#define AUDIO_LOG(...)
-#endif
-
 struct fade {
 	bool fading;
 	uint32_t start_t;
@@ -49,21 +43,6 @@ struct channel {
 	int repeat;
 	struct fade fade;
 };
-static struct channel bgm_channel      = { .id = 0, .volume = 31, .repeat = -1 };
-static struct channel se_channel       = { .id = 1, .volume = 31 };
-static struct channel voice_channel    = { .id = 2, .volume = 31 };
-static struct channel voicesub_channel = { .id = 3, .volume = 31 };
-
-static struct channel aux_channel[] = {
-	{ .id = 4, .volume = 31 },
-	{ .id = 5, .volume = 31 },
-	{ .id = 6, .volume = 31 },
-};
-
-static inline bool aux_channel_valid(int no)
-{
-	return no >= 0 && no <= 2;
-}
 
 void audio_fini(void)
 {
@@ -94,40 +73,6 @@ static void channel_stop(struct channel *ch)
 	}
 }
 
-void audio_bgm_stop(void)
-{
-	AUDIO_LOG("audio_bgm_stop()");
-	channel_stop(&bgm_channel);
-}
-
-void audio_se_stop(void)
-{
-	AUDIO_LOG("audio_se_stop()");
-	channel_stop(&se_channel);
-}
-
-void audio_voice_stop(void)
-{
-	AUDIO_LOG("audio_voice_stop()");
-	channel_stop(&voice_channel);
-}
-
-void audio_voicesub_stop(void)
-{
-	AUDIO_LOG("audio_voicesub_stop()");
-	channel_stop(&voicesub_channel);
-}
-
-void audio_aux_stop(int no)
-{
-	AUDIO_LOG("audio_aux_stop(%d)", no);
-	if (!aux_channel_valid(no)) {
-		WARNING("Invalid aux channel: %d", no);
-		return;
-	}
-	channel_stop(&aux_channel[no]);
-}
-
 static void channel_fade_end(struct channel *ch)
 {
 	assert(ch->fade.fading);
@@ -136,35 +81,6 @@ static void channel_fade_end(struct channel *ch)
 		channel_stop(ch);
 	else
 		Mix_Volume(ch->id, ch->fade.end_vol);
-}
-
-static void channel_update(struct channel *ch, uint32_t t)
-{
-	if (!ch->fade.fading)
-		return;
-
-	if (t >= ch->fade.start_t + ch->fade.ms) {
-		channel_fade_end(ch);
-		return;
-	}
-
-	float rate = (float)(t - ch->fade.start_t) / (float)ch->fade.ms;
-	int vol = ch->fade.start_vol + (ch->fade.end_vol - ch->fade.start_vol) * rate;
-	Mix_Volume(ch->id, vol);
-}
-
-void audio_update(void)
-{
-	static uint32_t prev_fade_t = 0;
-	uint32_t t = vm_get_ticks();
-	if (t - prev_fade_t < 30)
-		return;
-
-	channel_update(&bgm_channel, t);
-	channel_update(&se_channel, t);
-	for (int i = 0; i < ARRAY_SIZE(aux_channel); i++) {
-		channel_update(&aux_channel[i], t);
-	}
 }
 
 // XXX: Volume is a value in the range [0,31], which corresponds to the range
@@ -181,39 +97,14 @@ static int get_linear_volume(uint8_t vol)
 	return linear_volume;
 }
 
-static struct archive_data *load_data(unsigned id, const char *name)
+static void channel_play(struct channel *ch, struct archive_data *file, bool check_playing)
 {
-	switch (id) {
-	case 0:
-	case 4:
-	case 5:
-	case 6:
-		return asset_bgm_load(name);
-	case 1:
-		return asset_effect_load(name);
-	case 2:
-		return asset_voice_load(name);
-	case 3:
-		return asset_voicesub_load(name);
-	default:
-		VM_ERROR("Invalid channel id: %u", id);
-	}
-}
-
-static void channel_play(struct channel *ch, const char *name, bool check_playing)
-{
-	if (check_playing && ch->file_name && !strcmp(ch->file_name, name))
+	if (check_playing && ch->file_name && !strcmp(ch->file_name, file->name))
 		return;
 	channel_stop(ch);
-	struct archive_data *data = load_data(ch->id, name);
-	if (!data) {
-		WARNING("Failed to load audio file on channel %u: \"%s\"", ch->id, name);
-		return;
-	}
-	ch->chunk = Mix_LoadWAV_RW(SDL_RWFromConstMem(data->data, data->size), 1);
-	archive_data_release(data);
+	ch->chunk = Mix_LoadWAV_RW(SDL_RWFromConstMem(file->data, file->size), 1);
 	if (!ch->chunk) {
-		WARNING("Failed to decode audio file on channel %u: \"%s\"", ch->id, name);
+		WARNING("Failed to decode audio file on channel %u: \"%s\"", ch->id, file->name);
 		return;
 	}
 	if (game->persistent_volume) {
@@ -223,53 +114,13 @@ static void channel_play(struct channel *ch, const char *name, bool check_playin
 		ch->volume = 31;
 	}
 	Mix_PlayChannel(ch->id, ch->chunk, ch->repeat);
-	ch->file_name = strdup(name);
-}
-
-void audio_bgm_play(const char *name, bool check_playing)
-{
-	AUDIO_LOG("audio_bgm_play(\"%s\", %s)", name, check_playing ? "true" : "false");
-	channel_play(&bgm_channel, name, check_playing);
-}
-
-void audio_se_play(const char *name)
-{
-	AUDIO_LOG("audio_se_play(\"%s\")", name);
-	channel_play(&se_channel, name, false);
-}
-
-void audio_voice_play(const char *name)
-{
-	AUDIO_LOG("audio_voice_play(\"%s\")", name);
-	channel_play(&voice_channel, name, false);
-}
-
-void audio_voicesub_play(const char *name)
-{
-	AUDIO_LOG("audio_voicesub_play(\"%s\")", name);
-	channel_play(&voicesub_channel, name, false);
-}
-
-void audio_aux_play(const char *name, int no)
-{
-	AUDIO_LOG("audio_aux_play(\"%s\", %s, %d)", name, no);
-	if (!aux_channel_valid(no)) {
-		WARNING("Invalid aux channel: %d", no);
-		return;
-	}
-	channel_play(&aux_channel[no], name, false);
+	ch->file_name = strdup(file->name);
 }
 
 static void channel_set_volume(struct channel *ch, uint8_t vol)
 {
 	ch->volume = vol;
 	Mix_Volume(ch->id, get_linear_volume(vol));
-}
-
-void audio_bgm_set_volume(uint8_t vol)
-{
-	AUDIO_LOG("audio_bgm_set_volume(%u)", vol);
-	channel_set_volume(&bgm_channel, vol);
 }
 
 static unsigned fade_time(struct channel *ch, uint8_t vol)
@@ -320,35 +171,6 @@ static void channel_fade_out(struct channel *ch, uint8_t vol, bool sync)
 	channel_fade(ch, vol, -1, true, sync);
 }
 
-void audio_bgm_fade_out(uint8_t vol, bool sync)
-{
-	channel_fade_out(&bgm_channel, vol, sync);
-}
-
-void audio_aux_fade_out(uint8_t vol, bool sync, int no)
-{
-	AUDIO_LOG("audio_aux_fade_out(%d)", no);
-	if (!aux_channel_valid(no)) {
-		WARNING("Invalid aux channel: %d", no);
-		return;
-	}
-	channel_fade_out(&aux_channel[no], vol, sync);
-}
-
-void audio_bgm_fade(uint8_t vol, int t, bool stop, bool sync)
-{
-	AUDIO_LOG("audio_bgm_fade(%u,%d,%s,%s)", vol, t, stop ? "true" : "false",
-			sync ? "true" : "false");
-	channel_fade(&bgm_channel, vol, t, stop, sync);
-}
-
-void audio_se_fade(uint8_t vol, int t, bool stop, bool sync)
-{
-	AUDIO_LOG("audio_se_fade(%u,%d,%s,%s)", vol, t, stop ? "true" : "false",
-			sync ? "true" : "false");
-	channel_fade(&se_channel, vol, t, stop, sync);
-}
-
 static void channel_restore_volume(struct channel *ch)
 {
 	if (!ch->chunk)
@@ -361,39 +183,9 @@ static void channel_restore_volume(struct channel *ch)
 	channel_fade(ch, 31, -1, false, false);
 }
 
-void audio_bgm_restore_volume(void)
-{
-	AUDIO_LOG("audio_bgm_restore_volume()");
-	channel_restore_volume(&bgm_channel);
-}
-
 static bool channel_is_playing(struct channel *ch)
 {
 	return Mix_Playing(ch->id);
-}
-
-bool audio_bgm_is_playing(void)
-{
-	AUDIO_LOG("audio_bgm_is_playing()");
-	return channel_is_playing(&bgm_channel);
-}
-
-bool audio_se_is_playing(void)
-{
-	AUDIO_LOG("audio_se_is_playing() -> %s", channel_is_playing(&se_channel) ? "true" : "false");
-	return channel_is_playing(&se_channel);
-}
-
-bool audio_voice_is_playing(void)
-{
-	AUDIO_LOG("audio_voice_is_playing()");
-	return channel_is_playing(&voice_channel);
-}
-
-bool audio_voicesub_is_playing(void)
-{
-	AUDIO_LOG("audio_voicesub_is_playing()");
-	return channel_is_playing(&voicesub_channel);
 }
 
 static bool channel_is_fading(struct channel *ch)
@@ -401,8 +193,41 @@ static bool channel_is_fading(struct channel *ch)
 	return ch->fade.fading;
 }
 
-bool audio_bgm_is_fading(void)
+static struct channel channels[] = {
+	[AUDIO_CH_BGM] = { .id = 0, .volume = 31, .repeat = -1 },
+	[AUDIO_CH_SE0] = { .id = 1, .volume = 31 },
+	[AUDIO_CH_SE1] = { .id = 2, .volume = 31 },
+	[AUDIO_CH_SE2] = { .id = 3, .volume = 31 },
+	[AUDIO_CH_VOICE0] = { .id = 4, .volume = 31 },
+	[AUDIO_CH_VOICE1] = { .id = 5, .volume = 31 },
+};
+
+static void channel_update(struct channel *ch, uint32_t t)
 {
-	AUDIO_LOG("audio_bgm_is_fading()");
-	return channel_is_fading(&bgm_channel);
+	if (!ch->fade.fading)
+		return;
+
+	if (t >= ch->fade.start_t + ch->fade.ms) {
+		channel_fade_end(ch);
+		return;
+	}
+
+	float rate = (float)(t - ch->fade.start_t) / (float)ch->fade.ms;
+	int vol = ch->fade.start_vol + (ch->fade.end_vol - ch->fade.start_vol) * rate;
+	Mix_Volume(ch->id, vol);
 }
+
+void audio_update(void)
+{
+	static uint32_t prev_fade_t = 0;
+	uint32_t t = vm_get_ticks();
+	if (t - prev_fade_t < 30)
+		return;
+
+	for (int i = 0; i < ARRAY_SIZE(channels); i++) {
+		channel_update(&channels[i], t);
+	}
+}
+
+// XXX: Include interface boilerplate
+#include "audio_interface.c"

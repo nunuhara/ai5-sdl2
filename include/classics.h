@@ -14,33 +14,19 @@
  * along with this program; if not, see <http://gnu.org/licenses/>.
  */
 
-#ifndef AI5_SDL2_VM_PRIVATE_H
-#define AI5_SDL2_VM_PRIVATE_H
+#ifndef AI5_SDL2_CLASSICS_H
+#define AI5_SDL2_CLASSICS_H
 
-#include "vm.h"
+struct param_list;
 
-#define STRING_PARAM_SIZE 64
+void classics_audio(struct param_list *params);
+void classics_cursor(struct param_list *params);
+void classics_anim(struct param_list *params);
+void classics_savedata(struct param_list *params);
+void classics_palette(struct param_list *params);
+void classics_graphics(struct param_list *params);
+void classics_get_cursor_segment(struct param_list *params);
 
-struct param {
-	enum mes_parameter_type type;
-	union {
-		char str[STRING_PARAM_SIZE];
-		uint32_t val;
-	};
-};
+void classics_get_text_colors(struct param_list *params);
 
-#define MAX_PARAMS 30
-
-struct param_list {
-	struct param params[MAX_PARAMS];
-	unsigned nr_params;
-};
-
-char *vm_string_param(struct param_list *params, int i);
-uint32_t vm_expr_param(struct param_list *params, int i);
-
-void vm_load_data_file(const char *name, uint32_t offset);
-void vm_util_set_game(enum ai5_game_id game);
-void vm_draw_text(const char *text);
-
-#endif // AI5_SDL2_VM_PRIVATE_H
+#endif // AI5_SDL2_CLASSICS_H

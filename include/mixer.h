@@ -36,38 +36,31 @@ int mixer_set_volume(int n, int volume);
 int mixer_get_mute(int n, int *mute);
 int mixer_set_mute(int n, int mute);
 
-struct sts_mixer_stream_t;
-int mixer_stream_play(struct sts_mixer_stream_t* stream, int volume);
-bool mixer_stream_set_volume(int voice, int volume);
-void mixer_stream_stop(int voice);
-
 struct archive_data;
-struct channel;
+struct mixer_stream;
 
-struct channel *channel_open(const char *name, enum mix_channel mixer);
-// Takes ownership of dfile.
-struct channel *channel_open_archive_data(struct archive_data *dfile, enum mix_channel mixer);
-void channel_close(struct channel *ch);
-int channel_play(struct channel *ch);
-int channel_stop(struct channel *ch);
-int channel_is_playing(struct channel *ch);
-int channel_set_loop_count(struct channel *ch, int count);
-int channel_get_loop_count(struct channel *ch);
-int channel_set_loop_start_pos(struct channel *ch, int pos);
-int channel_set_loop_end_pos(struct channel *ch, int pos);
-int channel_fade(struct channel *ch, int time, int volume, bool stop);
-int channel_stop_fade(struct channel *ch);
-int channel_is_fading(struct channel *ch);
-int channel_pause(struct channel *ch);
-int channel_restart(struct channel *ch);
-int channel_is_paused(struct channel *ch);
-int channel_get_pos(struct channel *ch);
-int channel_get_length(struct channel *ch);
-int channel_get_sample_pos(struct channel *ch);
-int channel_get_sample_length(struct channel *ch);
-int channel_seek(struct channel *ch, int pos);
-int channel_reverse_LR(struct channel *ch);
-int channel_get_volume(struct channel *ch);
-int channel_get_time_length(struct channel *ch);
+struct mixer_stream *mixer_stream_open(struct archive_data *dfile, enum mix_channel mixer);
+void mixer_stream_close(struct mixer_stream *ch);
+int mixer_stream_play(struct mixer_stream *ch);
+int mixer_stream_stop(struct mixer_stream *ch);
+int mixer_stream_is_playing(struct mixer_stream *ch);
+int mixer_stream_set_loop_count(struct mixer_stream *ch, int count);
+int mixer_stream_get_loop_count(struct mixer_stream *ch);
+int mixer_stream_set_loop_start_pos(struct mixer_stream *ch, int pos);
+int mixer_stream_set_loop_end_pos(struct mixer_stream *ch, int pos);
+int mixer_stream_fade(struct mixer_stream *ch, int time, int volume, bool stop);
+int mixer_stream_stop_fade(struct mixer_stream *ch);
+int mixer_stream_is_fading(struct mixer_stream *ch);
+int mixer_stream_pause(struct mixer_stream *ch);
+int mixer_stream_restart(struct mixer_stream *ch);
+int mixer_stream_is_paused(struct mixer_stream *ch);
+int mixer_stream_get_pos(struct mixer_stream *ch);
+int mixer_stream_get_length(struct mixer_stream *ch);
+int mixer_stream_get_sample_pos(struct mixer_stream *ch);
+int mixer_stream_get_sample_length(struct mixer_stream *ch);
+int mixer_stream_seek(struct mixer_stream *ch, int pos);
+int mixer_stream_reverse_LR(struct mixer_stream *ch);
+int mixer_stream_get_volume(struct mixer_stream *ch);
+int mixer_stream_get_time_length(struct mixer_stream *ch);
 
 #endif /* AI5_MIXER_H */

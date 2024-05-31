@@ -19,35 +19,64 @@
 
 #include <stdint.h>
 
+enum audio_channel {
+	AUDIO_CH_BGM = 0,
+	AUDIO_CH_SE0 = 1,
+	AUDIO_CH_SE1 = 2,
+	AUDIO_CH_SE2 = 3,
+	AUDIO_CH_VOICE0 = 4,
+	AUDIO_CH_VOICE1 = 5,
+};
+#define AUDIO_CH_SE(n) (AUDIO_CH_SE0 + n)
+#define AUDIO_CH_VOICE(n) (AUDIO_CH_VOICE0 + n)
+
+static inline bool audio_se_channel_valid(unsigned ch)
+{
+	return ch < 3;
+}
+
+static inline bool audio_voice_channel_valid(unsigned ch)
+{
+	return ch < 2;
+}
+
+static inline const char *audio_channel_name(enum audio_channel ch)
+{
+	switch (ch) {
+	case AUDIO_CH_BGM: return "BGM";
+	case AUDIO_CH_SE0: return "SE0";
+	case AUDIO_CH_SE1: return "SE1";
+	case AUDIO_CH_SE2: return "SE2";
+	case AUDIO_CH_VOICE0: return "VOICE0";
+	case AUDIO_CH_VOICE1: return "VOICE1";
+	}
+	return "INVALID_CHANNEL";
+}
+
+struct archive_data;
+
 void audio_init(void);
-#ifdef USE_SDL_MIXER
 void audio_update(void);
-#endif
+void audio_play(enum audio_channel ch, struct archive_data *file, bool check_playing);
+void audio_stop(enum audio_channel ch);
+void audio_set_volume(enum audio_channel ch, uint8_t vol);
+void audio_fade(enum audio_channel ch, uint8_t vol, int t, bool stop, bool sync);
+void audio_fade_out(enum audio_channel ch, uint8_t vol, bool sync); // remove this?
+void audio_restore_volume(enum audio_channel ch);
+bool audio_is_playing(enum audio_channel ch);
+bool audio_is_fading(enum audio_channel ch);
 
+// convenience functions
 void audio_bgm_play(const char *name, bool check_playing);
-void audio_bgm_stop(void);
-void audio_bgm_set_volume(uint8_t vol);
-void audio_bgm_fade(uint8_t vol, int t, bool stop, bool sync);
-void audio_bgm_fade_out(uint8_t vol, bool sync);
-void audio_bgm_restore_volume(void);
-bool audio_bgm_is_playing(void);
-bool audio_bgm_is_fading(void);
 
-void audio_se_play(const char *name);
-void audio_se_stop(void);
-bool audio_se_is_playing(void);
-void audio_se_fade(uint8_t vol, int t, bool stop, bool sync);
+void audio_se_play(const char *name, unsigned ch);
+void audio_se_stop(unsigned ch);
+void audio_se_fade_out(uint8_t vol, bool sync, unsigned ch);
 
-void audio_voice_play(const char *name);
-void audio_voice_stop(void);
-bool audio_voice_is_playing(void);
-
+void audio_voice_play(const char *name, unsigned ch);
+void audio_voice_stop(unsigned ch);
 void audio_voicesub_play(const char *name);
-void audio_voicesub_stop(void);
-bool audio_voicesub_is_playing(void);
-
-void audio_aux_play(const char *name, int no);
-void audio_aux_stop(int no);
-void audio_aux_fade_out(uint8_t vol, bool sync, int no);
+#define audio_voicesub_stop() audio_stop(AUDIO_CH_VOICE1)
+#define audio_voicesub_is_playing() audio_is_playing(AUDIO_CH_VOICE1)
 
 #endif // AI5_AUDIO_H

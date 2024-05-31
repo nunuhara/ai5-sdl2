@@ -47,7 +47,7 @@ struct fade {
 	float end_volume;
 };
 
-struct channel {
+struct mixer_stream {
 	// archive data
 	struct archive_data *dfile;
 	int mixer_no;
@@ -107,7 +107,7 @@ static void audio_callback(void *data, Uint8 *stream, int len)
  * Seek to the specified position in the stream.
  * Returns true if the seek succeeded, otherwise returns false.
  */
-static bool cb_seek(struct channel *ch, uint_least32_t pos)
+static bool cb_seek(struct mixer_stream *ch, uint_least32_t pos)
 {
 	if (pos > ch->info.frames) {
 		pos = ch->info.frames;
@@ -125,7 +125,7 @@ static bool cb_seek(struct channel *ch, uint_least32_t pos)
  * Seek to loop start, if the stream should loop.
  * Returns true if the stream should loop, false if it should stop.
  */
-static bool cb_loop(struct channel *ch)
+static bool cb_loop(struct mixer_stream *ch)
 {
 	if (!cb_seek(ch, ch->loop_start) || ch->loop_count == 1) {
 		return false;
@@ -140,7 +140,7 @@ static bool cb_loop(struct channel *ch)
  * Callback to refill the stream's audio data.
  * Called from sys_mixer_mix_audio.
  */
-static int cb_read_frames(struct channel *ch, float *out, sf_count_t frame_count, uint_least32_t *num_read)
+static int cb_read_frames(struct mixer_stream *ch, float *out, sf_count_t frame_count, uint_least32_t *num_read)
 {
 	*num_read = 0;
 
@@ -200,7 +200,7 @@ static float cb_calc_fade(struct fade *fade)
 
 static int refill_stream(sts_mixer_sample_t *sample, void *data)
 {
-	struct channel *ch = data;
+	struct mixer_stream *ch = data;
 	uint_least32_t frames_read;
 	memset(ch->data, 0, sizeof(float) * sample->length);
 
@@ -262,7 +262,7 @@ static int refill_mixer(sts_mixer_sample_t *sample, void *data)
 	return STS_STREAM_CONTINUE;
 }
 
-int channel_play(struct channel *ch)
+int mixer_stream_play(struct mixer_stream *ch)
 {
 	SDL_LockAudioDevice(audio_device);
 	if (ch->voice >= 0) {
@@ -275,7 +275,7 @@ int channel_play(struct channel *ch)
 	return 1;
 }
 
-int channel_stop(struct channel *ch)
+int mixer_stream_stop(struct mixer_stream *ch)
 {
 	SDL_LockAudioDevice(audio_device);
 	if (ch->voice < 0) {
@@ -289,12 +289,12 @@ int channel_stop(struct channel *ch)
 	return 1;
 }
 
-int channel_is_playing(struct channel *ch)
+int mixer_stream_is_playing(struct mixer_stream *ch)
 {
 	return ch->voice >= 0;
 }
 
-int channel_set_loop_count(struct channel *ch, int count)
+int mixer_stream_set_loop_count(struct mixer_stream *ch, int count)
 {
 	SDL_LockAudioDevice(audio_device);
 	ch->loop_count = count;
@@ -302,12 +302,12 @@ int channel_set_loop_count(struct channel *ch, int count)
 	return 1;
 }
 
-int channel_get_loop_count(struct channel *ch)
+int mixer_stream_get_loop_count(struct mixer_stream *ch)
 {
 	return ch->loop_count;
 }
 
-int channel_set_loop_start_pos(struct channel *ch, int pos)
+int mixer_stream_set_loop_start_pos(struct mixer_stream *ch, int pos)
 {
 	SDL_LockAudioDevice(audio_device);
 	ch->loop_start = pos;
@@ -315,7 +315,7 @@ int channel_set_loop_start_pos(struct channel *ch, int pos)
 	return 1;
 }
 
-int channel_set_loop_end_pos(struct channel *ch, int pos)
+int mixer_stream_set_loop_end_pos(struct mixer_stream *ch, int pos)
 {
 	SDL_LockAudioDevice(audio_device);
 	ch->loop_end = pos;
@@ -323,10 +323,10 @@ int channel_set_loop_end_pos(struct channel *ch, int pos)
 	return 1;
 }
 
-int channel_fade(struct channel *ch, int time, int volume, bool stop)
+int mixer_stream_fade(struct mixer_stream *ch, int time, int volume, bool stop)
 {
 	if (!time && stop)
-		return channel_stop(ch);
+		return mixer_stream_stop(ch);
 
 	SDL_LockAudioDevice(audio_device);
 	if (!time) {
@@ -353,7 +353,7 @@ int channel_fade(struct channel *ch, int time, int volume, bool stop)
 	return 1;
 }
 
-int channel_stop_fade(struct channel *ch)
+int mixer_stream_stop_fade(struct mixer_stream *ch)
 {
 	SDL_LockAudioDevice(audio_device);
 	// XXX: we need to set the volume to end_volume and potentially stop the
@@ -363,50 +363,50 @@ int channel_stop_fade(struct channel *ch)
 	return 1;
 }
 
-int channel_is_fading(struct channel *ch)
+int mixer_stream_is_fading(struct mixer_stream *ch)
 {
-	return channel_is_playing(ch) && ch->fade.fading;
+	return mixer_stream_is_playing(ch) && ch->fade.fading;
 }
 
-int channel_pause(struct channel *ch)
+int mixer_stream_pause(struct mixer_stream *ch)
 {
-	WARNING("channel_pause not implemented");
+	WARNING("mixer_stream_pause not implemented");
 	return 0;
 }
 
-int channel_restart(struct channel *ch)
+int mixer_stream_restart(struct mixer_stream *ch)
 {
-	WARNING("channel_restart not implemented");
+	WARNING("mixer_stream_restart not implemented");
 	return 0;
 }
 
-int channel_is_paused(struct channel *ch)
+int mixer_stream_is_paused(struct mixer_stream *ch)
 {
 	return 0;
 }
 
-int channel_get_pos(struct channel *ch)
+int mixer_stream_get_pos(struct mixer_stream *ch)
 {
 	return muldiv(ch->frame, 1000, ch->info.samplerate);
 }
 
-int channel_get_length(struct channel *ch)
+int mixer_stream_get_length(struct mixer_stream *ch)
 {
-	// FIXME: how is this different than channel_get_time_length?
+	// FIXME: how is this different than mixer_stream_get_time_length?
 	return muldiv(ch->info.frames, 1000, ch->info.samplerate);
 }
 
-int channel_get_sample_pos(struct channel *ch)
+int mixer_stream_get_sample_pos(struct mixer_stream *ch)
 {
 	return ch->frame;
 }
 
-int channel_get_sample_length(struct channel *ch)
+int mixer_stream_get_sample_length(struct mixer_stream *ch)
 {
 	return ch->info.frames;
 }
 
-int channel_seek(struct channel *ch, int pos)
+int mixer_stream_seek(struct mixer_stream *ch, int pos)
 {
 	SDL_LockAudioDevice(audio_device);
 	int r = cb_seek(ch, muldiv(pos, ch->info.samplerate, 1000));
@@ -414,30 +414,30 @@ int channel_seek(struct channel *ch, int pos)
 	return r;
 }
 
-int channel_reverse_LR(struct channel *ch)
+int mixer_stream_reverse_LR(struct mixer_stream *ch)
 {
 	ch->swapped = !ch->swapped;
 	return 1;
 }
 
-int channel_get_volume(struct channel *ch)
+int mixer_stream_get_volume(struct mixer_stream *ch)
 {
 	return ch->volume;
 }
 
-int channel_get_time_length(struct channel *ch)
+int mixer_stream_get_time_length(struct mixer_stream *ch)
 {
 	return muldiv(ch->info.frames, 1000, ch->info.samplerate);
 }
 
-static sf_count_t channel_vio_get_filelen(void *data)
+static sf_count_t mixer_stream_vio_get_filelen(void *data)
 {
-	return ((struct channel*)data)->dfile->size;
+	return ((struct mixer_stream*)data)->dfile->size;
 }
 
-static sf_count_t channel_vio_seek(sf_count_t offset, int whence, void *data)
+static sf_count_t mixer_stream_vio_seek(sf_count_t offset, int whence, void *data)
 {
-	struct channel *ch = data;
+	struct mixer_stream *ch = data;
 	switch (whence) {
 	case SEEK_CUR:
 		ch->offset += offset;
@@ -453,40 +453,47 @@ static sf_count_t channel_vio_seek(sf_count_t offset, int whence, void *data)
 	return ch->offset;
 }
 
-static sf_count_t channel_vio_read(void *ptr, sf_count_t count, void *data)
+static sf_count_t mixer_stream_vio_read(void *ptr, sf_count_t count, void *data)
 {
-	struct channel *ch = data;
+	struct mixer_stream *ch = data;
 	sf_count_t c = min(count, (sf_count_t)ch->dfile->size - ch->offset);
 	memcpy(ptr, ch->dfile->data + ch->offset, c);
 	ch->offset += c;
 	return c;
 }
 
-static sf_count_t channel_vio_write(const void *ptr, sf_count_t count, void *user_data)
+static sf_count_t mixer_stream_vio_write(const void *ptr, sf_count_t count, void *user_data)
 {
 	ERROR("sndfile vio write not supported");
 }
 
-static sf_count_t channel_vio_tell(void *data)
+static sf_count_t mixer_stream_vio_tell(void *data)
 {
-	return ((struct channel*)data)->offset;
+	return ((struct mixer_stream*)data)->offset;
 }
 
-static SF_VIRTUAL_IO channel_vio = {
-	.get_filelen = channel_vio_get_filelen,
-	.seek = channel_vio_seek,
-	.read = channel_vio_read,
-	.write = channel_vio_write,
-	.tell = channel_vio_tell
+static SF_VIRTUAL_IO mixer_stream_vio = {
+	.get_filelen = mixer_stream_vio_get_filelen,
+	.seek = mixer_stream_vio_seek,
+	.read = mixer_stream_vio_read,
+	.write = mixer_stream_vio_write,
+	.tell = mixer_stream_vio_tell
 };
 
-struct channel *channel_open_archive_data(struct archive_data *dfile, enum mix_channel mixer)
+struct mixer_stream *mixer_stream_open(struct archive_data *dfile, enum mix_channel mixer)
 {
-	struct channel *ch = xcalloc(1, sizeof(struct channel));
+	struct mixer_stream *ch = xcalloc(1, sizeof(struct mixer_stream));
+
+	// take ownership of archive file
+	if (!archive_data_load(dfile)) {
+		WARNING("Failed to load archive file: %s", dfile->name);
+		free(ch);
+		return NULL;
+	}
 	ch->dfile = dfile;
 
 	// open file
-	ch->file = sf_open_virtual(&channel_vio, SFM_READ, &ch->info, ch);
+	ch->file = sf_open_virtual(&mixer_stream_vio, SFM_READ, &ch->info, ch);
 	if (sf_error(ch->file) != SF_ERR_NO_ERROR) {
 		WARNING("sf_open_virtual failed: %s", sf_strerror(ch->file));
 		goto error;
@@ -539,41 +546,9 @@ error:
 	return NULL;
 }
 
-static struct archive_data *load_data(const char *name, enum mix_channel mixer)
+void mixer_stream_close(struct mixer_stream *ch)
 {
-	switch (mixer) {
-	case MIXER_MUSIC:    return asset_bgm_load(name);
-	case MIXER_EFFECT:   return asset_effect_load(name);
-	case MIXER_VOICE:    return asset_voice_load(name);
-	case MIXER_VOICESUB: return asset_voicesub_load(name);
-	default: ERROR("Invalid mixer");
-	}
-}
-
-struct channel *channel_open(const char *name, enum mix_channel mixer)
-{
-	bool bgm = mixer == MIXER_MUSIC;
-
-	// get file from archive
-	struct archive_data *dfile = load_data(name, mixer);
-	if (!dfile) {
-		WARNING("Failed to load %s: %s", bgm ? "BGM" : "effect", name);
-		return NULL;
-	}
-
-	// open channel from file
-	struct channel *ch = channel_open_archive_data(dfile, mixer);
-	if (!ch) {
-		WARNING("Failed to load %s: %s", bgm ? "BGM" : "effect", name);
-		return NULL;
-	}
-
-	return ch;
-}
-
-void channel_close(struct channel *ch)
-{
-	channel_stop(ch);
+	mixer_stream_stop(ch);
 	sf_close(ch->file);
 	archive_data_release(ch->dfile);
 	free(ch);
@@ -667,6 +642,7 @@ int mixer_set_volume(int n, int volume)
 	SDL_UnlockAudioDevice(audio_device);
 	return 1;
 }
+
 int mixer_get_mute(int n, int *mute)
 {
 	if (n < 0 || n >= nr_mixers)
@@ -681,30 +657,4 @@ int mixer_set_mute(int n, int mute)
 		return 0;
 	mixers[n].muted = !!mute;
 	return 1;
-}
-
-int mixer_stream_play(sts_mixer_stream_t* stream, int volume)
-{
-	SDL_LockAudioDevice(audio_device);
-	float gain = clamp(0.0f, 1.0f, (float)volume / 100.0f);
-	int voice = sts_mixer_play_stream(&master->mixer, stream, gain);
-	SDL_UnlockAudioDevice(audio_device);
-	return voice;
-}
-
-bool mixer_stream_set_volume(int voice, int volume)
-{
-	if (voice < 0 || voice >= STS_MIXER_VOICES)
-		return false;
-	SDL_LockAudioDevice(audio_device);
-	master->mixer.voices[voice].gain = clamp(0.0f, 1.0f, (float)volume / 100.0f);
-	SDL_UnlockAudioDevice(audio_device);
-	return true;
-}
-
-void mixer_stream_stop(int voice)
-{
-	SDL_LockAudioDevice(audio_device);
-	sts_mixer_stop_voice(&master->mixer, voice);
-	SDL_UnlockAudioDevice(audio_device);
 }

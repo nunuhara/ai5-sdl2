@@ -19,11 +19,11 @@
 #include "ai5/mes.h"
 
 #include "anim.h"
+#include "classics.h"
 #include "game.h"
 #include "gfx.h"
 #include "memory.h"
 #include "sys.h"
-#include "util.h"
 #include "vm_private.h"
 
 #define VAR4_SIZE 2048
@@ -73,18 +73,12 @@ static void shangrlia_mem_init(void)
 	shangrlia_mem_restore();
 }
 
-static void sys_load_image_halt_anim(struct param_list *params)
-{
-	anim_halt_all();
-	vm_load_image(vm_string_param(params, 0), mem_get_sysvar16(mes_sysvar16_dst_surface));
-}
-
-static void sys_22_warn(struct param_list *params)
+static void sys_22(struct param_list *params)
 {
 	WARNING("System.function[22] not implemented");
 }
 
-static void sys_set_speaker(struct param_list *params)
+static void shangrlia_set_speaker(struct param_list *params)
 {
 	unsigned no = vm_expr_param(params, 0);
 	switch (no) {
@@ -125,28 +119,28 @@ struct game game_shangrlia = {
 	.sys = {
 		[0] = sys_set_font_size,
 		[1] = sys_display_number,
-		[2] = sys_cursor,
-		[3] = sys_anim,
-		[4] = sys_savedata,
-		[5] = sys_audio,
+		[2] = classics_cursor,
+		[3] = classics_anim,
+		[4] = classics_savedata,
+		[5] = classics_audio,
 		[6] = NULL,
 		[7] = sys_file,
-		[8] = sys_load_image_halt_anim,
-		[9] = sys_palette,
-		[10] = sys_graphics_classics,
+		[8] = sys_load_image,
+		[9] = classics_palette,
+		[10] = classics_graphics,
 		[11] = sys_wait,
 		[12] = sys_set_text_colors_indexed,
 		[13] = sys_farcall,
-		[14] = sys_get_cursor_segment_classics,
+		[14] = classics_get_cursor_segment,
 		[15] = sys_menu_get_no,
 		[18] = sys_check_input,
 		[21] = sys_strlen,
-		[22] = sys_22_warn,
-		[23] = sys_set_speaker,
+		[22] = sys_22,
+		[23] = shangrlia_set_speaker,
 	},
 	.util = {
 		[0] = NULL,
-		[1] = util_get_text_colors,
+		[1] = classics_get_text_colors,
 		[100] = NULL,
 	},
 	.flags = {

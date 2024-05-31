@@ -120,6 +120,22 @@ void vm_load_file(struct archive_data *file, uint32_t offset)
 	dbg_load_file(file->name, offsetof(struct memory, file_data) + offset, file->size);
 }
 
+void vm_load_data_file(const char *name, uint32_t offset)
+{
+	struct archive_data *data = asset_data_load(name);
+	if (!data) {
+		WARNING("Failed to read data file \"%s\"", name);
+		return;
+	}
+	if (offset + data->size > MEMORY_FILE_DATA_SIZE) {
+		WARNING("Tried to read file beyond end of buffer");
+		goto end;
+	}
+	vm_load_file(data, offset);
+end:
+	archive_data_release(data);
+}
+
 void vm_load_mes(char *name)
 {
 	strcpy(mem_mes_name(), name);
@@ -334,11 +350,6 @@ uint32_t vm_expr_param(struct param_list *params, int i)
 
 void vm_draw_text(const char *text)
 {
-#if 0
-	string u = sjis_cstring_to_utf8(text, strlen(text));
-	NOTICE("%s", u);
-	string_free(u);
-#endif
 	if (vm_flag_is_on(FLAG_STRLEN)) {
 		mem_set_var32(18, mem_get_var32(18) + strlen(text));
 		return;
@@ -692,7 +703,7 @@ static void stmt_util(void)
 	if (unlikely(params.nr_params < 1))
 		VM_ERROR("Util without parameters");
 	uint32_t no = vm_expr_param(&params, 0);
-	if (unlikely(no >= 256))
+	if (unlikely(no >= GAME_MAX_UTIL))
 		VM_ERROR("Invalid Util number: %u", no);
 	if (unlikely(!game->util[no]))
 		VM_ERROR("Util.function[%u] not implemented", no);

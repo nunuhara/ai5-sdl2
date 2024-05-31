@@ -28,6 +28,7 @@ sources = [
   'src/anim.c',
   'src/asset.c',
   'src/backlog.c',
+  'src/classics.c',
   'src/cmdline.c',
   'src/cursor.c',
   'src/debug.c',
@@ -42,7 +43,6 @@ sources = [
   'src/shangrlia.c',
   'src/sys.c',
   'src/text.c',
-  'src/util.c',
   'src/vm.c',
   'src/yuno.c',
 ]

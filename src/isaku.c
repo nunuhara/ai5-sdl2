@@ -29,7 +29,6 @@
 #include "input.h"
 #include "savedata.h"
 #include "sys.h"
-#include "util.h"
 #include "vm_private.h"
 
 #define VAR4_SIZE 2048
@@ -66,8 +65,8 @@ static void isaku_mem_init(void)
 	mem_set_sysvar16(mes_sysvar16_flags, 0xf);
 	mem_set_sysvar16(mes_sysvar16_text_start_x, 0);
 	mem_set_sysvar16(mes_sysvar16_text_start_y, 0);
-	mem_set_sysvar16(mes_sysvar16_text_end_x, game_yuno.surface_sizes[0].w);
-	mem_set_sysvar16(mes_sysvar16_text_end_y, game_yuno.surface_sizes[0].h);
+	mem_set_sysvar16(mes_sysvar16_text_end_x, 640);
+	mem_set_sysvar16(mes_sysvar16_text_end_y, 480);
 	mem_set_sysvar16(mes_sysvar16_font_width, 16);
 	mem_set_sysvar16(mes_sysvar16_font_height, 16);
 	mem_set_sysvar16(mes_sysvar16_char_space, 16);
@@ -78,7 +77,7 @@ static void isaku_mem_init(void)
 	isaku_mem_restore();
 }
 
-static void isaku_sys_cursor(struct param_list *params)
+static void isaku_cursor(struct param_list *params)
 {
 	static uint32_t uk = 0;
 	switch (vm_expr_param(params, 0)) {
@@ -106,7 +105,7 @@ static unsigned vm_anim_param(struct param_list *params, unsigned i)
 	return stream;
 }
 
-static void isaku_sys_anim(struct param_list *params)
+static void isaku_anim(struct param_list *params)
 {
 	switch (vm_expr_param(params, 0)) {
 	case 0: anim_init_stream(vm_anim_param(params, 1), vm_anim_param(params, 1)); break;
@@ -123,19 +122,13 @@ static void isaku_sys_anim(struct param_list *params)
 	}
 }
 
-static void isaku_sys_savedata(struct param_list *params)
+static void isaku_savedata(struct param_list *params)
 {
-	char save_name[7];
-	uint32_t save_no = vm_expr_param(params, 1);
-	if (save_no > 99)
-		VM_ERROR("Invalid save number: %u", save_no);
-	sprintf(save_name, "FLAG%02u", save_no);
-
 	switch (vm_expr_param(params, 0)) {
-	case 0: savedata_resume_load(save_name); break;
-	case 1: savedata_resume_save(save_name); break;
-	case 2: savedata_load(save_name); break;
-	case 3: savedata_save_union_var4(save_name); break;
+	case 0: savedata_resume_load(sys_save_name(params)); break;
+	case 1: savedata_resume_save(sys_save_name(params)); break;
+	case 2: savedata_load(sys_save_name(params)); break;
+	case 3: savedata_save_union_var4(sys_save_name(params)); break;
 	//case 4: savedata_load_isaku_vars(save_name); break;
 	//case 5: savedata_save_isaku_vars(save_name); break;
 	//case 6: savedata_clear_var4(save_name); break;
@@ -146,8 +139,8 @@ static void isaku_sys_savedata(struct param_list *params)
 
 static void isaku_bgm_fade_out_sync(void)
 {
-	audio_bgm_fade(0, 500, true, false);
-	while (audio_bgm_is_playing()) {
+	audio_fade(AUDIO_CH_BGM, 0, 500, true, false);
+	while (audio_is_playing(AUDIO_CH_BGM)) {
 		if (input_down(INPUT_SHIFT))
 			break;
 		vm_peek();
@@ -157,8 +150,8 @@ static void isaku_bgm_fade_out_sync(void)
 
 static void isaku_se_fade_out_sync(void)
 {
-	audio_se_fade(0, 500, true, false);
-	while (audio_se_is_playing()) {
+	audio_fade(AUDIO_CH_SE(0), 0, 500, true, false);
+	while (audio_is_playing(AUDIO_CH_SE(0))) {
 		if (input_down(INPUT_SHIFT))
 			break;
 		vm_peek();
@@ -168,23 +161,23 @@ static void isaku_se_fade_out_sync(void)
 
 static void isaku_se_wait(void)
 {
-	while (audio_se_is_playing()) {
+	while (audio_is_playing(AUDIO_CH_SE(0))) {
 		vm_peek();
 		vm_delay(16);
 	}
 }
 
-static void isaku_sys_audio(struct param_list *params)
+static void isaku_audio(struct param_list *params)
 {
 	if (!vm_flag_is_on(FLAG_AUDIO_ENABLE))
 		return;
 	switch (vm_expr_param(params, 0)) {
 	case 0: audio_bgm_play(vm_string_param(params, 1), true); break;
-	case 1: audio_bgm_fade(0, 2000, true, false); break;
-	case 2: audio_bgm_stop(); break;
-	case 3: audio_se_play(vm_string_param(params, 1)); break;
-	case 4: audio_se_stop(); break;
-	case 5: audio_se_fade(0, 2000, true, false); break;
+	case 1: audio_fade(AUDIO_CH_BGM, 0, 2000, true, false); break;
+	case 2: audio_stop(AUDIO_CH_BGM); break;
+	case 3: audio_se_play(vm_string_param(params, 1), 0); break;
+	case 4: audio_stop(AUDIO_CH_SE(0)); break;
+	case 5: audio_fade(AUDIO_CH_SE(0), 0, 2000, true, false); break;
 	//case 6: audio_bgm_play_sync(vm_string_param(params, 1)); break; // NOT USED
 	case 7: isaku_bgm_fade_out_sync(); break;
 	case 8: isaku_se_fade_out_sync(); break;
@@ -194,20 +187,20 @@ static void isaku_sys_audio(struct param_list *params)
 	}
 }
 
-static void isaku_sys_voice(struct param_list *params)
+static void isaku_voice(struct param_list *params)
 {
 	if (!vm_flag_is_on(FLAG_VOICE_ENABLE))
 		return;
 	switch (vm_expr_param(params, 0)) {
-	case 0: audio_voice_play(vm_string_param(params, 1)); break;
-	case 1: audio_voice_stop(); break;
+	case 0: audio_voice_play(vm_string_param(params, 1), 0); break;
+	case 1: audio_stop(AUDIO_CH_VOICE(0)); break;
 	default: WARNING("System.Voice.function[%u] not implemented",
 				 params->params[0].val);
 	}
 }
 
 // only unfreeze is used in Isaku
-static void sys_display_freeze_unfreeze(struct param_list *params)
+static void isaku_display_freeze_unfreeze(struct param_list *params)
 {
 	if (params->nr_params > 1) {
 		gfx_display_freeze();
@@ -216,7 +209,7 @@ static void sys_display_freeze_unfreeze(struct param_list *params)
 	}
 }
 
-static void sys_display_fade_out_fade_in(struct param_list *params)
+static void isaku_display_fade_out_fade_in(struct param_list *params)
 {
 	if (params->nr_params > 1) {
 		gfx_display_fade_out(vm_expr_param(params, 1), 1000);
@@ -226,7 +219,7 @@ static void sys_display_fade_out_fade_in(struct param_list *params)
 }
 
 // this is not actually used in Isaku, though it is available
-static void sys_display_scan_out_scan_in(struct param_list *params)
+static void isaku_display_scan_out_scan_in(struct param_list *params)
 {
 	if (params->nr_params > 1) {
 		WARNING("System.Display.scan_out unimplemented");
@@ -237,25 +230,19 @@ static void sys_display_scan_out_scan_in(struct param_list *params)
 	}
 }
 
-static void isaku_load_image(struct param_list *params)
-{
-	anim_halt_all();
-	sys_load_image(params);
-}
-
-static void sys_display(struct param_list *params)
+static void isaku_display(struct param_list *params)
 {
 	anim_halt_all();
 	switch (vm_expr_param(params, 0)) {
-	case 0: sys_display_freeze_unfreeze(params); break;
-	case 1: sys_display_fade_out_fade_in(params); break;
-	case 2: sys_display_scan_out_scan_in(params); break;
+	case 0: isaku_display_freeze_unfreeze(params); break;
+	case 1: isaku_display_fade_out_fade_in(params); break;
+	case 2: isaku_display_scan_out_scan_in(params); break;
 	default: VM_ERROR("System.Display.function[%u] unimplemented",
 				 params->params[0].val);
 	}
 }
 
-static void isaku_sys_graphics(struct param_list *params)
+static void isaku_graphics(struct param_list *params)
 {
 	switch (vm_expr_param(params, 0)) {
 	case 0: sys_graphics_copy(params); break;
@@ -314,11 +301,11 @@ static void item_window_toggle(void)
 		return;
 	if (item_window.opened) {
 		SDL_HideWindow(item_window.window);
-		audio_se_play("wincls.wav");
+		audio_se_play("wincls.wav", 0);
 		item_window.opened = false;
 	} else {
 		SDL_ShowWindow(item_window.window);
-		audio_se_play("winopn.wav");
+		audio_se_play("winopn.wav", 0);
 		item_window.opened = true;
 		item_window_update();
 		gfx_dump_surface(7, "item_window.png");
@@ -393,7 +380,7 @@ static void item_window_10(void)
 	WARNING("ItemWindow.function[10] not implemented");
 }
 
-static void sys_item_window(struct param_list *params)
+static void isaku_item_window(struct param_list *params)
 {
 	switch (vm_expr_param(params, 0)) {
 	case 0: item_window_create(); break;
@@ -413,14 +400,6 @@ static void sys_item_window(struct param_list *params)
 	}
 }
 
-static void isaku_sys_farcall_strlen(struct param_list *params)
-{
-	vm_flag_on(FLAG_STRLEN);
-	mem_set_var32(18, 0);
-	sys_farcall(params);
-	vm_flag_off(FLAG_STRLEN);
-}
-
 struct menu {
 	bool enabled;
 	bool requested;
@@ -432,14 +411,14 @@ static struct menu load_menu = { .name = "LoadMenu" };
 static void menu_open(struct menu *menu)
 {
 	if (!menu->enabled) {
-		audio_se_play("error.wav");
+		audio_se_play("error.wav", 0);
 		return;
 	}
-	audio_se_play("winopn.wav");
+	audio_se_play("winopn.wav", 0);
 	menu->requested = true;
 }
 
-static void sys_menu(struct param_list *params, struct menu *menu)
+static void isaku_menu(struct param_list *params, struct menu *menu)
 {
 	switch (vm_expr_param(params, 0)) {
 	case 0: menu_open(menu); break;
@@ -451,14 +430,14 @@ static void sys_menu(struct param_list *params, struct menu *menu)
 	}
 }
 
-static void sys_save_menu(struct param_list *params)
+static void isaku_save_menu(struct param_list *params)
 {
-	sys_menu(params, &save_menu);
+	isaku_menu(params, &save_menu);
 }
 
-static void sys_load_menu(struct param_list *params)
+static void isaku_load_menu(struct param_list *params)
 {
-	sys_menu(params, &load_menu);
+	isaku_menu(params, &load_menu);
 }
 
 static void sys_27(struct param_list *params)
@@ -470,17 +449,17 @@ static void sys_27(struct param_list *params)
 	}
 }
 
-static void isaku_util_load_heap(struct param_list *params)
+static void util_load_heap(struct param_list *params)
 {
 	savedata_read("FLAG08", memory_raw, 3132, 100);
 }
 
-static void isaku_util_save_heap(struct param_list *params)
+static void util_save_heap(struct param_list *params)
 {
 	savedata_write("FLAG08", memory_raw, 3132, 100);
 }
 
-static void isaku_util_delay(struct param_list *params)
+static void util_delay(struct param_list *params)
 {
 	vm_timer_t t = vm_timer_create();
 	uint32_t stop_t = t + vm_expr_param(params, 1) * 16;
@@ -569,32 +548,32 @@ struct game game_isaku = {
 	.sys = {
 		[0]  = sys_set_font_size,
 		[1]  = sys_display_number,
-		[2]  = isaku_sys_cursor,
-		[3]  = isaku_sys_anim,
-		[4]  = isaku_sys_savedata,
-		[5]  = isaku_sys_audio,
-		[6]  = isaku_sys_voice,
+		[2]  = isaku_cursor,
+		[3]  = isaku_anim,
+		[4]  = isaku_savedata,
+		[5]  = isaku_audio,
+		[6]  = isaku_voice,
 		[7]  = sys_load_file,
-		[8]  = isaku_load_image,
-		[9]  = sys_display,
-		[10] = isaku_sys_graphics,
+		[8]  = sys_load_image,
+		[9]  = isaku_display,
+		[10] = isaku_graphics,
 		[11] = sys_wait,
 		[12] = sys_set_text_colors_direct,
 		[13] = sys_farcall,
 		[14] = sys_get_cursor_segment,
 		[15] = sys_menu_get_no,
 		[18] = sys_check_input,
-		[22] = sys_item_window,
-		[24] = isaku_sys_farcall_strlen,
-		[25] = sys_save_menu,
-		[26] = sys_load_menu,
+		[22] = isaku_item_window,
+		[24] = sys_farcall_strlen,
+		[25] = isaku_save_menu,
+		[26] = isaku_load_menu,
 		[27] = sys_27,
 	},
 	.util = {
 		[2]  = util_warn_unimplemented,
-		[3]  = isaku_util_load_heap,
-		[4]  = isaku_util_save_heap,
-		[7]  = isaku_util_delay,
+		[3]  = util_load_heap,
+		[4]  = util_save_heap,
+		[7]  = util_delay,
 		[11] = util_warn_unimplemented,
 		[12] = util_warn_unimplemented,
 	},

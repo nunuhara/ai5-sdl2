@@ -32,7 +32,6 @@
 #include "input.h"
 #include "savedata.h"
 #include "sys.h"
-#include "util.h"
 #include "vm_private.h"
 
 #define VAR4_SIZE 2048
@@ -68,7 +67,7 @@ static void ai_shimai_mem_init(void)
 	memory_ptr.system_var16_ptr = memory_raw + off;
 	memory_ptr.var16 = memory_raw + VAR16_OFF;
 	memory_ptr.system_var16 = memory_raw + SYSVAR16_OFF;
-	memory_ptr.var32 = memory_raw + off + VAR32_OFF;
+	memory_ptr.var32 = memory_raw + VAR32_OFF;
 	memory_ptr.system_var32 = memory_raw + SYSVAR32_OFF;
 
 	mem_set_sysvar16(mes_sysvar16_flags, 0x60f);
@@ -346,7 +345,7 @@ static void ai_shimai_TXT(const char *txt)
 	render_text(txt, &p);
 }
 
-static void ai_shimai_sys_cursor(struct param_list *params)
+static void ai_shimai_cursor(struct param_list *params)
 {
 	static unsigned cursor1_frame_time[4] = { 200, 200, 200, 500 };
 	switch (vm_expr_param(params, 0)) {
@@ -382,7 +381,7 @@ static unsigned vm_anim_param(struct param_list *params, unsigned i)
 	return stream;
 }
 
-static void ai_shimai_sys_anim(struct param_list *params)
+static void ai_shimai_anim(struct param_list *params)
 {
 	switch (vm_expr_param(params, 0)) {
 	case 0: anim_init_stream(vm_anim_param(params, 1), vm_anim_param(params, 1)); break;
@@ -453,44 +452,34 @@ static void ai_shimai_save_heap(const char *save_name, int start, int count)
 	savedata_write(save_name, memory_raw, HEAP_OFF + start, count);
 }
 
-const char *save_name(struct param_list *params)
-{
-	static char save_name[7];
-	uint32_t save_no = vm_expr_param(params, 1);
-	if (save_no > 99)
-		VM_ERROR("Invalid save number: %u", save_no);
-	sprintf(save_name, "FLAG%02u", save_no);
-	return save_name;
-}
-
-static void ai_shimai_sys_savedata(struct param_list *params)
+static void ai_shimai_savedata(struct param_list *params)
 {
 	switch (vm_expr_param(params, 0)) {
-	case 0: ai_shimai_resume_load(save_name(params)); break;
-	case 1: savedata_resume_save(save_name(params)); break;
-	case 2: ai_shimai_load_var4(save_name(params)); break;
-	case 3: savedata_save_union_var4(save_name(params)); break;
-	case 4: ai_shimai_load_extra_var32(save_name(params)); break;
-	case 5: ai_shimai_save_extra_var32(save_name(params)); break;
+	case 0: ai_shimai_resume_load(sys_save_name(params)); break;
+	case 1: savedata_resume_save(sys_save_name(params)); break;
+	case 2: ai_shimai_load_var4(sys_save_name(params)); break;
+	case 3: savedata_save_union_var4(sys_save_name(params)); break;
+	case 4: ai_shimai_load_extra_var32(sys_save_name(params)); break;
+	case 5: ai_shimai_save_extra_var32(sys_save_name(params)); break;
 	case 6: memset(memory_raw + MEMORY_VAR4_OFFSET, 0, VAR4_SIZE); break;
-	case 7: ai_shimai_load_heap(save_name(params), vm_expr_param(params, 2),
+	case 7: ai_shimai_load_heap(sys_save_name(params), vm_expr_param(params, 2),
 				vm_expr_param(params, 3)); break;
-	case 8: ai_shimai_save_heap(save_name(params), vm_expr_param(params, 2),
+	case 8: ai_shimai_save_heap(sys_save_name(params), vm_expr_param(params, 2),
 				vm_expr_param(params, 3)); break;
 	default: VM_ERROR("System.SaveData.function[%u] not implemented",
 				 params->params[0].val);
 	}
 }
 
-static void ai_shimai_sys_audio(struct param_list *params)
+static void ai_shimai_audio(struct param_list *params)
 {
 	static bool have_next = false;
 	static char next[128] = {0};
 	switch (vm_expr_param(params, 0)) {
 	case 0: audio_bgm_play(vm_string_param(params, 1), true); break;
-	case 1: audio_bgm_stop(); break;
-	case 2: audio_bgm_fade(0, 3000, true, false); break;
-	case 3: audio_bgm_fade(0, 3000, true, true); break;
+	case 1: audio_stop(AUDIO_CH_BGM); break;
+	case 2: audio_fade(AUDIO_CH_BGM, 0, 3000, true, false); break;
+	case 3: audio_fade(AUDIO_CH_BGM, 0, 3000, true, true); break;
 	case 4:
 		strcpy(next, vm_string_param(params, 1));
 		have_next = true;
@@ -501,10 +490,10 @@ static void ai_shimai_sys_audio(struct param_list *params)
 			have_next = false;
 		}
 		break;
-	case 6: audio_aux_play(vm_string_param(params, 1), vm_expr_param(params, 2)); break;
-	case 7: audio_aux_stop(vm_expr_param(params, 1)); break;
-	case 8: audio_aux_fade_out(0, false, vm_expr_param(params, 1)); break;
-	case 9: audio_aux_fade_out(0, true, vm_expr_param(params, 1)); break;
+	case 6: audio_se_play(vm_string_param(params, 1), vm_expr_param(params, 2)); break;
+	case 7: audio_se_stop(vm_expr_param(params, 1)); break;
+	case 8: audio_se_fade_out(0, false, vm_expr_param(params, 1)); break;
+	case 9: audio_se_fade_out(0, true, vm_expr_param(params, 1)); break;
 	default: VM_ERROR("System.Audio.function[%u] not implemented",
 				 params->params[0].val);
 	}
@@ -513,7 +502,7 @@ static void ai_shimai_sys_audio(struct param_list *params)
 static char prepared_voice[STRING_PARAM_SIZE] = {0};
 static bool have_prepared_voice = false;
 
-static void ai_shimai_sys_voice(struct param_list *params)
+static void ai_shimai_voice(struct param_list *params)
 {
 
 	if (!vm_flag_is_on(FLAG_VOICE_ENABLE))
@@ -529,8 +518,8 @@ static void ai_shimai_sys_voice(struct param_list *params)
 		return;
 	}
 	switch (vm_expr_param(params, 0)) {
-	case 0: audio_voice_play(vm_string_param(params, 1)); break;
-	case 1: audio_voice_stop(); break;
+	case 0: audio_voice_play(vm_string_param(params, 1), 0); break;
+	case 1: audio_stop(AUDIO_CH_VOICE0); break;
 	//case 2: audio_voice_play_sync(vm_string_param(params, 1)); break;
 	case 3:
 		if (vm_flag_is_on(FLAG_LOG))
@@ -542,7 +531,7 @@ static void ai_shimai_sys_voice(struct param_list *params)
 		if (vm_flag_is_on(FLAG_LOG))
 			backlog_set_has_voice();
 		if (have_prepared_voice) {
-			audio_voice_play(prepared_voice);
+			audio_voice_play(prepared_voice, 0);
 			have_prepared_voice = 0;
 			mem_set_var32(18, 1);
 		} else {
@@ -550,20 +539,14 @@ static void ai_shimai_sys_voice(struct param_list *params)
 		}
 		break;
 	case 5:
-		mem_set_var32(18, audio_voice_is_playing());
+		mem_set_var32(18, audio_is_playing(AUDIO_CH_VOICE0));
 		break;
 	default: WARNING("System.Voice.function[%u] not implemented",
 				 params->params[0].val);
 	}
 }
 
-static void ai_shimai_sys_load_image(struct param_list *params)
-{
-	anim_halt_all();
-	sys_load_image(params);
-}
-
-static void ai_shimai_sys_display(struct param_list *params)
+static void ai_shimai_display(struct param_list *params)
 {
 	switch (vm_expr_param(params, 0)) {
 	case 0:
@@ -586,7 +569,7 @@ static void ai_shimai_sys_display(struct param_list *params)
 	}
 }
 
-static void ai_shimai_sys_graphics(struct param_list *params)
+static void ai_shimai_graphics(struct param_list *params)
 {
 	switch (vm_expr_param(params, 0)) {
 	case 0: sys_graphics_copy(params); break;
@@ -963,7 +946,7 @@ static void sys_ime_strcmp(struct param_list *params)
 	//IME_LOG("ime_strcmp(...) -> %u", mem_get_var16(18));
 }
 
-static void sys_ime(struct param_list *params)
+static void ai_shimai_ime(struct param_list *params)
 {
 	switch (vm_expr_param(params, 0)) {
 	case 0: ime_enable(); break;
@@ -1263,15 +1246,15 @@ struct game game_ai_shimai = {
 	.sys = {
 		[0]  = sys_set_font_size,
 		[1]  = sys_display_number,
-		[2]  = ai_shimai_sys_cursor,
-		[3]  = ai_shimai_sys_anim,
-		[4]  = ai_shimai_sys_savedata,
-		[5]  = ai_shimai_sys_audio,
-		[6]  = ai_shimai_sys_voice,
+		[2]  = ai_shimai_cursor,
+		[3]  = ai_shimai_anim,
+		[4]  = ai_shimai_savedata,
+		[5]  = ai_shimai_audio,
+		[6]  = ai_shimai_voice,
 		[7]  = sys_file,
-		[8]  = ai_shimai_sys_load_image,
-		[9]  = ai_shimai_sys_display,
-		[10] = ai_shimai_sys_graphics,
+		[8]  = sys_load_image,
+		[9]  = ai_shimai_display,
+		[10] = ai_shimai_graphics,
 		[11] = sys_wait,
 		[12] = sys_set_text_colors_direct,
 		[13] = sys_farcall,
@@ -1284,7 +1267,7 @@ struct game game_ai_shimai = {
 		[20] = NULL,
 		[21] = sys_strlen,
 		[22] = sys_22,
-		[23] = sys_ime,
+		[23] = ai_shimai_ime,
 	},
 	.util = {
 		[0] = util_shift_screen,
