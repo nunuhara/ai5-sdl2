@@ -42,12 +42,22 @@ char *asset_voice_name = NULL;
 char *asset_voicesub_name = NULL;
 char *asset_data_name = NULL;
 
+static struct archive *open_arc(const char *name)
+{
+	char *path = path_get_icase(name);
+	if (!path)
+		return NULL;
+	struct archive *arc = archive_open(path, 0);
+	free(path);
+	return arc;
+}
+
 void asset_init(void)
 {
 #define ARC_OPEN(t, warn) \
 	if (config.file.t.arc) { \
 		assert(config.file.t.name); \
-		if (!(arc.t = archive_open(config.file.t.name, 0))) \
+		if (!(arc.t = open_arc(config.file.t.name))) \
 			warn("Failed to open archive \"%s\"", config.file.t.name); \
 	}
 	ARC_OPEN(bg, WARNING);
@@ -73,6 +83,23 @@ void asset_fini(void)
 	ARC_CLOSE(data);
 	ARC_CLOSE(priv);
 #undef ARC_CLOSE
+}
+
+bool asset_set_voice_archive(const char *name)
+{
+	if (config.file.voice.arc && !strcasecmp(config.file.voice.name, name))
+		return true;
+
+	struct archive *ar = open_arc(name);
+	if (!ar)
+		return false;
+	if (arc.voice)
+		archive_close(arc.voice);
+	arc.voice = ar;
+	config.file.voice.arc = true;
+	string_free(config.file.voice.name);
+	config.file.voice.name = string_new(name);
+	return true;
 }
 
 struct archive_data *asset_fs_load(const char *_name)

@@ -30,6 +30,9 @@ enum audio_channel {
 #define AUDIO_CH_SE(n) (AUDIO_CH_SE0 + n)
 #define AUDIO_CH_VOICE(n) (AUDIO_CH_VOICE0 + n)
 
+#define AUDIO_VOLUME_MIN (-5000)
+#define AUDIO_VOLUME_MAX 0
+
 static inline bool audio_se_channel_valid(unsigned ch)
 {
 	return ch < 3;
@@ -59,9 +62,9 @@ void audio_init(void);
 void audio_update(void);
 void audio_play(enum audio_channel ch, struct archive_data *file, bool check_playing);
 void audio_stop(enum audio_channel ch);
-void audio_set_volume(enum audio_channel ch, uint8_t vol);
-void audio_fade(enum audio_channel ch, uint8_t vol, int t, bool stop, bool sync);
-void audio_fade_out(enum audio_channel ch, uint8_t vol, bool sync); // remove this?
+void audio_set_volume(enum audio_channel ch, int vol);
+void audio_fade(enum audio_channel ch, int vol, int t, bool stop, bool sync);
+void audio_mixer_fade(enum audio_channel ch, int vol, int t, bool stop, bool sync);
 void audio_restore_volume(enum audio_channel ch);
 bool audio_is_playing(enum audio_channel ch);
 bool audio_is_fading(enum audio_channel ch);
@@ -71,7 +74,7 @@ void audio_bgm_play(const char *name, bool check_playing);
 
 void audio_se_play(const char *name, unsigned ch);
 void audio_se_stop(unsigned ch);
-void audio_se_fade_out(uint8_t vol, bool sync, unsigned ch);
+void audio_se_fade(int vol, unsigned t, bool stop, bool sync, unsigned ch);
 
 void audio_voice_play(const char *name, unsigned ch);
 void audio_voice_stop(unsigned ch);

@@ -28,6 +28,8 @@ void anim_wait(unsigned slot);
 void anim_stop_all(void);
 void anim_halt_all(void);
 void anim_reset_all(void);
+void anim_pause_all_sync(void);
+void anim_unpause_all(void);
 void anim_set_offset(unsigned slot, unsigned x, unsigned y);
 void anim_exec_copy_call(unsigned stream);
 

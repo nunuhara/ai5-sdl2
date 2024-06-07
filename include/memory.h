@@ -57,6 +57,7 @@ struct memory {
 	uint32_t menu_entry_addresses[MEMORY_MENU_ENTRY_MAX];
 	uint32_t menu_entry_numbers[MEMORY_MENU_ENTRY_MAX];
 	uint8_t backlog[MEMORY_BACKLOG_DATA_SIZE * MEMORY_BACKLOG_NR_ENTRIES];
+	uint8_t map_data[52];
 };
 
 struct memory_ptr {
@@ -99,7 +100,7 @@ static inline uint8_t mem_get_var4(unsigned i)
 
 static inline void mem_set_var4(unsigned i, uint8_t v)
 {
-	(memory_raw + MEMORY_MES_NAME_SIZE)[i] = v & 0xf;
+	(memory_raw + MEMORY_MES_NAME_SIZE)[i] = v;
 }
 
 static inline uint16_t mem_get_var16(unsigned i)

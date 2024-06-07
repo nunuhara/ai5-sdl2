@@ -24,19 +24,81 @@
 #include "sys.h"
 #include "vm_private.h"
 
+static uint8_t audio_vol[] = {
+	[AUDIO_CH_BGM] = 31,
+	[AUDIO_CH_SE0] = 31,
+};
+
+static unsigned fade_time(uint8_t from_vol, uint8_t to_vol)
+{
+	unsigned diff = abs((int)to_vol - (int)from_vol);
+	return diff * 100 + 50;
+}
+
+// XXX: Volume is a value in the range [0,31], which corresponds to the range
+//      [-5000,0] in increments of 156 (volume in dB).
+static int get_volume_db(uint8_t vol)
+{
+	if (vol == 31)
+		return 0;
+	return -5000 + vol * 156;
+}
+
+static void classics_audio_fade(enum audio_channel ch, uint8_t vol, bool stop, bool sync)
+{
+	// XXX: a bit strange, but this is how it works...
+	if (vol > audio_vol[ch])
+		stop = false;
+	else if (vol == audio_vol[ch])
+		return;
+
+	audio_mixer_fade(ch, get_volume_db(vol), fade_time(audio_vol[ch], vol), stop, sync);
+	audio_vol[ch] = vol;
+}
+
+static void classics_audio_fade_out(enum audio_channel ch, uint8_t vol, bool sync)
+{
+	if (vol == audio_vol[ch]) {
+		audio_stop(ch);
+		return;
+	}
+	audio_mixer_fade(ch, get_volume_db(vol), fade_time(audio_vol[ch], vol), true, sync);
+	audio_vol[ch] = vol;
+}
+
+static void classics_audio_set_volume(enum audio_channel ch, uint8_t vol)
+{
+	audio_vol[ch] = vol;
+	audio_set_volume(ch, get_volume_db(vol));
+}
+
+static void classics_audio_restore_volume(enum audio_channel ch)
+{
+	if (!audio_is_playing(ch))
+		return;
+	if (audio_vol[ch] == 31) {
+		audio_stop(ch);
+		return;
+	}
+	audio_mixer_fade(ch, AUDIO_VOLUME_MAX, fade_time(audio_vol[ch], 31), false, false);
+	audio_vol[ch] = 31;
+}
+
 void classics_audio(struct param_list *params)
 {
 	switch (vm_expr_param(params, 0)) {
 	case 0:  audio_bgm_play(vm_string_param(params, 1), true); break;
 	case 2:  audio_stop(AUDIO_CH_BGM); break;
 	case 3:  audio_se_play(vm_string_param(params, 1), 0); break;
-	case 4:  audio_fade(AUDIO_CH_BGM, vm_expr_param(params, 2), -1, vm_expr_param(params, 3), true); break;
-	case 5:  audio_set_volume(AUDIO_CH_BGM, vm_expr_param(params, 1)); break;
-	case 7:  audio_fade(AUDIO_CH_BGM, vm_expr_param(params, 2), -1, vm_expr_param(params, 3), false); break;
-	case 9:  audio_fade_out(AUDIO_CH_BGM, vm_expr_param(params, 1), true); break;
-	case 10: audio_fade_out(AUDIO_CH_BGM, vm_expr_param(params, 2), false); break;
+	case 4:  classics_audio_fade(AUDIO_CH_BGM, vm_expr_param(params, 2),
+				 vm_expr_param(params, 3), true); break;
+	case 5:  classics_audio_set_volume(AUDIO_CH_BGM, vm_expr_param(params, 1)); break;
+	case 7:  classics_audio_fade(AUDIO_CH_BGM, vm_expr_param(params, 2),
+				 vm_expr_param(params, 3), false); break;
+	case 9:  classics_audio_fade_out(AUDIO_CH_BGM, vm_expr_param(params, 1), true); break;
+	case 10: classics_audio_fade_out(AUDIO_CH_BGM, vm_expr_param(params, 2), false); break;
 	case 12: audio_stop(AUDIO_CH_SE(0)); break;
-	case 18: audio_restore_volume(AUDIO_CH_BGM); break;
+	case 18: classics_audio_restore_volume(AUDIO_CH_BGM); break;
 	default: VM_ERROR("System.Audio.function[%d] not implemented", params->params[0].val);
 	}
 }

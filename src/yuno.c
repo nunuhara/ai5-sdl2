@@ -456,6 +456,7 @@ static void yuno_update(void)
 }
 
 struct game game_yuno = {
+	.id = GAME_YUNO,
 	.surface_sizes = {
 		{ 640, 400 },
 		{ 640, 400 },
@@ -467,9 +468,9 @@ struct game game_yuno = {
 	.bpp = 8,
 	.x_mult = 8,
 	.use_effect_arc = true,
-	.persistent_volume = true,
 	.call_saves_procedures = true,
 	.proc_clears_flag = false,
+	.flags_type = FLAGS_4BIT_WRAPPED,
 	.var4_size = VAR4_SIZE,
 	.mem16_size = MEM16_SIZE,
 	.update = yuno_update,

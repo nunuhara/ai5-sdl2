@@ -368,6 +368,36 @@ void sys_graphics_copy_progressive(struct param_list *params)
 			dst_x * game->x_mult, dst_y, dst_i);
 }
 
+void sys_graphics_pixel_crossfade(struct param_list *params)
+{
+	// System.Grahpics.pixel_crossfade(src_x, src_y, src_br_x, src_br_y, src_i, dst_x, dst_y, dst_i)
+	int src_x = vm_expr_param(params, 1);
+	int src_y = vm_expr_param(params, 2);
+	int src_w = (vm_expr_param(params, 3) - src_x) + 1;
+	int src_h = (vm_expr_param(params, 4) - src_y) + 1;
+	unsigned src_i = vm_expr_param(params, 5);
+	int dst_x = vm_expr_param(params, 6);
+	int dst_y = vm_expr_param(params, 7);
+	unsigned dst_i = vm_expr_param(params, 8);
+	gfx_pixel_crossfade(src_x * game->x_mult, src_y, src_w * game->x_mult, src_h, src_i,
+			dst_x * game->x_mult, dst_y, dst_i);
+}
+
+void sys_graphics_pixel_crossfade_masked(struct param_list *params)
+{
+	// System.Grahpics.pixel_crossfade_masked(src_x, src_y, src_br_x, src_br_y, src_i, dst_x, dst_y, dst_i)
+	int src_x = vm_expr_param(params, 1);
+	int src_y = vm_expr_param(params, 2);
+	int src_w = (vm_expr_param(params, 3) - src_x) + 1;
+	int src_h = (vm_expr_param(params, 4) - src_y) + 1;
+	unsigned src_i = vm_expr_param(params, 5);
+	int dst_x = vm_expr_param(params, 6);
+	int dst_y = vm_expr_param(params, 7);
+	unsigned dst_i = vm_expr_param(params, 8);
+	gfx_pixel_crossfade_masked(src_x * game->x_mult, src_y, src_w * game->x_mult, src_h,
+			src_i, dst_x * game->x_mult, dst_y, dst_i,
+			mem_get_sysvar16(mes_sysvar16_mask_color));
+}
 void sys_wait(struct param_list *params)
 {
 	if (params->nr_params == 0 || vm_expr_param(params, 0) == 0) {

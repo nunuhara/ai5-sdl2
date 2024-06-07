@@ -217,8 +217,17 @@ static unsigned gfx_text_draw_glyph_indexed(int x, int y, SDL_Surface *dst, uint
 
 static unsigned gfx_text_draw_glyph_direct(int x, int y, SDL_Surface *dst, uint32_t ch)
 {
-	SDL_Surface *outline = TTF_RenderGlyph32_Blended(cur_font->id_outline, ch, gfx.text.bg_color);
-	SDL_Surface *glyph = TTF_RenderGlyph32_Blended(cur_font->id, ch, gfx.text.fg_color);
+	SDL_Surface *outline, *glyph;
+	if (game->no_antialias_text) {
+		// XXX: Antialiasing can cause issues if the text is rendered to a surface
+		//      filled with the mask color and then copied to the main surface with
+		//      copy_masked (e.g. Doukyuusei does this).
+		outline = TTF_RenderGlyph32_Solid(cur_font->id_outline, ch, gfx.text.bg_color);
+		glyph = TTF_RenderGlyph32_Solid(cur_font->id, ch, gfx.text.fg_color);
+	} else {
+		outline = TTF_RenderGlyph32_Blended(cur_font->id_outline, ch, gfx.text.bg_color);
+		glyph = TTF_RenderGlyph32_Blended(cur_font->id, ch, gfx.text.fg_color);
+	}
 	if (!outline || !glyph)
 		ERROR("TTF_RenderGlyph32_Blended: %s", TTF_GetError());
 

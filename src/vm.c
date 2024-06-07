@@ -337,21 +337,11 @@ char *vm_string_param(struct param_list *params, int i)
 	return params->params[i].str;
 }
 
-uint32_t vm_expr_param(struct param_list *params, int i)
-{
-	if (i >= params->nr_params) {
-		WARNING("Too few parameters");
-		return 0;
-	}
-	if (params->params[i].type != MES_PARAM_EXPRESSION)
-		VM_ERROR("Expected expression parameter %d / %d", i, params->nr_params);
-	return params->params[i].val;
-}
-
 void vm_draw_text(const char *text)
 {
 	if (vm_flag_is_on(FLAG_STRLEN)) {
-		mem_set_var32(18, mem_get_var32(18) + strlen(text));
+		mem_set_var32(game->farcall_strlen_retvar,
+				mem_get_var32(game->farcall_strlen_retvar) + strlen(text));
 		return;
 	}
 	if (yuno_eng) {
@@ -479,6 +469,26 @@ static void stmt_setrbc(void)
 	} while (vm_read_byte());
 }
 
+static void stmt_setrbc_4bit_wrapped(void)
+{
+	uint16_t i = vm_read_word();
+	do {
+		if (unlikely(!mem_ptr_valid(memory_raw + MEMORY_MES_NAME_SIZE + i, 1)))
+			VM_ERROR("Out of bounds write");
+		mem_set_var4(i++, vm_eval() & 0xf);
+	} while (vm_read_byte());
+}
+
+static void stmt_setrbc_4bit_capped(void)
+{
+	uint16_t i = vm_read_word();
+	do {
+		if (unlikely(!mem_ptr_valid(memory_raw + MEMORY_MES_NAME_SIZE + i, 1)))
+			VM_ERROR("Out of bounds write");
+		mem_set_var4(i++, min(vm_eval(), 0xf));
+	} while (vm_read_byte());
+}
+
 static void stmt_setv(void)
 {
 	uint8_t i = vm_read_byte();
@@ -496,6 +506,26 @@ static void stmt_setrbe(void)
 		if (unlikely(!mem_ptr_valid(memory_raw + MEMORY_MES_NAME_SIZE + i, 1)))
 			VM_ERROR("Out of bounds write");
 		mem_set_var4(i++, vm_eval());
+	} while (vm_read_byte());
+}
+
+static void stmt_setrbe_4bit_wrapped(void)
+{
+	int32_t i = vm_eval();
+	do {
+		if (unlikely(!mem_ptr_valid(memory_raw + MEMORY_MES_NAME_SIZE + i, 1)))
+			VM_ERROR("Out of bounds write");
+		mem_set_var4(i++, vm_eval() & 0xf);
+	} while (vm_read_byte());
+}
+
+static void stmt_setrbe_4bit_capped(void)
+{
+	int32_t i = vm_eval();
+	do {
+		if (unlikely(!mem_ptr_valid(memory_raw + MEMORY_MES_NAME_SIZE + i, 1)))
+			VM_ERROR("Out of bounds write");
+		mem_set_var4(i++, min(vm_eval(), 0xf));
 	} while (vm_read_byte());
 }
 
@@ -748,9 +778,21 @@ retry:
 	case MES_STMT_END:     return false;
 	case MES_STMT_TXT:     stmt_txt(true); break;
 	case MES_STMT_STR:     stmt_str(true); break;
-	case MES_STMT_SETRBC:  stmt_setrbc(); break;
+	case MES_STMT_SETRBC:
+		switch (game->flags_type) {
+		case FLAGS_4BIT_WRAPPED: stmt_setrbc_4bit_wrapped(); break;
+		case FLAGS_4BIT_CAPPED:  stmt_setrbc_4bit_capped(); break;
+		case FLAGS_8BIT:         stmt_setrbc(); break;
+		}
+		break;
 	case MES_STMT_SETV:    stmt_setv(); break;
-	case MES_STMT_SETRBE:  stmt_setrbe(); break;
+	case MES_STMT_SETRBE:
+		switch (game->flags_type) {
+		case FLAGS_4BIT_WRAPPED: stmt_setrbe_4bit_wrapped(); break;
+		case FLAGS_4BIT_CAPPED:  stmt_setrbe_4bit_capped(); break;
+		case FLAGS_8BIT:         stmt_setrbe(); break;
+		}
+		break;
 	case MES_STMT_SETAC:   stmt_setac(); break;
 	case MES_STMT_SETA_AT: stmt_seta_at(); break;
 	case MES_STMT_SETAD:   stmt_setad(); break;

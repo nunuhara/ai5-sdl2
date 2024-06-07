@@ -41,7 +41,7 @@
 #define ANIM_NR_SLOTS ANIM_MAX_STREAMS
 
 struct anim_stream {
-	uint8_t cmd;
+	uint8_t state;
 	// pointer to S4/A file in memory
 	uint8_t *file_data;
 	// pointer to stream's bytecode
@@ -64,15 +64,19 @@ struct anim_stream {
 
 static struct anim_stream streams[ANIM_MAX_STREAMS] = {0};
 
-enum anim_command {
+enum anim_state {
 	// stream is in halted state
-	ANIM_CMD_HALTED,
+	ANIM_STATE_HALTED,
 	// stream is in running state
-	ANIM_CMD_RUN,
+	ANIM_STATE_RUNNING,
 	// halt on next CHECK_STOP instruction
-	ANIM_CMD_STOP,
+	ANIM_STATE_HALT_NEXT,
 	// waiting until halted
-	ANIM_CMD_WAIT,
+	ANIM_STATE_WAITING,
+	// pause on next CHECK_STOP instruction
+	ANIM_STATE_PAUSE_NEXT,
+	// stream is in paused state
+	ANIM_STATE_PAUSED,
 };
 
 static void check_slot(unsigned i)
@@ -116,7 +120,7 @@ void anim_start(unsigned slot)
 	ANIM_LOG("anim_start(%u)", slot);
 	check_slot(slot);
 	if (streams[slot].initialized) {
-		streams[slot].cmd = ANIM_CMD_RUN;
+		streams[slot].state = ANIM_STATE_RUNNING;
 		streams[slot].ip = 0;
 	}
 }
@@ -125,14 +129,14 @@ void anim_stop(unsigned slot)
 {
 	ANIM_LOG("anim_stop(%u)", slot);
 	check_slot(slot);
-	streams[slot].cmd = ANIM_CMD_STOP;
+	streams[slot].state = ANIM_STATE_HALT_NEXT;
 }
 
 void anim_halt(unsigned slot)
 {
 	ANIM_LOG("anim_halt(%u)", slot);
 	check_slot(slot);
-	streams[slot].cmd = ANIM_CMD_HALTED;
+	streams[slot].state = ANIM_STATE_HALTED;
 	streams[slot].initialized = false;
 }
 
@@ -140,18 +144,18 @@ void anim_wait(unsigned slot)
 {
 	ANIM_LOG("anim_wait(%u)", slot);
 	check_slot(slot);
-	streams[slot].cmd = ANIM_CMD_WAIT;
+	streams[slot].state = ANIM_STATE_WAITING;
 	do {
 		vm_peek();
-	} while (streams[slot].cmd != ANIM_CMD_HALTED);
+	} while (streams[slot].state != ANIM_STATE_HALTED);
 }
 
 void anim_stop_all(void)
 {
 	ANIM_LOG("anim_stop_all()");
 	for (int i = 0; i < ANIM_NR_SLOTS; i++) {
-		if (streams[i].cmd != ANIM_CMD_HALTED)
-			streams[i].cmd = ANIM_CMD_STOP;
+		if (streams[i].state != ANIM_STATE_HALTED)
+			streams[i].state = ANIM_STATE_HALT_NEXT;
 	}
 }
 
@@ -159,7 +163,7 @@ void anim_halt_all(void)
 {
 	ANIM_LOG("anim_halt_all()");
 	for (int i = 0; i < ANIM_MAX_STREAMS; i++) {
-		streams[i].cmd = ANIM_CMD_HALTED;
+		streams[i].state = ANIM_STATE_HALTED;
 		streams[i].initialized = false;
 	}
 }
@@ -168,9 +172,40 @@ void anim_reset_all(void)
 {
 	ANIM_LOG("anim_reset_all()");
 	for (int i = 0; i < ANIM_MAX_STREAMS; i++) {
-		if (streams[i].cmd == ANIM_CMD_HALTED)
+		if (streams[i].state == ANIM_STATE_HALTED)
 			continue;
 		_anim_init_stream(i, streams[i].stream);
+	}
+}
+
+bool anim_any_running(void)
+{
+	for (int i = 0; i < ANIM_MAX_STREAMS; i++) {
+		if (streams[i].state != ANIM_STATE_HALTED && streams[i].state != ANIM_STATE_PAUSED)
+			return true;
+	}
+	return false;
+}
+
+void anim_pause_all_sync(void)
+{
+	ANIM_LOG("anim_pause_all_sync()");
+	for (int i = 0; i < ANIM_MAX_STREAMS; i++) {
+		if (streams[i].state == ANIM_STATE_RUNNING)
+			streams[i].state = ANIM_STATE_PAUSE_NEXT;
+	}
+	// wait for all animations to enter halted or paused state
+	do {
+		vm_peek();
+	} while (anim_any_running());
+}
+
+void anim_unpause_all(void)
+{
+	ANIM_LOG("anim_unpause_all()");
+	for (int i = 0; i < ANIM_MAX_STREAMS; i++) {
+		if (streams[i].state == ANIM_STATE_PAUSED)
+			streams[i].state = ANIM_STATE_RUNNING;
 	}
 }
 
@@ -268,6 +303,8 @@ static bool anim_stream_draw(struct anim_stream *anim, uint8_t i)
 	case ANIM_DRAW_OP_SET_PALETTE:
 		break;
 	}
+	if (game->after_anim_draw)
+		game->after_anim_draw(&call);
 	return true;
 }
 
@@ -284,8 +321,10 @@ bool anim_stream_execute(struct anim_stream *anim)
 		break;
 	case ANIM_OP_CHECK_STOP:
 		STREAM_LOG("CHECK_STOP;");
-		if (anim->cmd == ANIM_CMD_STOP)
-			anim->cmd = ANIM_CMD_HALTED;
+		if (anim->state == ANIM_STATE_HALT_NEXT)
+			anim->state = ANIM_STATE_HALTED;
+		else if (anim->state == ANIM_STATE_PAUSE_NEXT)
+			anim->state = ANIM_STATE_PAUSED;
 		break;
 	case ANIM_OP_STALL:
 		anim->stall_count = read_value(anim);
@@ -297,7 +336,7 @@ bool anim_stream_execute(struct anim_stream *anim)
 		break;
 	case ANIM_OP_HALT:
 		STREAM_LOG("HALT;");
-		anim->cmd = ANIM_CMD_HALTED;
+		anim->state = ANIM_STATE_HALTED;
 		break;
 	case ANIM_OP_LOOP_START:
 		anim->loop.count = read_value(anim);
@@ -321,7 +360,7 @@ bool anim_stream_execute(struct anim_stream *anim)
 		break;
 	case 0xff:
 	case 0xffff:
-		anim->cmd = ANIM_CMD_HALTED;
+		anim->state = ANIM_STATE_HALTED;
 		break;
 	default:
 		return anim_stream_draw(anim, op);
@@ -340,7 +379,7 @@ void anim_execute(void)
 	anim_prev_frame_t = t;
 	for (int i = 0; i < ANIM_MAX_STREAMS; i++) {
 		struct anim_stream *anim = &streams[i];
-		if (anim->cmd == ANIM_CMD_HALTED)
+		if (anim->state == ANIM_STATE_HALTED || anim->state == ANIM_STATE_PAUSED)
 			continue;
 		anim_stream_execute(anim);
 	}
@@ -349,13 +388,13 @@ void anim_execute(void)
 bool anim_stream_running(unsigned stream)
 {
 	assert(stream < ANIM_MAX_STREAMS);
-	return streams[stream].cmd != ANIM_CMD_HALTED;
+	return streams[stream].state != ANIM_STATE_HALTED;
 }
 
 bool anim_running(void)
 {
 	for (int i = 0; i < ANIM_MAX_STREAMS; i++) {
-		if (streams[i].cmd != ANIM_CMD_HALTED)
+		if (streams[i].state != ANIM_STATE_HALTED)
 			return true;
 	}
 	return false;

@@ -279,6 +279,16 @@ void sts_mixer_stop_voice(sts_mixer_t* mixer, int voice) {
 }
 
 
+void sts_mixer_stop_all_voices(sts_mixer_t* mixer) {
+  int i;
+
+  for (i = 0; i < STS_MIXER_VOICES; ++i) {
+    if (mixer->voices[i].state != STS_MIXER_VOICE_STOPPED)
+      sts_mixer__reset_voice(mixer, i);
+  }
+}
+
+
 void sts_mixer_stop_sample(sts_mixer_t* mixer, sts_mixer_sample_t* sample) {
   int i;
 

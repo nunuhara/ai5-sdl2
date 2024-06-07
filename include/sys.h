@@ -43,6 +43,8 @@ void sys_graphics_blend(struct param_list *params);
 void sys_graphics_blend_masked(struct param_list *params);
 void sys_graphics_invert_colors(struct param_list *params);
 void sys_graphics_copy_progressive(struct param_list *params);
+void sys_graphics_pixel_crossfade(struct param_list *params);
+void sys_graphics_pixel_crossfade_masked(struct param_list *params);
 void sys_wait(struct param_list *params);
 void sys_set_text_colors_indexed(struct param_list *params);
 void sys_set_text_colors_direct(struct param_list *params);

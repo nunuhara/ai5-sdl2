@@ -37,7 +37,17 @@ struct param_list {
 };
 
 char *vm_string_param(struct param_list *params, int i);
-uint32_t vm_expr_param(struct param_list *params, int i);
+
+#define vm_expr_param(params, i) _vm_expr_param(params, i, __func__)
+static inline uint32_t _vm_expr_param(struct param_list *params, int i, const char *func) {
+	if (i >= params->nr_params) {
+		WARNING("Too few parameters at %s", func);
+		return 0;
+	}
+	if (params->params[i].type != MES_PARAM_EXPRESSION)
+		VM_ERROR("Expected expression parameter %d / %d", i, params->nr_params);
+	return params->params[i].val;
+}
 
 void vm_load_data_file(const char *name, uint32_t offset);
 void vm_util_set_game(enum ai5_game_id game);

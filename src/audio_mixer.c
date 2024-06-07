@@ -40,7 +40,6 @@
 struct fade {
 	atomic_bool fading;
 	bool stop;
-	uint_least32_t start_pos;
 	uint_least32_t frames;
 	uint_least32_t elapsed;
 	float start_volume;
@@ -84,6 +83,8 @@ struct mixer {
 	struct mixer *parent;
 	struct mixer **children;
 	int nr_children;
+
+	struct fade fade;
 };
 
 static struct mixer *master = NULL;
@@ -254,9 +255,25 @@ static int refill_stream(sts_mixer_sample_t *sample, void *data)
 static int refill_mixer(sts_mixer_sample_t *sample, void *data)
 {
 	struct mixer *mixer = data;
+
+	// mix child mixers/streams
 	sts_mixer_mix_audio(&mixer->mixer, &mixer->data, CHUNK_SIZE);
 	if (mixer->muted) {
 		memset(mixer->data, 0, sizeof(float) * sample->length);
+	}
+
+	// set gain for fade
+	if (mixer->fade.fading) {
+		float gain = cb_calc_fade(&mixer->fade);
+		mixer->mixer.gain = gain;
+
+		mixer->fade.elapsed += CHUNK_SIZE;
+		if (mixer->fade.elapsed >= mixer->fade.frames) {
+			mixer->fade.fading = false;
+			if (mixer->fade.stop) {
+				sts_mixer_stop_all_voices(&mixer->mixer);
+			}
+		}
 	}
 
 	return STS_STREAM_CONTINUE;
@@ -323,32 +340,28 @@ int mixer_stream_set_loop_end_pos(struct mixer_stream *ch, int pos)
 	return 1;
 }
 
+int mixer_stream_set_volume(struct mixer_stream *ch, int volume)
+{
+	SDL_LockAudioDevice(audio_device);
+	ch->fade.fading = false;
+	ch->volume = max(0, min(100, volume));
+	return 1;
+}
+
 int mixer_stream_fade(struct mixer_stream *ch, int time, int volume, bool stop)
 {
 	if (!time && stop)
 		return mixer_stream_stop(ch);
+	if (!time)
+		return mixer_stream_set_volume(ch, volume);
 
 	SDL_LockAudioDevice(audio_device);
-	if (!time) {
-		// XXX: Fade with time=0 is used to set volume. This needs to
-		//      take effect immediately, not via the audio callback
-		//      because the stream isn't necessarily playing yet.
-		//      E.g. the below call sequence should fade from 0 -> 33:
-		//
-		//          SACT2.Music_Fade(ch, 0, 0, 0);
-		//          SACT2.Music_Fade(ch, 33, 4000, 0);
-		//          SACT2.Music_Play(ch);
-		ch->fade.fading = false;
-		ch->volume = max(0, min(100, volume));
-	} else {
-		ch->fade.fading = true;
-		ch->fade.stop = stop;
-		ch->fade.start_pos = ch->frame;
-		ch->fade.start_volume = (float)ch->volume / 100.0;
-		ch->fade.frames = muldiv(time, ch->info.samplerate, 1000);
-		ch->fade.elapsed = 0;
-		ch->fade.end_volume = clamp(0.0f, 1.0f, (float)volume / 100.0f);
-	}
+	ch->fade.fading = true;
+	ch->fade.stop = stop;
+	ch->fade.frames = muldiv(time, ch->info.samplerate, 1000);
+	ch->fade.elapsed = 0;
+	ch->fade.start_volume = (float)ch->volume / 100.0;
+	ch->fade.end_volume = clamp(0.0f, 1.0f, (float)volume / 100.0f);
 	SDL_UnlockAudioDevice(audio_device);
 	return 1;
 }
@@ -622,11 +635,21 @@ int mixer_set_name(int n, const char *name)
 	return 1;
 }
 
+int mixer_stop(int n)
+{
+	if (n < 0 || n >= nr_mixers)
+		return 0;
+
+	SDL_LockAudioDevice(audio_device);
+	sts_mixer_stop_all_voices(&mixers[n].mixer);
+	SDL_UnlockAudioDevice(audio_device);
+	return 1;
+}
+
 int mixer_get_volume(int n, int *volume)
 {
-	if (n < 0 || n >= nr_mixers) {
+	if (n < 0 || n >= nr_mixers)
 		return 0;
-	}
 	SDL_LockAudioDevice(audio_device);
 	*volume = clamp(0, 100, (int)(mixers[n].mixer.gain * 100));
 	SDL_UnlockAudioDevice(audio_device);
@@ -638,9 +661,37 @@ int mixer_set_volume(int n, int volume)
 	if (n < 0 || n >= nr_mixers)
 		return 0;
 	SDL_LockAudioDevice(audio_device);
+	mixers[n].fade.fading = false;
 	mixers[n].mixer.gain = clamp(0.0f, 1.0f, (float)volume / 100.0f);
 	SDL_UnlockAudioDevice(audio_device);
 	return 1;
+}
+
+int mixer_fade(int n, int time, int volume, bool stop)
+{
+	if (!time && stop)
+		return mixer_stop(n);
+	if (!time)
+		return mixer_set_volume(n, volume);
+	if (n < 0 || n >= nr_mixers)
+		return 0;
+
+	SDL_LockAudioDevice(audio_device);
+	mixers[n].fade.fading = true;
+	mixers[n].fade.stop = stop;
+	mixers[n].fade.frames = muldiv(time, mixers[n].stream.sample.frequency, 1000);
+	mixers[n].fade.elapsed = 0;
+	mixers[n].fade.start_volume = mixers[n].mixer.gain;
+	mixers[n].fade.end_volume = clamp(0.0f, 1.0f, (float)volume / 100.0f);
+	SDL_UnlockAudioDevice(audio_device);
+	return 1;
+}
+
+int mixer_is_fading(int n)
+{
+	if (n < 0 || n >= nr_mixers)
+		return 0;
+	return mixers[n].fade.fading;
 }
 
 int mixer_get_mute(int n, int *mute)

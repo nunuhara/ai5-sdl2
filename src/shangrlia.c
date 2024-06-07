@@ -98,6 +98,7 @@ static void shangrlia_set_speaker(struct param_list *params)
 }
 
 struct game game_shangrlia = {
+	.id = GAME_SHANGRLIA,
 	.surface_sizes = {
 		{ 640, 400 },
 		{ 640, 400 },
@@ -109,7 +110,6 @@ struct game game_shangrlia = {
 	.bpp = 8,
 	.x_mult = 1,
 	.use_effect_arc = true,
-	.persistent_volume = true,
 	.call_saves_procedures = true,
 	.proc_clears_flag = false,
 	.var4_size = VAR4_SIZE,

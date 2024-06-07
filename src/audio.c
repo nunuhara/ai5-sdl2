@@ -30,7 +30,6 @@ struct channel {
 	unsigned id;
 	struct mixer_stream *ch;
 	char *file_name;
-	uint8_t volume;
 };
 
 void audio_init(void)
@@ -51,15 +50,14 @@ static void channel_stop(struct channel *ch)
 	}
 }
 
-// XXX: Volume is a value in the range [0,31], which corresponds to the range
-//      [-5000,0] in increments of 156 (volume in dB as expected by
-//      DirectSound). We convert this value to a linear volume scale.
-static int get_linear_volume(uint8_t vol)
+// XXX: Volume is given in hundredths of decibels, from -5000 to 0.
+//      We convert this value to a linear volume scale.
+static int get_linear_volume(int vol)
 {
-	int directsound_volume = -5000 + vol * 156;
+	vol = clamp(-5000, 0, vol);
 	int linear_volume = 100;
 	if (vol < 31) {
-		float v = powf(10.f, (float)directsound_volume / 2000.f);
+		float v = powf(10.f, (float)vol / 2000.f);
 		linear_volume = floorf(v * 100 + 0.5f);
 	};
 	return linear_volume;
@@ -75,71 +73,47 @@ static void channel_play(struct channel *ch, struct archive_data *file, bool che
 	channel_stop(ch);
 
 	if ((ch->ch = mixer_stream_open(file, ch->id))) {
-		if (game->persistent_volume) {
-			if (ch->volume != 31)
-				mixer_stream_fade(ch->ch, 0, get_linear_volume(ch->volume), false);
-		} else {
-			ch->volume = 31;
-		}
 		mixer_stream_play(ch->ch);
 		ch->file_name = strdup(file->name);
 	}
 }
 
-static void channel_set_volume(struct channel *ch, uint8_t vol)
+static void channel_set_volume(struct channel *ch, int vol)
 {
-	ch->volume = vol;
-	if (ch->ch)
-		mixer_stream_fade(ch->ch, 0, get_linear_volume(vol), false);
+	mixer_set_volume(ch->id, get_linear_volume(vol));
 }
 
-static unsigned fade_time(struct channel *ch, uint8_t vol)
-{
-	unsigned diff = abs((int)vol - (int)ch->volume);
-	return diff * 100 + 50;
-}
-
-static void channel_fade(struct channel *ch, uint8_t vol, int t, bool stop, bool sync)
+static void channel_fade(struct channel *ch, int vol, int t, bool stop, bool sync)
 {
 	if (!ch->ch)
 		return;
-	// XXX: a bit strange, but this is how it works...
-	if (vol > ch->volume)
-		stop = false;
-	else if (vol == ch->volume)
+	unsigned end_vol = get_linear_volume(vol);
+	if (mixer_stream_get_volume(ch->ch) == end_vol)
 		return;
 
-	if (t < 0)
-		t = fade_time(ch, vol);
-
-	mixer_stream_fade(ch->ch, t, get_linear_volume(vol), stop);
-	while (sync && mixer_stream_is_fading(ch->ch)) {
-		vm_peek();
-		vm_delay(16);
+	mixer_stream_fade(ch->ch, t, end_vol, stop);
+	if (sync) {
+		while (mixer_stream_is_fading(ch->ch)) {
+			vm_peek();
+			vm_delay(16);
+		}
 	}
-	ch->volume = vol;
 }
 
-static void channel_fade_out(struct channel *ch, uint8_t vol, bool sync)
+static void channel_mixer_fade(struct channel *ch, int vol, int t, bool stop, bool sync)
 {
-	if (vol == ch->volume) {
-		channel_stop(ch);
+	int cur_vol;
+	unsigned end_vol = get_linear_volume(vol);
+	if (mixer_get_volume(ch->id, &cur_vol) && cur_vol == end_vol)
 		return;
-	}
-	channel_fade(ch, vol, -1, true, sync);
-}
 
-static void channel_restore_volume(struct channel *ch)
-{
-	if (!ch->ch)
-		return;
-	if (ch->volume == 31) {
-		channel_stop(ch);
-		return;
+	mixer_fade(ch->id, t, end_vol, stop);
+	if (sync) {
+		while (mixer_is_fading(ch->id)) {
+			vm_peek();
+			vm_delay(16);
+		}
 	}
-
-	mixer_stream_fade(ch->ch, fade_time(ch, 31), 100, false);
-	ch->volume = 31;
 }
 
 static bool channel_is_playing(struct channel *ch)
@@ -153,12 +127,12 @@ static bool channel_is_fading(struct channel *ch)
 }
 
 static struct channel channels[] = {
-	[AUDIO_CH_BGM]    = { .id = MIXER_MUSIC,  .volume = 31 },
-	[AUDIO_CH_SE0]    = { .id = MIXER_EFFECT, .volume = 31 },
-	[AUDIO_CH_SE1]    = { .id = MIXER_EFFECT, .volume = 31 },
-	[AUDIO_CH_SE2]    = { .id = MIXER_EFFECT, .volume = 31 },
-	[AUDIO_CH_VOICE0] = { .id = MIXER_VOICE,  .volume = 31 },
-	[AUDIO_CH_VOICE1] = { .id = MIXER_VOICE,  .volume = 31 },
+	[AUDIO_CH_BGM]    = { .id = MIXER_MUSIC },
+	[AUDIO_CH_SE0]    = { .id = MIXER_EFFECT },
+	[AUDIO_CH_SE1]    = { .id = MIXER_EFFECT },
+	[AUDIO_CH_SE2]    = { .id = MIXER_EFFECT },
+	[AUDIO_CH_VOICE0] = { .id = MIXER_VOICE },
+	[AUDIO_CH_VOICE1] = { .id = MIXER_VOICE },
 };
 
 void audio_update(void)

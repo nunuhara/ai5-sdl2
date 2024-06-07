@@ -183,6 +183,9 @@ static void set_game(const char *name)
 	case GAME_AI_SHIMAI:
 		game = &game_ai_shimai;
 		break;
+	case GAME_DOUKYUUSEI:
+		game = &game_doukyuusei;
+		break;
 	case GAME_ISAKU:
 		game = &game_isaku;
 		break;
@@ -215,6 +218,8 @@ static bool set_game_from_config(void)
 		name = "isaku";
 	} else if (!strcmp(config.title, "AISHIMAI")) {
 		name = "aishimai";
+	} else if (!strcmp(config.title, "DOUKYUSEI")) {
+		name = "doukyuusei";
 	}
 	if (!name)
 		return false;

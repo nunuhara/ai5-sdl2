@@ -19,10 +19,13 @@
 
 #include <stdint.h>
 
-#define GAME_MAX_UTIL 256
-#define GAME_MAX_SYS 32
+#include "ai5/game.h"
+
+#define GAME_MAX_UTIL 601
+#define GAME_MAX_SYS 256
 
 struct param_list;
+struct anim_draw_call;
 typedef union SDL_Event SDL_Event;
 
 enum game_flag {
@@ -62,14 +65,23 @@ enum game_flag {
 #define GAME_NR_FLAGS (FLAG_PALETTE_ONLY+1)
 #define FLAG_ALWAYS_ON 0xffff
 
+enum flags_type {
+	FLAGS_8BIT,
+	FLAGS_4BIT_WRAPPED,
+	FLAGS_4BIT_CAPPED,
+};
+
 struct game {
-	struct { uint16_t w, h; } surface_sizes[12];
+	enum ai5_game_id id;
+	struct { uint16_t w, h; } surface_sizes[13];
 	unsigned bpp;
 	unsigned x_mult;
 	bool use_effect_arc;
-	bool persistent_volume;
 	bool call_saves_procedures;
 	bool proc_clears_flag;
+	bool no_antialias_text;
+	enum flags_type flags_type;
+	unsigned farcall_strlen_retvar;
 	uint32_t var4_size;
 	uint32_t mem16_size;
 	void (*init)(void);
@@ -78,12 +90,14 @@ struct game {
 	void (*mem_init)(void);
 	void (*mem_restore)(void);
 	void (*custom_TXT)(const char *text);
+	void (*after_anim_draw)(struct anim_draw_call *call);
 	void (*util[GAME_MAX_UTIL])(struct param_list*);
 	void (*sys[GAME_MAX_SYS])(struct param_list*);
 	uint32_t flags[GAME_NR_FLAGS];
 };
 
 extern struct game game_ai_shimai;
+extern struct game game_doukyuusei;
 extern struct game game_isaku;
 extern struct game game_shangrlia;
 extern struct game game_yuno;

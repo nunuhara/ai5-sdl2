@@ -19,7 +19,7 @@
 
 struct cg;
 
-#define GFX_NR_SURFACES 10
+#define GFX_NR_SURFACES 12
 
 struct gfx_view { unsigned w, h; };
 extern struct gfx_view gfx_view;
@@ -46,7 +46,9 @@ void gfx_display_hide(void);
 void gfx_display_unhide(void);
 void gfx_display_freeze(void);
 void gfx_display_unfreeze(void);
+void _gfx_display_fade_out(uint32_t vm_color, unsigned ms, bool(*cb)(void));
 void gfx_display_fade_out(uint32_t vm_color, unsigned ms);
+void _gfx_display_fade_in(unsigned ms, bool(*cb)(void));
 void gfx_display_fade_in(unsigned ms);
 
 // palette operations
@@ -71,6 +73,7 @@ void gfx_blend_masked(int src_x, int src_y, int w, int h, unsigned src_i, int ds
 void gfx_invert_colors(int x, int y, int w, int h, unsigned i);
 void gfx_fill(int x, int y, int w, int h, unsigned i, uint32_t c);
 void gfx_swap_colors(int x, int y, int w, int h, unsigned i, uint32_t c1, uint32_t c2);
+void gfx_blend_fill(int x, int y, int w, int h, unsigned i, uint32_t c, uint8_t rate);
 void gfx_draw_cg(unsigned i, struct cg *cg);
 
 // effect.c
@@ -81,6 +84,10 @@ void gfx_pixelate(int x, int y, int w, int h, unsigned dst_i, unsigned mag);
 void gfx_fade_progressive(int x, int y, int w, int h, unsigned dst_i);
 void gfx_copy_progressive(int src_x, int src_y, int w, int h, unsigned src_i, int dst_x,
 		int dst_y, unsigned dst_i);
+void gfx_pixel_crossfade(int src_x, int src_y, int w, int h, unsigned src_i, int dst_x,
+		int dst_y, unsigned dst_i);
+void gfx_pixel_crossfade_masked(int src_x, int src_y, int w, int h, unsigned src_i, int dst_x,
+		int dst_y, unsigned dst_i, uint32_t mask_color);
 void gfx_scale_h(unsigned i, int mag);
 void gfx_zoom(int src_x, int src_y, int w, int h, unsigned src_i, unsigned dst_i,
 		unsigned ms);

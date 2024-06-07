@@ -25,10 +25,9 @@
 
 // XXX: The audio implementation provides this interface.
 static void channel_play(struct channel *ch, struct archive_data *file, bool check_playing);
-static void channel_set_volume(struct channel *ch, uint8_t vol);
-static void channel_fade(struct channel *ch, uint8_t vol, int t, bool stop, bool sync);
-static void channel_fade_out(struct channel *ch, uint8_t vol, bool sync);
-static void channel_restore_volume(struct channel *ch);
+static void channel_set_volume(struct channel *ch, int vol);
+static void channel_fade(struct channel *ch, int vol, int t, bool stop, bool sync);
+static void channel_mixer_fade(struct channel *ch, int vol, int t, bool stop, bool sync);
 static bool channel_is_playing(struct channel *ch);
 static bool channel_is_fading(struct channel *ch);
 
@@ -45,30 +44,24 @@ void audio_stop(enum audio_channel ch)
 	channel_stop(&channels[ch]);
 }
 
-void audio_set_volume(enum audio_channel ch, uint8_t vol)
+void audio_set_volume(enum audio_channel ch, int vol)
 {
-	AUDIO_LOG("audio_set_volume(%s, %u)", audio_channel_name(ch), vol);
+	AUDIO_LOG("audio_set_volume(%s, %d)", audio_channel_name(ch), vol);
 	channel_set_volume(&channels[ch], vol);
 }
 
-void audio_fade(enum audio_channel ch, uint8_t vol, int t, bool stop, bool sync)
+void audio_fade(enum audio_channel ch, int vol, int t, bool stop, bool sync)
 {
-	AUDIO_LOG("audio_fade(%s, %u, %d, %s, %s)", audio_channel_name(ch), vol, t,
+	AUDIO_LOG("audio_fade(%s, %d, %d, %s, %s)", audio_channel_name(ch), vol, t,
 			stop ? "true" : "false", sync ? "true" : "false");
 	channel_fade(&channels[ch], vol, t, stop, sync);
 }
 
-void audio_fade_out(enum audio_channel ch, uint8_t vol, bool sync)
+void audio_mixer_fade(enum audio_channel ch, int vol, int t, bool stop, bool sync)
 {
-	AUDIO_LOG("audio_fade_out(%s, %u, %s)", audio_channel_name(ch), vol,
-			sync ? "true" : "false");
-	channel_fade_out(&channels[ch], vol, sync);
-}
-
-void audio_restore_volume(enum audio_channel ch)
-{
-	AUDIO_LOG("audio_restore_volume(%s)", audio_channel_name(ch));
-	channel_restore_volume(&channels[ch]);
+	AUDIO_LOG("audio_mixer_fade(%s, %d, %d, %s, %s)", audio_channel_name(ch), vol, t,
+			stop ? "true" : "false", sync ? "true" : "false");
+	channel_mixer_fade(&channels[ch], vol, t, stop, sync);
 }
 
 bool audio_is_playing(enum audio_channel ch)
@@ -153,11 +146,11 @@ void audio_se_stop(unsigned ch)
 	audio_stop(AUDIO_CH_SE(ch));
 }
 
-void audio_se_fade_out(uint8_t vol, bool sync, unsigned ch)
+void audio_se_fade(int vol, unsigned t, bool stop, bool sync, unsigned ch)
 {
 	if (!audio_se_channel_valid(ch)) {
 		WARNING("Invalid SE channel: %u", ch);
 		return;
 	}
-	audio_fade_out(AUDIO_CH_SE(ch), vol, sync);
+	audio_fade(AUDIO_CH_SE(ch), vol, t, stop, sync);
 }

@@ -27,6 +27,7 @@
 #include "vm.h"
 
 struct fade {
+	bool mixer_fade;
 	bool fading;
 	uint32_t start_t;
 	uint32_t ms;
@@ -39,7 +40,6 @@ struct channel {
 	unsigned id;
 	Mix_Chunk *chunk;
 	char *file_name;
-	uint8_t volume;
 	int repeat;
 	struct fade fade;
 };
@@ -79,19 +79,20 @@ static void channel_fade_end(struct channel *ch)
 	ch->fade.fading = false;
 	if (ch->fade.stop)
 		channel_stop(ch);
-	else
+	else if (ch->fade.mixer_fade)
 		Mix_Volume(ch->id, ch->fade.end_vol);
+	else if (ch->chunk)
+		Mix_VolumeChunk(ch->chunk, ch->fade.end_vol);
 }
 
-// XXX: Volume is a value in the range [0,31], which corresponds to the range
-//      [-5000,0] in increments of 156 (volume in dB as expected by
-//      DirectSound). We convert this value to a linear volume scale.
-static int get_linear_volume(uint8_t vol)
+// XXX: Volume is given in hundredths of decibels, from -5000 to 0.
+//      We convert this value to a linear volume scale.
+static int get_linear_volume(int vol)
 {
-	int directsound_volume = -5000 + vol * 156;
+	vol = clamp(-5000, 0, vol);
 	int linear_volume = 128;
-	if (vol < 31) {
-		float v = powf(10.f, (float)directsound_volume / 2000.f);
+	if (vol < 0) {
+		float v = powf(10.f, (float)vol / 2000.f);
 		linear_volume = floorf(v * 128 + 0.5f);
 	};
 	return linear_volume;
@@ -107,80 +108,70 @@ static void channel_play(struct channel *ch, struct archive_data *file, bool che
 		WARNING("Failed to decode audio file on channel %u: \"%s\"", ch->id, file->name);
 		return;
 	}
-	if (game->persistent_volume) {
-		Mix_Volume(ch->id, get_linear_volume(ch->volume));
-	} else {
-		Mix_Volume(ch->id, MIX_MAX_VOLUME);
-		ch->volume = 31;
-	}
 	Mix_PlayChannel(ch->id, ch->chunk, ch->repeat);
 	ch->file_name = strdup(file->name);
 }
 
-static void channel_set_volume(struct channel *ch, uint8_t vol)
+static void channel_set_volume(struct channel *ch, int vol)
 {
-	ch->volume = vol;
+	if (ch->fade.fading)
+		channel_fade_end(ch);
 	Mix_Volume(ch->id, get_linear_volume(vol));
 }
 
-static unsigned fade_time(struct channel *ch, uint8_t vol)
+static void channel_fade_wait(struct channel *ch)
 {
-	unsigned diff = abs((int)vol - (int)ch->volume);
-	return diff * 100 + 50;
+	while (ch->fade.fading) {
+		vm_peek();
+		vm_delay(16);
+	}
 }
 
-static void channel_fade(struct channel *ch, uint8_t vol, int t, bool stop, bool sync)
+static void channel_fade(struct channel *ch, int vol, int t, bool stop, bool sync)
 {
 	if (ch->fade.fading)
 		channel_fade_end(ch);
 
-	if (!Mix_Playing(ch->id))
-		return;
-
-	if (vol > ch->volume)
-		stop = false;
-	else if (vol == ch->volume)
-		return;
-
-	if (t < 0)
-		t = fade_time(ch, vol);
-
-	ch->fade.fading = true;
-	ch->fade.start_t = vm_get_ticks();
-	ch->fade.ms = t;
-	ch->fade.start_vol = get_linear_volume(ch->volume);
-	ch->fade.end_vol = get_linear_volume(vol);
-	ch->fade.stop = stop;
-
-	ch->volume = vol;
-
-	if (sync) {
-		while (ch->fade.fading) {
-			vm_peek();
-			vm_delay(16);
-		}
-	}
-}
-
-static void channel_fade_out(struct channel *ch, uint8_t vol, bool sync)
-{
-	if (vol == ch->volume) {
-		channel_stop(ch);
-		return;
-	}
-	channel_fade(ch, vol, -1, true, sync);
-}
-
-static void channel_restore_volume(struct channel *ch)
-{
 	if (!ch->chunk)
 		return;
-	if (ch->volume == 31) {
-		channel_stop(ch);
+
+	unsigned end_vol = get_linear_volume(vol);
+	if (Mix_VolumeChunk(ch->chunk, -1) == end_vol)
+		return;
+
+	ch->fade.fading = true;
+	ch->fade.mixer_fade = false;
+	ch->fade.start_t = vm_get_ticks();
+	ch->fade.ms = t;
+	ch->fade.start_vol = Mix_VolumeChunk(ch->chunk, -1);
+	ch->fade.end_vol = end_vol;
+	ch->fade.stop = stop;
+
+	if (sync)
+		channel_fade_wait(ch);
+}
+
+static void channel_mixer_fade(struct channel *ch, int vol, int t, bool stop, bool sync)
+{
+	if (ch->fade.fading)
+		channel_fade_end(ch);
+
+	unsigned end_vol = get_linear_volume(vol);
+	if (!Mix_Playing(ch->id)) {
+		Mix_Volume(ch->id, end_vol);
 		return;
 	}
 
-	channel_fade(ch, 31, -1, false, false);
+	ch->fade.fading = true;
+	ch->fade.mixer_fade = true;
+	ch->fade.start_t = vm_get_ticks();
+	ch->fade.ms = t;
+	ch->fade.start_vol = Mix_Volume(ch->id, -1);
+	ch->fade.end_vol = end_vol;
+	ch->fade.stop = stop;
+
+	if (sync)
+		channel_fade_wait(ch);
 }
 
 static bool channel_is_playing(struct channel *ch)
@@ -194,12 +185,12 @@ static bool channel_is_fading(struct channel *ch)
 }
 
 static struct channel channels[] = {
-	[AUDIO_CH_BGM] = { .id = 0, .volume = 31, .repeat = -1 },
-	[AUDIO_CH_SE0] = { .id = 1, .volume = 31 },
-	[AUDIO_CH_SE1] = { .id = 2, .volume = 31 },
-	[AUDIO_CH_SE2] = { .id = 3, .volume = 31 },
-	[AUDIO_CH_VOICE0] = { .id = 4, .volume = 31 },
-	[AUDIO_CH_VOICE1] = { .id = 5, .volume = 31 },
+	[AUDIO_CH_BGM] = { .id = 0, .repeat = -1 },
+	[AUDIO_CH_SE0] = { .id = 1 },
+	[AUDIO_CH_SE1] = { .id = 2 },
+	[AUDIO_CH_SE2] = { .id = 3 },
+	[AUDIO_CH_VOICE0] = { .id = 4 },
+	[AUDIO_CH_VOICE1] = { .id = 5 },
 };
 
 static void channel_update(struct channel *ch, uint32_t t)
@@ -214,7 +205,10 @@ static void channel_update(struct channel *ch, uint32_t t)
 
 	float rate = (float)(t - ch->fade.start_t) / (float)ch->fade.ms;
 	int vol = ch->fade.start_vol + (ch->fade.end_vol - ch->fade.start_vol) * rate;
-	Mix_Volume(ch->id, vol);
+	if (ch->fade.mixer_fade)
+		Mix_Volume(ch->id, vol);
+	else if (ch->chunk)
+		Mix_VolumeChunk(ch->chunk, vol);
 }
 
 void audio_update(void)

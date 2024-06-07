@@ -52,7 +52,7 @@ static void ai_shimai_mem_restore(void)
 			offsetof(struct memory, menu_entry_addresses));
 	mem_set_sysvar32(mes_sysvar32_menu_entry_numbers,
 			offsetof(struct memory, menu_entry_numbers));
-	mem_set_sysvar32(mes_sysvar32_map_offset, 0);
+	mem_set_sysvar32(mes_sysvar32_map_data, 0);
 
 	uint16_t flags = mem_get_sysvar16(mes_sysvar16_flags);
 	mem_set_sysvar16(mes_sysvar16_flags, (flags & 0xffbf) | 0x21);
@@ -478,8 +478,8 @@ static void ai_shimai_audio(struct param_list *params)
 	switch (vm_expr_param(params, 0)) {
 	case 0: audio_bgm_play(vm_string_param(params, 1), true); break;
 	case 1: audio_stop(AUDIO_CH_BGM); break;
-	case 2: audio_fade(AUDIO_CH_BGM, 0, 3000, true, false); break;
-	case 3: audio_fade(AUDIO_CH_BGM, 0, 3000, true, true); break;
+	case 2: audio_fade(AUDIO_CH_BGM, AUDIO_VOLUME_MIN, 3000, true, false); break;
+	case 3: audio_fade(AUDIO_CH_BGM, AUDIO_VOLUME_MIN, 3000, true, true); break;
 	case 4:
 		strcpy(next, vm_string_param(params, 1));
 		have_next = true;
@@ -492,8 +492,8 @@ static void ai_shimai_audio(struct param_list *params)
 		break;
 	case 6: audio_se_play(vm_string_param(params, 1), vm_expr_param(params, 2)); break;
 	case 7: audio_se_stop(vm_expr_param(params, 1)); break;
-	case 8: audio_se_fade_out(0, false, vm_expr_param(params, 1)); break;
-	case 9: audio_se_fade_out(0, true, vm_expr_param(params, 1)); break;
+	case 8: audio_se_fade(AUDIO_VOLUME_MIN, 3000, true, false, vm_expr_param(params, 1)); break;
+	case 9: audio_se_fade(AUDIO_VOLUME_MIN, 3000, true, true, vm_expr_param(params, 1)); break;
 	default: VM_ERROR("System.Audio.function[%u] not implemented",
 				 params->params[0].val);
 	}
@@ -1216,6 +1216,7 @@ static void ai_shimai_handle_event(SDL_Event *e)
 }
 
 struct game game_ai_shimai = {
+	.id = GAME_AI_SHIMAI,
 	.surface_sizes = {
 		{ 640, 480 },
 		{ 640, 1280 },
@@ -1233,7 +1234,6 @@ struct game game_ai_shimai = {
 	.bpp = 24,
 	.x_mult = 1,
 	.use_effect_arc = false,
-	.persistent_volume = false,
 	.call_saves_procedures = false,
 	.proc_clears_flag = true,
 	.var4_size = VAR4_SIZE,

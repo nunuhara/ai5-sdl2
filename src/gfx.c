@@ -351,7 +351,7 @@ void gfx_display_unfreeze(void)
 
 #define FADE_FRAME_TIME 16
 
-void gfx_display_fade_out(uint32_t vm_color, unsigned ms)
+void _gfx_display_fade_out(uint32_t vm_color, unsigned ms, bool(*cb)(void))
 {
 	GFX_LOG("gfx_display_fade_out(%u,%u)", vm_color, ms);
 	gfx.hidden = true;
@@ -375,6 +375,8 @@ void gfx_display_fade_out(uint32_t vm_color, unsigned ms)
 
 		vm_peek();
 		vm_timer_tick(&timer, FADE_FRAME_TIME);
+		if (cb && !cb())
+			break;
 	}
 
 	SDL_CALL(SDL_SetTextureAlphaMod, mask, 255);
@@ -383,7 +385,12 @@ void gfx_display_fade_out(uint32_t vm_color, unsigned ms)
 	SDL_RenderPresent(gfx.renderer);
 }
 
-void gfx_display_fade_in(unsigned ms)
+void gfx_display_fade_out(uint32_t vm_color, unsigned ms)
+{
+	_gfx_display_fade_out(vm_color, ms, NULL);
+}
+
+void _gfx_display_fade_in(unsigned ms, bool(*cb)(void))
 {
 	GFX_LOG("gfx_display_fade_in(%u)", ms);
 
@@ -405,6 +412,8 @@ void gfx_display_fade_in(unsigned ms)
 
 		vm_peek();
 		vm_timer_tick(&timer, FADE_FRAME_TIME);
+		if (cb && !cb())
+			break;
 	}
 
 	SDL_CALL(SDL_RenderClear, gfx.renderer);
@@ -413,6 +422,11 @@ void gfx_display_fade_in(unsigned ms)
 
 	gfx.hidden = false;
 	gfx.dirty = true;
+}
+
+void gfx_display_fade_in(unsigned ms)
+{
+	_gfx_display_fade_in(ms, NULL);
 }
 
 void gfx_display_hide(void)
@@ -1090,6 +1104,28 @@ void gfx_swap_colors(int x, int y, int w, int h, unsigned i, uint32_t c1, uint32
 		gfx_indexed_swap_colors(r, s, c1, c2);
 	else
 		gfx_direct_swap_colors(r, s, c1, c2);
+	gfx_dirty(i);
+}
+
+void gfx_blend_fill(int x, int y, int w, int h, unsigned i, uint32_t c, uint8_t rate)
+{
+	GFX_LOG("gfx_blend_fill[%u,%u] %u(%d,%d) @ (%d,%d)", c, rate, i, x, y, w, h);
+	SDL_Surface *s = gfx_get_surface(i);
+	SDL_Rect r = { x, y, w, h };
+	if (game->bpp == 8)
+		VM_ERROR("Invalid bpp for gfx_blend_fill");
+
+	if (!gfx_fill_begin(s, &r))
+		return;
+
+	SDL_Color color = gfx_decode_direct(c);
+	direct_foreach_px(p, s, &r,
+		uint32_t a = (uint32_t)rate + 1;
+		uint32_t inv_a = 256 - (uint32_t)rate;
+		p[0] = (uint8_t)((a * color.r + inv_a * p[0]) >> 8);
+		p[1] = (uint8_t)((a * color.g + inv_a * p[1]) >> 8);
+		p[2] = (uint8_t)((a * color.b + inv_a * p[2]) >> 8);
+	);
 	gfx_dirty(i);
 }
 

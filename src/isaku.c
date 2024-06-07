@@ -139,7 +139,7 @@ static void isaku_savedata(struct param_list *params)
 
 static void isaku_bgm_fade_out_sync(void)
 {
-	audio_fade(AUDIO_CH_BGM, 0, 500, true, false);
+	audio_fade(AUDIO_CH_BGM, AUDIO_VOLUME_MIN, 500, true, false);
 	while (audio_is_playing(AUDIO_CH_BGM)) {
 		if (input_down(INPUT_SHIFT))
 			break;
@@ -150,7 +150,7 @@ static void isaku_bgm_fade_out_sync(void)
 
 static void isaku_se_fade_out_sync(void)
 {
-	audio_fade(AUDIO_CH_SE(0), 0, 500, true, false);
+	audio_fade(AUDIO_CH_SE(0), AUDIO_VOLUME_MIN, 500, true, false);
 	while (audio_is_playing(AUDIO_CH_SE(0))) {
 		if (input_down(INPUT_SHIFT))
 			break;
@@ -173,11 +173,11 @@ static void isaku_audio(struct param_list *params)
 		return;
 	switch (vm_expr_param(params, 0)) {
 	case 0: audio_bgm_play(vm_string_param(params, 1), true); break;
-	case 1: audio_fade(AUDIO_CH_BGM, 0, 2000, true, false); break;
+	case 1: audio_fade(AUDIO_CH_BGM, AUDIO_VOLUME_MIN, 2000, true, false); break;
 	case 2: audio_stop(AUDIO_CH_BGM); break;
 	case 3: audio_se_play(vm_string_param(params, 1), 0); break;
 	case 4: audio_stop(AUDIO_CH_SE(0)); break;
-	case 5: audio_fade(AUDIO_CH_SE(0), 0, 2000, true, false); break;
+	case 5: audio_fade(AUDIO_CH_SE(0), AUDIO_VOLUME_MIN, 2000, true, false); break;
 	//case 6: audio_bgm_play_sync(vm_string_param(params, 1)); break; // NOT USED
 	case 7: isaku_bgm_fade_out_sync(); break;
 	case 8: isaku_se_fade_out_sync(); break;
@@ -522,6 +522,7 @@ static void isaku_handle_event(SDL_Event *e)
 }
 
 struct game game_isaku = {
+	.id = GAME_ISAKU,
 	.surface_sizes = {
 		{  640,  480 },
 		{ 1000, 1750 },
@@ -537,9 +538,9 @@ struct game game_isaku = {
 	.bpp = 16,
 	.x_mult = 1,
 	.use_effect_arc = false,
-	.persistent_volume = false,
 	.call_saves_procedures = false,
 	.proc_clears_flag = true,
+	.farcall_strlen_retvar = 18,
 	.var4_size = VAR4_SIZE,
 	.mem16_size = MEM16_SIZE,
 	.handle_event = isaku_handle_event,
