@@ -816,12 +816,15 @@ static void util_get_backspace(struct param_list *params)
 static void util_get_backspace2(struct param_list *params)
 {
 	uint32_t prev = mem_get_var32(4);
-	if (!prev && input_down(INPUT_BACKSPACE)) {
+	bool bs_down = input_down(INPUT_BACKSPACE);
+	if (!prev && bs_down) {
 		mem_set_var32(20, 1);
 		mem_set_var32(4, 0xffffffff);
-	} else {
+	} else if (prev && !bs_down) {
 		mem_set_var32(20, 0);
 		mem_set_var32(4, 0);
+	} else {
+		mem_set_var32(20, 0);
 	}
 }
 
