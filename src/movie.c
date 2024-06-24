@@ -15,8 +15,6 @@
  * along with this program; if not, see <http://gnu.org/licenses/>.
  */
 
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libavutil/fifo.h>
@@ -40,7 +38,7 @@ struct decoder {
 	AVStream *stream;
 	AVCodecContext *ctx;
 	AVFrame *frame;
-	AVFifoBuffer *queue;
+	AVFifo *queue;
 	SDL_mutex *mutex;
 	bool finished;
 	bool format_eof;
@@ -82,12 +80,12 @@ static void free_decoder(struct decoder *dec)
 	if (dec->frame)
 		av_frame_free(&dec->frame);
 	if (dec->queue) {
-		while (av_fifo_size(dec->queue) > 0) {
+		while (av_fifo_can_read(dec->queue) > 0) {
 			AVPacket *packet;
-			av_fifo_generic_read(dec->queue, &packet, sizeof(AVPacket*), NULL);
+			av_fifo_read(dec->queue, &packet, 1);
 			av_packet_free(&packet);
 		}
-		av_fifo_freep(&dec->queue);
+		av_fifo_freep2(&dec->queue);
 	}
 	if (dec->mutex)
 		SDL_DestroyMutex(dec->mutex);
@@ -109,7 +107,7 @@ static bool init_decoder(struct decoder *dec, AVFormatContext *format_ctx, AVStr
 	if (avcodec_open2(dec->ctx, codec, NULL) != 0)
 		return false;
 	dec->frame = av_frame_alloc();
-	dec->queue = av_fifo_alloc(sizeof(AVPacket*) * QUEUE_SIZE);
+	dec->queue = av_fifo_alloc2(QUEUE_SIZE, sizeof(AVPacket*), 0);
 	dec->mutex = SDL_CreateMutex();
 	return true;
 }
@@ -122,9 +120,7 @@ static void read_packet(struct decoder *dec)
 	AVPacket *packet = av_packet_alloc();
 	while (av_read_frame(dec->format_ctx, packet) == 0) {
 		if (packet->stream_index == dec->stream->index) {
-			if (av_fifo_space(dec->queue) < (int)sizeof(AVPacket*))
-				av_fifo_grow(dec->queue, sizeof(AVPacket*) * QUEUE_SIZE);
-			av_fifo_generic_write(dec->queue, &packet, sizeof(AVPacket*), NULL);
+			av_fifo_write(dec->queue, &packet, 1);
 			return;
 		}
 		av_packet_unref(packet);
@@ -132,13 +128,13 @@ static void read_packet(struct decoder *dec)
 	av_packet_free(&packet);
 	packet = NULL;
 	dec->format_eof = true;
-	av_fifo_generic_write(dec->queue, &packet, sizeof(AVPacket*), NULL);
+	av_fifo_write(dec->queue, &packet, 1);
 }
 
 static void _preload_packets(struct decoder *dec)
 {
 	SDL_LockMutex(dec->mutex);
-	while (!dec->format_eof && av_fifo_size(dec->queue) < (int)(QUEUE_SIZE * sizeof(AVPacket*))) {
+	while (!dec->format_eof && av_fifo_can_read(dec->queue) < QUEUE_SIZE) {
 		read_packet(dec);
 	}
 	SDL_UnlockMutex(dec->mutex);
@@ -157,9 +153,9 @@ static bool decode_frame(struct decoder *dec)
 	while ((ret = avcodec_receive_frame(dec->ctx, dec->frame)) == AVERROR(EAGAIN)) {
 		SDL_LockMutex(dec->mutex);
 		AVPacket *packet;
-		while (av_fifo_size(dec->queue) == 0)
+		while (av_fifo_can_read(dec->queue) == 0)
 			read_packet(dec);
-		av_fifo_generic_read(dec->queue, &packet, sizeof(AVPacket*), NULL);
+		av_fifo_read(dec->queue, &packet, 1);
 		SDL_UnlockMutex(dec->mutex);
 
 		if ((ret = avcodec_send_packet(dec->ctx, packet)) != 0) {
@@ -208,7 +204,7 @@ static int audio_callback(sts_mixer_sample_t *sample, void *data)
 		}
 		// Interleave.
 		uint8_t *l = mc->audio.frame->data[0];
-		uint8_t *r = mc->audio.frame->data[mc->audio.ctx->channels > 1 ? 1 : 0];
+		uint8_t *r = mc->audio.frame->data[mc->audio.ctx->ch_layout.nb_channels > 1 ? 1 : 0];
 		uint8_t *out = sample->data;
 		for (unsigned i = 0; i < samples; i++) {
 			memcpy(out, l, mc->bytes_per_sample);
@@ -269,7 +265,7 @@ struct movie_context *_movie_load(struct movie_context *mc, AVFormatContext *vid
 			goto error;
 		}
 		NOTICE("audio: %d hz, %d channels, %s", mc->audio.ctx->sample_rate,
-				mc->audio.ctx->channels,
+				mc->audio.ctx->ch_layout.nb_channels,
 				av_get_sample_fmt_name(mc->audio.ctx->sample_fmt));
 	}
 	else {
@@ -540,9 +536,9 @@ bool movie_seek_video(struct movie_context *mc, unsigned ts)
 	mc->has_pending_video_frame = false;
 
 	// flush queued frames
-	int size = av_fifo_size(mc->video.queue);
+	int size = av_fifo_can_read(mc->video.queue);
 	if (size > 0)
-		av_fifo_drain(mc->video.queue, size);
+		av_fifo_drain2(mc->video.queue, size);
 	mc->video.format_eof = false;
 
 	SDL_UnlockMutex(mc->video.mutex);
