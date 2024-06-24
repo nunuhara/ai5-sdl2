@@ -13,6 +13,11 @@ libm = meson.get_compiler('c').find_library('m', required: false)
 sdl2 = dependency('sdl2', static : static_libs)
 sdl2_ttf = dependency('SDL2_ttf', static : static_libs)
 
+avcodec = dependency('libavcodec', required: false, static : static_libs)
+avformat = dependency('libavformat', required: false, static : static_libs)
+avutil = dependency('libavutil', required: false, static : static_libs)
+swscale = dependency('libswscale', required: false, static : static_libs)
+
 libai5_proj = subproject('libai5')
 libai5_dep = libai5_proj.get_variable('libai5_dep')
 
@@ -41,6 +46,7 @@ sources = [
   'src/main.c',
   'src/map.c',
   'src/menu.c',
+  'src/movie.c',
   'src/savedata.c',
   'src/shangrlia.c',
   'src/sys.c',
@@ -50,6 +56,11 @@ sources = [
 ]
 
 deps = [libai5_dep, libm, sdl2, sdl2_ttf]
+if avcodec.found() and avformat.found() and avutil.found() and swscale.found()
+  add_project_arguments('-DHAVE_FFMPEG', language : 'c')
+  sources += 'src/movie.c'
+  deps += [avcodec, avformat, avutil, swscale]
+endif
 
 if get_option('sdl_mixer').allowed()
   add_project_arguments('-DUSE_SDL_MIXER', language : 'c')

@@ -16,9 +16,13 @@
 
 #include <string.h>
 #include <ctype.h>
+#include <errno.h>
 
 #include "nulib.h"
+#include "nulib/file.h"
 #include "ai5/anim.h"
+#include "ai5/arc.h"
+#include "ai5/cg.h"
 
 #include "anim.h"
 #include "asset.h"
@@ -29,6 +33,7 @@
 #include "gfx_private.h"
 #include "input.h"
 #include "map.h"
+#include "movie.h"
 #include "savedata.h"
 #include "sys.h"
 #include "vm_private.h"
@@ -890,6 +895,414 @@ static void util_misa_train_out(struct param_list *params)
 	gfx_copy(0, 0, 640, 480, 2, 0, 0, 0);
 }
 
+#ifdef HAVE_FFMPEG
+
+static struct {
+	struct archive *arc;
+	struct movie_context *ctx;
+	bool is_ending;
+	struct archive_data *video;
+	struct archive_data *audio;
+	SDL_Texture *credits;
+	SDL_Texture *chara;
+} movie;
+
+static void movie_end(void)
+{
+	if (movie.video)
+		archive_data_release(movie.video);
+	if (movie.audio)
+		archive_data_release(movie.audio);
+	if (movie.ctx)
+		movie_free(movie.ctx);
+	if (movie.credits)
+		SDL_DestroyTexture(movie.credits);
+	if (movie.chara)
+		SDL_DestroyTexture(movie.chara);
+	movie.video = NULL;
+	movie.audio = NULL;
+	movie.ctx = NULL;
+	movie.is_ending = false;
+	movie.credits = NULL;
+	movie.chara = NULL;
+}
+
+const char *chara_file_name(unsigned i)
+{
+	switch (i) {
+	case 0:  return "mai.g16";
+	case 1:  return "misa.g16";
+	case 2:  return "miho.g16";
+	case 3:  return "satomi.g16";
+	case 4:  return "kurumi.g16";
+	case 5:  return "chiharu.g16";
+	case 6:  return "yoshiko.g16";
+	case 7:  return "mako.g16";
+	case 8:  return "ako.g16";
+	case 9:  return "hiromi.g16";
+	case 10: return "reiko.g16";
+	case 11: return "kaori.g16";
+	case 12: return "yayoi.g16";
+	case 13: return "natuko.g16";
+	default: return NULL;
+	}
+}
+
+static SDL_Texture *load_movie_texture(const char *name)
+{
+	// load file from movie archive
+	struct archive_data *file = archive_get(movie.arc, name);
+	if (!file) {
+		WARNING("Failed to open %s", name);
+		return NULL;
+	}
+
+	// decode CG
+	struct cg *cg = cg_load_arcdata(file);
+	archive_data_release(file);
+	if (!cg) {
+		WARNING("Failed to decode CG \"%s\"", name);
+		return NULL;
+	}
+
+	// convert color key to alpha
+	uint8_t *end = cg->pixels + cg->metrics.w * cg->metrics.h * 4;
+	for (uint8_t *p = cg->pixels; p < end; p += 4) {
+		if (p[0] == 0 && p[1] == 248 && p[2] == 0) {
+			//memset(p, 0, 4);
+			p[3] = 0;
+		}
+	}
+
+	// create RGBA texture
+	SDL_Texture *t;
+	SDL_CTOR(SDL_CreateTexture, t, gfx.renderer, SDL_PIXELFORMAT_RGBA32,
+			SDL_TEXTUREACCESS_STATIC, cg->metrics.w, cg->metrics.h);
+	SDL_CALL(SDL_SetTextureBlendMode, t, SDL_BLENDMODE_BLEND);
+	SDL_CALL(SDL_UpdateTexture, t, NULL, cg->pixels, cg->metrics.w * 4);
+
+	cg_free(cg);
+	return t;
+}
+
+static void util_movie_load(struct param_list *params)
+{
+	if (movie.arc == NULL) {
+		// open "STREAM.DAT"
+		char *arc_path = path_get_icase("STREAM.DAT");
+		if (!arc_path || !(movie.arc = archive_open(arc_path, 0))) {
+			WARNING("Failed to open archive: STREAM.DAT");
+			goto error;
+		}
+	}
+
+	if (!(movie.video = archive_get(movie.arc, vm_string_param(params, 4)))) {
+		WARNING("Failed to open video file: %s", vm_string_param(params, 4));
+		goto error;
+	}
+	if (params->nr_params > 8) {
+		asset_set_voice_archive("SSIDE.ARC");
+		if (!(movie.audio = asset_voice_load(vm_string_param(params, 8)))) {
+			WARNING("Failed to open audio file: %s", vm_string_param(params, 8));
+		}
+	}
+
+	if (!(movie.ctx = movie_load_arc(movie.video, movie.audio, 640, 480))) {
+		WARNING("Failed to load movie");
+		goto error;
+	}
+
+	if (!strcasecmp(vm_string_param(params, 4), "end.avi")) {
+		// load overlay textures
+		const char *chara_name = chara_file_name(vm_expr_param(params, 1));
+		if (!chara_name || !(movie.chara = load_movie_texture(chara_name)))
+			goto error;
+		if (!(movie.credits = load_movie_texture("staff.g16")))
+			goto error;
+		movie.is_ending = true;
+	}
+
+	return;
+error:
+	movie_end();
+}
+
+static bool movie_cancelled(void)
+{
+	vm_peek();
+	if (mem_get_var4(4047) && input_down(INPUT_CANCEL)) {
+		mem_set_var32(18, 1);
+#ifdef USE_SDL_MIXER
+		audio_stop(AUDIO_CH_SE0);
+#endif
+		return true;
+	}
+	return false;
+}
+
+struct movie_seek {
+	int t;
+	unsigned frame;
+};
+
+struct movie_credits_frame {
+	int t;
+	unsigned src_y;
+	unsigned dst_y;
+	unsigned h;
+};
+
+#define MS(minutes, seconds, ms) (((minutes * 60) + seconds) * 1000 + ms)
+
+static void play_ending(void)
+{
+	static const struct movie_seek seek[] = {
+		{ MS(0, 24,   0), 185 },
+		{ MS(0, 29, 400), 185 },
+		{ MS(0, 34, 900),  95 },
+		{ MS(0, 49, 300), 185 },
+		{ MS(0, 54, 700), 185 },
+		{ MS(1,  0, 100), 185 },
+		{ MS(1,  5, 500),  95 },
+		{ MS(1, 14, 700),  95 },
+		{ MS(1, 29, 100), 185 },
+		{ MS(1, 34, 500), 185 },
+		{ MS(1, 40,   0),  95 },
+		{ MS(1, 54, 400), 185 },
+		{ MS(1, 59, 800), 185 },
+		{ MS(2,  5, 200), 185 },
+		{ MS(2, 10, 600),  95 },
+		{ MS(2, 25, 100),  95 },
+		// transition to evening
+		{ MS(2, 46, 500), 400 },
+		{ MS(2, 51, 300), 310 },
+		{ MS(3,  5,   0), 400 },
+		{ MS(3,  9, 800), 310 },
+		{ MS(3, 23, 500), 400 },
+		{ MS(3, 28, 300), 400 },
+		{ MS(3, 33, 100), 310 },
+		{ MS(3, 46, 800), 400 },
+		{ MS(3, 51, 600), 310 },
+		{ MS(4,  5, 300), 400 },
+		{ MS(4, 10, 100), 310 },
+		{ MS(4, 23, 800), 310 }
+	};
+	int seek_i = 0;
+
+	static const struct movie_credits_frame credits[] = {
+		//  frame time    src_y  dst_y   h
+		{ MS(0,  0,   0),    0,     0,   0 },
+		{ MS(0, 10,   0),    0,   128,  53 },
+		{ MS(0, 20,   0),    0,     0,   0 },
+		{ MS(0, 21, 500),   57,   113,  89 },
+		{ MS(0, 31, 500),    0,     0,   0 },
+		{ MS(0, 33,   0),  158,   134,  47 },
+		{ MS(0, 43,   0),    0,     0,   0 },
+		{ MS(0, 44, 500),  214,   134,  47 },
+		{ MS(0, 54, 500),    0,     0,   0 },
+		{ MS(0, 56,   0),  264,    88, 139 },
+		{ MS(1,  6,   0),    0,     0,   0 },
+		{ MS(1,  7, 500),  413,   101, 114 },
+		{ MS(1, 17, 500),    0,     0,   0 },
+		{ MS(1, 19,   0),  529,   121,  72 },
+		{ MS(1, 29,   0),    0,     0,   0 },
+		{ MS(1, 30, 500),  611,   122,  69 },
+		{ MS(1, 40, 500),    0,     0,   0 },
+		{ MS(1, 42,   0),  684,   100, 114 },
+		{ MS(1, 52,   0),    0,     0,   0 },
+		{ MS(1, 53, 500),  804,   100, 114 },
+		{ MS(2,  3, 500),    0,     0,   0 },
+		{ MS(2,  5,   0),  924,   100, 114 },
+		{ MS(2, 15,   0),    0,     0,   0 },
+		{ MS(2, 16, 500), 1044,   100, 114 },
+		{ MS(2, 26, 500),    0,     0,   0 },
+		{ MS(2, 28,   0), 1162,   122,  70 },
+		{ MS(2, 38,   0),    0,     0,   0 },
+		{ MS(2, 45,   0), 1236,   100, 114 },
+		{ MS(2, 55,   0),    0,     0,   0 },
+		{ MS(2, 56, 500), 1356,   100, 114 },
+		{ MS(3,  6, 500),    0,     0,   0 },
+		{ MS(3,  8,   0), 1479,   111,  93 },
+		{ MS(3, 18,   0),    0,     0,   0 },
+		{ MS(3, 19, 500), 1580,    99, 115 },
+		{ MS(3, 29, 500),    0,     0,   0 },
+		{ MS(3, 31,   0), 1700,   100, 114 },
+		{ MS(3, 41,   0),    0,     0,   0 },
+		{ MS(3, 42, 500), 1820,   100, 114 },
+		{ MS(3, 52, 500),    0,     0,   0 },
+		{ MS(3, 54,   0), 1940,   100, 114 },
+		{ MS(4,  4,   0),    0,     0,   0 },
+		{ MS(4,  5, 500), 2060,   100, 114 },
+		{ MS(4, 15, 500),    0,     0,   0 },
+	};
+	SDL_Rect credits_src = { 0,   0, 224, 0 };
+	SDL_Rect credits_dst = { 208, 0, 224, 0 };
+	int credits_i = 0;
+
+	static const int chara[] = {
+		MS(0,  0,   0),
+		MS(2, 42,   0),
+		MS(2, 42, 100),
+		MS(2, 42, 200),
+		MS(2, 42, 300),
+		MS(2, 42, 400),
+		MS(2, 42, 500),
+		MS(2, 42, 600),
+		MS(2, 42, 700),
+		MS(2, 42, 800),
+		MS(2, 42, 900),
+		MS(2, 43,   0),
+		MS(2, 43, 100),
+		MS(2, 43, 200),
+		MS(2, 43, 300),
+		MS(2, 43, 400),
+		MS(2, 43, 500),
+		MS(2, 43, 600),
+		MS(2, 43, 700),
+		MS(2, 43, 800),
+		MS(2, 43, 900),
+		MS(4, 17, 100),
+		MS(4, 17, 400),
+		MS(4, 17, 600),
+		MS(4, 17, 800),
+		MS(4, 18,   0),
+		MS(4, 18, 200),
+		MS(4, 18, 400),
+		MS(4, 18, 600),
+		MS(4, 18, 800),
+		MS(4, 19, 300),
+		MS(4, 19, 500),
+		MS(4, 37, 600),
+		MS(4, 37, 700),
+		MS(4, 37, 800),
+		MS(4, 37, 900),
+		MS(4, 38,   0),
+		MS(4, 38, 100),
+		MS(4, 38, 200),
+	};
+	SDL_Rect chara_src = { 0, 0, 205, 200 };
+	SDL_Rect chara_dst = { 160, 265, 205, 200 };
+	int chara_i = 0;
+
+	while (!movie_is_end(movie.ctx)) {
+		int pos = movie_get_position(movie.ctx);
+		if (seek_i < ARRAY_SIZE(seek) && pos - seek[seek_i].t > -2) {
+			movie_seek_video(movie.ctx, seek[seek_i].frame);
+			seek_i++;
+		}
+		if (credits_i < ARRAY_SIZE(credits) && pos - credits[credits_i].t >= 0) {
+
+		}
+		int r = movie_draw(movie.ctx);
+		if (r < 0)
+			break;
+		if (r > 0) {
+			// draw credits/characters on top of video
+			if (credits_i + 1 < ARRAY_SIZE(credits)) {
+				if (pos - credits[credits_i + 1].t >= 0) {
+					credits_i++;
+					credits_src.y = credits[credits_i].src_y;
+					credits_dst.y = credits[credits_i].dst_y;
+					credits_src.h = credits[credits_i].h;
+					credits_dst.h = credits[credits_i].h;
+				}
+			}
+			if (chara_i + 1 < ARRAY_SIZE(chara)) {
+				if (pos - chara[chara_i + 1] >= 0) {
+					chara_i++;
+					chara_src.y += 200;
+				}
+			}
+			if (credits_src.h) {
+				SDL_CALL(SDL_RenderCopy, gfx.renderer, movie.credits,
+						&credits_src, &credits_dst);
+			}
+			if (pos < MS(4, 38, 300)) {
+				SDL_CALL(SDL_RenderCopy, gfx.renderer, movie.chara,
+						&chara_src, &chara_dst);
+			}
+			SDL_RenderPresent(gfx.renderer);
+		}
+		if (movie_cancelled())
+			break;
+	}
+}
+
+static void util_movie_play(struct param_list *params)
+{
+	if (!movie.ctx) {
+		WARNING("No movie loaded");
+		return;
+	}
+
+#ifdef USE_SDL_MIXER
+	// XXX: for SDL_Mixer, we don't sync video to audio
+	if (movie.audio)
+		audio_play(AUDIO_CH_SE0, movie.audio, false);
+#endif
+
+	movie_set_volume(movie.ctx, 18);
+	movie_play(movie.ctx);
+
+	gfx_display_freeze();
+	if (movie.is_ending) {
+		play_ending();
+	} else {
+		while (!movie_is_end(movie.ctx)) {
+			int r = movie_draw(movie.ctx);
+			if (r < 0)
+				break;
+			if (r > 0)
+				SDL_RenderPresent(gfx.renderer);
+			if (movie_cancelled())
+				break;
+		}
+	}
+
+	// copy last frame to surface 0 (converting RGBA -> RGB)
+	unsigned stride;
+	uint8_t *pixels = movie_get_pixels(movie.ctx, &stride);
+	if (pixels) {
+		SDL_Surface *s0 = gfx_get_surface(0);
+		for (int row = 0; row < 480; row++) {
+			uint8_t *src = pixels + row * stride;
+			uint8_t *dst = s0->pixels + row * s0->pitch;
+			uint8_t *end = dst + 640 * 3;
+			for (; dst < end; dst += 3, src += 4) {
+				memcpy(dst, src, 3);
+			}
+		}
+	} else {
+		WARNING("Failed to copy final video frame");
+	}
+
+	gfx_dump_surface(0, "s0.png");
+
+	gfx_display_unfreeze();
+	gfx_dirty(0);
+
+#ifdef USE_SDL_MIXER
+	if (movie.audio) {
+		while (audio_is_playing(AUDIO_CH_SE0))
+			vm_delay(16);
+	}
+#endif
+
+	movie_end();
+}
+
+#else
+static void util_movie_load(struct param_list *params)
+{
+	WARNING("movie not supported (built without ffmpeg)");
+}
+
+static void util_movie_play(struct param_list *params)
+{
+	WARNING("movie not supported (built without ffmpeg)");
+}
+#endif
+
 static void util_500(struct param_list *params)
 {
 	// TODO
@@ -1005,8 +1418,8 @@ struct game game_doukyuusei = {
 		[100] = util_save_var4,
 		[200] = util_misa_train_in,
 		[201] = util_misa_train_out,
-		[300] = util_warn_unimplemented, // TODO movie ({HEROINE}_E.MES, TRUE_END.MES, Y15.MES)
-		[301] = util_warn_unimplemented, // TODO movie ({HEROINE}_E.MES, TRUE_END.MES, Y15.MES)
+		[300] = util_movie_load,
+		[301] = util_movie_play,
 		[350] = util_warn_unimplemented, // TODO (MUSIC.MES)
 		[351] = util_warn_unimplemented, // TODO (MUSIC.MES)
 		[400] = util_load_name,

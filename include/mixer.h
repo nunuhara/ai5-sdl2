@@ -67,4 +67,9 @@ int mixer_stream_reverse_LR(struct mixer_stream *ch);
 int mixer_stream_get_volume(struct mixer_stream *ch);
 int mixer_stream_get_time_length(struct mixer_stream *ch);
 
+struct sts_mixer_stream_t;
+int mixer_sts_stream_play(struct sts_mixer_stream_t* stream, int volume);
+bool mixer_sts_stream_set_volume(int voice, int volume);
+void mixer_sts_stream_stop(int voice);
+
 #endif /* AI5_MIXER_H */

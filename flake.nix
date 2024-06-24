@@ -25,6 +25,7 @@
         buildInputs = [
           SDL2
           SDL2_ttf
+          ffmpeg
           libpng
           libsndfile
         ];
@@ -46,6 +47,7 @@
           buildInputs = [
             SDL2
             SDL2_ttf
+            ffmpeg
             libpng
             libsndfile
           ];
