@@ -314,8 +314,7 @@ static void doukyuusei_display(struct param_list *params)
 	switch (vm_expr_param(params, 0)) {
 	case 0:
 		if (params->nr_params > 1) {
-			// FIXME: use fill color
-			gfx_display_hide();
+			gfx_display_hide(vm_expr_param(params, 1));
 		} else {
 			gfx_display_unhide();
 		}

@@ -42,7 +42,7 @@ void gfx_window_decrease_integer_size(void);
 void gfx_screenshot(void);
 
 // display operations
-void gfx_display_hide(void);
+void gfx_display_hide(uint32_t color);
 void gfx_display_unhide(void);
 void gfx_display_freeze(void);
 void gfx_display_unfreeze(void);

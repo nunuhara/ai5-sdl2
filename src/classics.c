@@ -216,7 +216,7 @@ void classics_palette(struct param_list *params)
 	case 0:  palette_set(params); break;
 	case 1:  palette_crossfade1(params); break;
 	case 2:  palette_crossfade2(params); break;
-	case 3:  gfx_display_hide(); break;
+	case 3:  gfx_display_hide(0); break;
 	case 4:  gfx_display_unhide(); break;
 	default: VM_ERROR("System.Palette.function[%d] not implemented",
 				 params->params[0].val);

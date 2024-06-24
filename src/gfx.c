@@ -429,10 +429,14 @@ void gfx_display_fade_in(unsigned ms)
 	_gfx_display_fade_in(ms, NULL);
 }
 
-void gfx_display_hide(void)
+void gfx_display_hide(uint32_t color)
 {
 	GFX_LOG("gfx_hide_screen");
-	// fill screen with color 0 and prevent updates
+	// fill screen with color and prevent updates
+	if (game->bpp != 8) {
+		SDL_Color c = gfx_decode_direct(color);
+		SDL_CALL(SDL_SetRenderDrawColor, gfx.renderer, c.r, c.g, c.b, 255);
+	}
 	SDL_CALL(SDL_RenderClear, gfx.renderer);
 	SDL_RenderPresent(gfx.renderer);
 	gfx.hidden = true;
@@ -444,6 +448,10 @@ void gfx_display_unhide(void)
 	// allow updates
 	gfx.hidden = false;
 	gfx.dirty = true;
+	// restore clear color
+	if (game->bpp != 8) {
+		SDL_CALL(SDL_SetRenderDrawColor, gfx.renderer, 0, 0, 0, 0);
+	}
 }
 
 static void read_palette(SDL_Color *dst, const uint8_t *src)
