@@ -30,6 +30,15 @@
 #define AI5_DATA_DIR "."
 #endif
 
+#ifdef EMBED_FONTS
+extern unsigned char font_dotgothic[];
+extern unsigned int  font_dotgothic_len;
+extern unsigned char font_kosugi[];
+extern unsigned int  font_kosugi_len;
+extern unsigned char font_noto[];
+extern unsigned int  font_noto_len;
+#endif
+
 struct font {
 	int size;
 	int y_off;
@@ -50,7 +59,14 @@ enum font_type {
 };
 
 struct font_spec {
-	char *path;
+	bool embedded;
+	union {
+		struct {
+			SDL_RWops *rwops;
+			SDL_RWops *rwops_outline;
+		};
+		char *path;
+	};
 	unsigned face;
 } font_spec[NR_FONT_TYPES] = {0};
 
@@ -84,6 +100,12 @@ static struct font *font_insert(int size, TTF_Font *id, TTF_Font *id_outline)
 	return &fonts[nr_fonts++];
 }
 
+#define EMBEDDED_FONT(name) (struct font_spec) { \
+	.embedded = true, \
+	.rwops = SDL_RWFromConstMem(font_##name, font_##name##_len), \
+	.rwops_outline = SDL_RWFromConstMem(font_##name, font_##name##_len), \
+}
+
 void gfx_text_init(const char *font_path, int face)
 {
 	if (TTF_Init() == -1)
@@ -107,15 +129,31 @@ void gfx_text_init(const char *font_path, int face)
 		font_spec[FONT_ENG].face = face_eng;
 	} else {
 #ifdef _WIN32
-		font_spec[FONT_SMALL].path = xstrdup("C:/Windows/Fonts/msgothic.ttc");
-		font_spec[FONT_LARGE].path = xstrdup(font_spec[FONT_SMALL].path);
-		font_spec[FONT_ENG].path = xstrdup(font_spec[FONT_SMALL].path);
-		font_spec[FONT_ENG].face = 1;
+		if (game->bpp == 8) {
+			// XXX: We only use MS Gothic for indexed color, since direct color
+			//      games render text with an outline and SDL_ttf can't render
+			//      an outline on MS Gothic for some reason.
+			font_spec[FONT_SMALL].path = xstrdup("C:/Windows/Fonts/msgothic.ttc");
+			font_spec[FONT_LARGE].path = xstrdup(font_spec[FONT_SMALL].path);
+			font_spec[FONT_ENG].path = xstrdup(font_spec[FONT_SMALL].path);
+			font_spec[FONT_ENG].face = 1;
+		} else {
+			// XXX: We always embed fonts on windows
+			font_spec[FONT_SMALL] = EMBEDDED_FONT(dotgothic);
+			font_spec[FONT_LARGE] = EMBEDDED_FONT(kosugi);
+			font_spec[FONT_ENG] = EMBEDDED_FONT(noto);
+		}
+#else
+#ifdef EMBED_FONTS
+		font_spec[FONT_SMALL] = EMBEDDED_FONT(dotgothic);
+		font_spec[FONT_LARGE] = EMBEDDED_FONT(kosugi);
+		font_spec[FONT_ENG] = EMBEDDED_FONT(noto);
 #else
 		font_spec[FONT_SMALL].path = xstrdup(AI5_DATA_DIR "/fonts/DotGothic16-Regular.ttf");
 		font_spec[FONT_LARGE].path = xstrdup(AI5_DATA_DIR "/fonts/Kosugi-Regular.ttf");
 		font_spec[FONT_ENG].path = xstrdup(AI5_DATA_DIR "/fonts/NotoSansJP-Thin.ttf");
-#endif
+#endif // EMBED_FONTS
+#endif // _WIN32
 	}
 	gfx_text_set_size(mem_get_sysvar16(mes_sysvar16_font_height),
 			mem_get_sysvar16(mes_sysvar16_font_weight));
@@ -259,8 +297,13 @@ unsigned gfx_text_draw_glyph(int x, int y, unsigned i, uint32_t ch)
 
 static void open_font(struct font_spec *spec, int size, TTF_Font **out, TTF_Font **outline_out)
 {
-	*out = TTF_OpenFontIndex(spec->path, size, spec->face);
-	*outline_out = TTF_OpenFontIndex(spec->path, size, spec->face);
+	if (spec->embedded) {
+		*out = TTF_OpenFontIndexRW(spec->rwops, false, size, spec->face);
+		*outline_out = TTF_OpenFontIndexRW(spec->rwops_outline, false, size, spec->face);
+	} else {
+		*out = TTF_OpenFontIndex(spec->path, size, spec->face);
+		*outline_out = TTF_OpenFontIndex(spec->path, size, spec->face);
+	}
 	if (!*out || !*outline_out)
 		ERROR("TTF_OpenFont: %s", TTF_GetError());
 	TTF_SetFontOutline(*outline_out, 1);

@@ -4,9 +4,11 @@ add_project_arguments('-DAI5_DATA_DIR="' + get_option('prefix') / get_option('da
 
 static_libs = false
 static_link_args = []
+embed_fonts = false
 if host_machine.system() == 'windows'
   static_libs = true
   static_link_args = ['-static', '-lstdc++']
+  embed_fonts = true
 endif
 
 libm = meson.get_compiler('c').find_library('m', required: false)
@@ -26,6 +28,12 @@ incdirs = include_directories('include')
 version_h = vcs_tag(fallback : 'unknown version',
                     input : 'version.h.in',
                     output : 'version.h')
+
+xxd = find_program('xxd')
+packfont = generator(xxd,
+  output : '@BASENAME@.c',
+  capture : true,
+  arguments : ['-i', '@EXTRA_ARGS@', '@INPUT@'])
 
 sources = [
   version_h,
@@ -54,6 +62,13 @@ sources = [
   'src/vm.c',
   'src/yuno.c',
 ]
+
+if embed_fonts
+  add_project_arguments('-DEMBED_FONTS', language : 'c')
+  sources += packfont.process('fonts/DotGothic16-Regular.ttf', extra_args : ['-n', 'font_dotgothic'])
+  sources += packfont.process('fonts/Kosugi-Regular.ttf', extra_args : ['-n', 'font_kosugi'])
+  sources += packfont.process('fonts/NotoSansJP-Thin.ttf', extra_args : ['-n', 'font_noto'])
+endif
 
 deps = [libai5_dep, libm, sdl2, sdl2_ttf]
 if avcodec.found() and avformat.found() and avutil.found() and swscale.found()
