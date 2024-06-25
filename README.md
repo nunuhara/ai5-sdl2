@@ -65,6 +65,49 @@ Then build the ai5 executable with meson:
     meson build
     ninja -C build
 
+### Windows
+
+ai5-sdl2 can be build on Windows using MSYS2.
+
+First, install MSYS2, and then open the MINGW64 shell and run the following command,
+
+    pacman -S nasm diffutils \
+        mingw-w64-x86_64-gcc \
+        mingw-w64-x86_64-meson \
+        mingw-w64-x86_64-pkg-config \
+        mingw-w64-x86_64-SDL2 \
+        mingw-w64-x86_64-SDL2_ttf \
+        mingw-w64-x86_64-libpng \
+        mingw-w64-x86_64-libsndfile
+
+To build with FFmpeg support, you should compile FFmpeg as a static library:
+
+    git clone https://github.com/FFmpeg/FFmpeg.git
+    cd FFmpeg
+    git checkout n7.0.1
+    ./configure --disable-everything \
+        --enable-decoder=cinepak \
+        --enable-decoder=indeo3 \
+        --enable-decoder=pcm_s16le \
+        --enable-demuxer=avi \
+        --enable-demuxer=wav \
+        --enable-protocol=file \
+        --enable-filter=scale \
+        --enable-static \
+        --disable-shared \
+        --extra-libs=-static \
+        --extra-cflags=--static
+    make
+    make install
+    cd ..
+    export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"
+
+Then build the xsystem4 executable with meson,
+
+    mkdir build
+    meson build
+    ninja -C build
+
 Installing
 ----------
 
