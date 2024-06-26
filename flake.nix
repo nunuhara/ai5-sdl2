@@ -2,7 +2,7 @@
   description = "Cross-platform implementation of elf's AI5WIN game engine";
 
   # Nixpkgs / NixOS version to use.
-  inputs.nixpkgs.url = "nixpkgs/nixos-22.11";
+  inputs.nixpkgs.url = "nixpkgs/nixos-23.11";
 
   outputs = { self, nixpkgs }:
   let
