@@ -29,12 +29,6 @@ version_h = vcs_tag(fallback : 'unknown version',
                     input : 'version.h.in',
                     output : 'version.h')
 
-xxd = find_program('xxd')
-packfont = generator(xxd,
-  output : '@BASENAME@.c',
-  capture : true,
-  arguments : ['-i', '@EXTRA_ARGS@', '@INPUT@'])
-
 sources = [
   version_h,
   'src/aishimai.c',
@@ -65,6 +59,11 @@ sources = [
 
 if embed_fonts
   add_project_arguments('-DEMBED_FONTS', language : 'c')
+  xxd = find_program('xxd')
+  packfont = generator(xxd,
+    output : '@BASENAME@.c',
+    capture : true,
+    arguments : ['-i', '@EXTRA_ARGS@', '@INPUT@'])
   sources += packfont.process('fonts/DotGothic16-Regular.ttf', extra_args : ['-n', 'font_dotgothic'])
   sources += packfont.process('fonts/Kosugi-Regular.ttf', extra_args : ['-n', 'font_kosugi'])
   sources += packfont.process('fonts/NotoSansJP-Thin.ttf', extra_args : ['-n', 'font_noto'])

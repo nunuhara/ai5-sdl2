@@ -21,7 +21,7 @@
     #     nix develop # create shell environment with dependencies available
     devShell = forAllSystems (system:
       let pkgs = nixpkgsFor.${system}; in with pkgs; pkgs.mkShell {
-        nativeBuildInputs = [ meson ninja pkg-config ];
+        nativeBuildInputs = [ meson ninja pkg-config xxd ];
         buildInputs = [
           SDL2
           SDL2_ttf
@@ -43,7 +43,7 @@
           name = "ai5-sdl2";
           src = ./.;
           mesonAutoFeatures = "auto";
-          nativeBuildInputs = [ meson ninja pkg-config ];
+          nativeBuildInputs = [ meson ninja pkg-config xxd ];
           buildInputs = [
             SDL2
             SDL2_ttf
