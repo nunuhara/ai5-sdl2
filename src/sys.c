@@ -33,6 +33,7 @@
 #include "menu.h"
 #include "savedata.h"
 #include "sys.h"
+#include "texthook.h"
 #include "vm_private.h"
 
 /*
@@ -400,6 +401,7 @@ void sys_graphics_pixel_crossfade_masked(struct param_list *params)
 }
 void sys_wait(struct param_list *params)
 {
+	texthook_commit();
 	if (params->nr_params == 0 || vm_expr_param(params, 0) == 0) {
 		while (true) {
 			if (input_down(INPUT_CTRL)) {

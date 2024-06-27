@@ -21,6 +21,7 @@
 #include "input.h"
 #include "memory.h"
 #include "menu.h"
+#include "texthook.h"
 #include "vm.h"
 
 static bool menu_initialized = false;
@@ -84,7 +85,10 @@ void menu_exec(void)
 	mem_set_sysvar16(mes_sysvar16_nr_menu_entries, count_entries());
 
 	// initialize menu
+	texthook_commit();
+	texthook_set_buffered(false);
 	vm_call_procedure(38);
+	texthook_set_buffered(true);
 	while (true) {
 		if (vm_flag_is_on(FLAG_MENU_RETURN) || vm_flag_is_on(FLAG_RETURN))
 			break;

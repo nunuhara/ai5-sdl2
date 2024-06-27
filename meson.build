@@ -25,7 +25,7 @@ libai5_dep = libai5_proj.get_variable('libai5_dep')
 
 incdirs = include_directories('include')
 
-version_h = vcs_tag(fallback : 'unknown version',
+version_h = vcs_tag(fallback : 'unknown',
                     input : 'version.h.in',
                     output : 'version.h')
 
@@ -48,11 +48,11 @@ sources = [
   'src/main.c',
   'src/map.c',
   'src/menu.c',
-  'src/movie.c',
   'src/savedata.c',
   'src/shangrlia.c',
   'src/sys.c',
   'src/text.c',
+  'src/texthook.c',
   'src/vm.c',
   'src/yuno.c',
 ]

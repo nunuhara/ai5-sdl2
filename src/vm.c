@@ -39,6 +39,7 @@
 #include "input.h"
 #include "memory.h"
 #include "menu.h"
+#include "texthook.h"
 #include "vm_private.h"
 
 struct vm vm = {0};
@@ -376,19 +377,6 @@ void vm_draw_text(const char *text)
 
 #define TXT_BUF_SIZE 4096
 
-static void texthook(const char *text)
-{
-	if (!config.texthook_clipboard && !config.texthook_stdout)
-		return;
-
-	string utf8 = sjis_cstring_to_utf8(text, 0);
-	if (config.texthook_clipboard)
-		clipboard_set(utf8);
-	if (config.texthook_stdout)
-		NOTICE("%s", utf8);
-	string_free(utf8);
-}
-
 static void stmt_txt(bool with_op)
 {
 	size_t str_i = 0;
@@ -414,7 +402,7 @@ static void stmt_txt(bool with_op)
 	vm_read_byte();
 unterminated:
 	str[str_i] = 0;
-	texthook(str);
+	texthook_push(str);
 	if (game->custom_TXT)
 		game->custom_TXT(str);
 	else
@@ -452,7 +440,7 @@ static void stmt_str(bool with_op)
 	vm_read_byte();
 unterminated:
 	str[str_i] = 0;
-	texthook(str);
+	texthook_push(str);
 	vm_draw_text(str);
 
 	if (vm_flag_is_on(FLAG_LOG_ENABLE) && vm_flag_is_on(FLAG_LOG_TEXT))
