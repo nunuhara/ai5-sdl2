@@ -158,6 +158,11 @@ static void usage(void)
 	printf("    --texthook-clipboard       Copy text to the system clipboard\n");
 	printf("    --texthook-stdout          Copy text to standard output\n");
 	printf("    --version                  Display the AI5-SDL2 version and exit\n");
+
+	if (ai5_target_game == GAME_DOUKYUUSEI) {
+		printf("    --map-no-wallslide         Don't slide character along walls of map\n");
+	}
+
 }
 
 static _Noreturn void _usage_error(const char *fmt, ...)
@@ -183,9 +188,6 @@ static void set_game(const char *name)
 	case GAME_AI_SHIMAI:
 		game = &game_ai_shimai;
 		break;
-	case GAME_DOUKYUUSEI:
-		game = &game_doukyuusei;
-		break;
 	case GAME_ISAKU:
 		game = &game_isaku;
 		break;
@@ -193,6 +195,9 @@ static void set_game(const char *name)
 		game = &game_shangrlia;
 		break;
 #endif
+	case GAME_DOUKYUUSEI:
+		game = &game_doukyuusei;
+		break;
 	case GAME_YUNO:
 		game = &game_yuno;
 		break;
@@ -235,6 +240,7 @@ enum {
 	LOPT_FONT,
 	LOPT_FONT_FACE,
 	LOPT_GAME,
+	LOPT_MAP_NO_WALLSLIDE,
 	LOPT_MSG_SKIP_DELAY,
 	LOPT_TEXTHOOK_CLIPBOARD,
 	LOPT_TEXTHOOK_STDOUT,
@@ -242,6 +248,7 @@ enum {
 
 int main(int argc, char *argv[])
 {
+	ai5_target_game = -1;
 	bool have_game = false;
 	char *ini_name = NULL;
 	bool debug = false;
@@ -260,6 +267,8 @@ int main(int argc, char *argv[])
 			{ "texthook-clipboard", no_argument, 0, LOPT_TEXTHOOK_CLIPBOARD },
 			{ "texthook-stdout", no_argument, 0, LOPT_TEXTHOOK_STDOUT },
 			{ "version", no_argument, 0, LOPT_VERSION },
+			// doukyuusei-specific
+			{ "map-no-wallslide", no_argument, 0, LOPT_MAP_NO_WALLSLIDE },
 			{0}
 		};
 		int option_index = 0;
@@ -303,6 +312,9 @@ int main(int argc, char *argv[])
 			break;
 		case LOPT_TEXTHOOK_STDOUT:
 			config.texthook_stdout = true;
+			break;
+		case LOPT_MAP_NO_WALLSLIDE:
+			config.map_no_wallslide = true;
 			break;
 		}
 	}

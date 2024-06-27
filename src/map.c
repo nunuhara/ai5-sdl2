@@ -20,6 +20,7 @@
 #include "ai5/ccd.h"
 #include "ai5/mes.h"
 
+#include "ai5.h"
 #include "asset.h"
 #include "cursor.h"
 #include "gfx_private.h"
@@ -625,8 +626,8 @@ static void sprite_advance_frame(struct ccd_sprite *sp, enum map_direction dir)
 	sp->frame |= (dir << 4);
 }
 
-static uint16_t sprite_move_left(struct ccd_sprite *sp, bool advance);
-static uint16_t sprite_move_right(struct ccd_sprite *sp, bool advance);
+static uint16_t sprite_move_left(struct ccd_sprite *sp, bool advance, bool slide_ok);
+static uint16_t sprite_move_right(struct ccd_sprite *sp, bool advance, bool slide_ok);
 
 static void _sprite_move_up(struct ccd_sprite *sp)
 {
@@ -639,7 +640,7 @@ static void _sprite_move_up(struct ccd_sprite *sp)
 	}
 }
 
-static uint16_t sprite_move_up(struct ccd_sprite *sp, bool advance)
+static uint16_t sprite_move_up(struct ccd_sprite *sp, bool advance, bool slide_ok)
 {
 	if (advance)
 		sprite_advance_frame(sp, MAP_UP);
@@ -648,11 +649,14 @@ static uint16_t sprite_move_up(struct ccd_sprite *sp, bool advance)
 	bool result[3];
 	if (sp->state & MAP_SP_COLLIDES && !sprite_can_move_up(sp, result)) {
 		if (!result[0])
-			return sprite_move_left(sp, false);
-		if (!result[2])
-			return sprite_move_right(sp, false);
+			return sprite_move_left(sp, false, false);
+		if (!result[2] || (slide_ok && !config.map_no_wallslide))
+			return sprite_move_right(sp, false, false);
 		return 0xffff;
 	}
+
+	if (!advance)
+		sp->frame = (sp->frame & 0xf) | (MAP_UP << 4);
 
 	// move sprite
 	_sprite_move_up(sp);
@@ -671,7 +675,7 @@ static void _sprite_move_down(struct ccd_sprite *sp)
 	}
 }
 
-static uint16_t sprite_move_down(struct ccd_sprite *sp, bool advance)
+static uint16_t sprite_move_down(struct ccd_sprite *sp, bool advance, bool slide_ok)
 {
 	if (advance)
 		sprite_advance_frame(sp, MAP_DOWN);
@@ -680,11 +684,14 @@ static uint16_t sprite_move_down(struct ccd_sprite *sp, bool advance)
 	bool result[3];
 	if (sp->state & MAP_SP_COLLIDES && !sprite_can_move_down(sp, result)) {
 		if (!result[0])
-			return sprite_move_left(sp, false);
-		if (!result[2])
-			return sprite_move_right(sp, false);
+			return sprite_move_left(sp, false, false);
+		if (!result[2] || (slide_ok && !config.map_no_wallslide))
+			return sprite_move_right(sp, false, false);
 		return 0xffff;
 	}
+
+	if (!advance)
+		sp->frame = (sp->frame & 0xf) | (MAP_DOWN << 4);
 
 	// move sprite
 	_sprite_move_down(sp);
@@ -702,7 +709,7 @@ static void _sprite_move_left(struct ccd_sprite *sp)
 	}
 }
 
-static uint16_t sprite_move_left(struct ccd_sprite *sp, bool advance)
+static uint16_t sprite_move_left(struct ccd_sprite *sp, bool advance, bool slide_ok)
 {
 	if (advance)
 		sprite_advance_frame(sp, MAP_LEFT);
@@ -710,12 +717,15 @@ static uint16_t sprite_move_left(struct ccd_sprite *sp, bool advance)
 	// check if sprite would collide with terrain
 	bool result[2];
 	if (sp->state & MAP_SP_COLLIDES && !sprite_can_move_left(sp, result)) {
-		if (!result[0])
-			return sprite_move_up(sp, false);
 		if (!result[1])
-			return sprite_move_down(sp, false);
+			return sprite_move_down(sp, false, false);
+		if (!result[0] || (slide_ok && !config.map_no_wallslide))
+			return sprite_move_up(sp, false, false);
 		return 0xffff;
 	}
+
+	if (!advance)
+		sp->frame = (sp->frame & 0xf) | (MAP_LEFT << 4);
 
 	// move sprite
 	_sprite_move_left(sp);
@@ -734,7 +744,7 @@ static void _sprite_move_right(struct ccd_sprite *sp)
 	}
 }
 
-static uint16_t sprite_move_right(struct ccd_sprite *sp, bool advance)
+static uint16_t sprite_move_right(struct ccd_sprite *sp, bool advance, bool slide_ok)
 {
 	if (advance)
 		sprite_advance_frame(sp, MAP_RIGHT);
@@ -742,12 +752,15 @@ static uint16_t sprite_move_right(struct ccd_sprite *sp, bool advance)
 	// check if sprite would collide with terrain
 	bool result[2];
 	if (sp->state & MAP_SP_COLLIDES && !sprite_can_move_right(sp, result)) {
-		if (!result[0])
-			return sprite_move_up(sp, false);
 		if (!result[1])
-			return sprite_move_down(sp, false);
+			return sprite_move_down(sp, false, false);
+		if (!result[0] || (slide_ok && !config.map_no_wallslide))
+			return sprite_move_up(sp, false, false);
 		return 0xffff;
 	}
+
+	if (!advance)
+		sp->frame = (sp->frame & 0xf) | (MAP_RIGHT << 4);
 
 	// move sprite
 	_sprite_move_right(sp);
@@ -875,18 +888,18 @@ static void sprite_move_path(struct ccd_sprite *sp)
 		else if (next.x > sp->x)
 			sprite_move_up_right(sp, true);
 		else
-			sprite_move_up(sp, true);
+			sprite_move_up(sp, true, false);
 	} else if (next.y > sp->y) {
 		if (next.x < sp->x)
 			sprite_move_down_left(sp, true);
 		else if (next.x > sp->x)
 			sprite_move_down_right(sp, true);
 		else
-			sprite_move_down(sp, true);
+			sprite_move_down(sp, true, false);
 	} else if (next.x < sp->x) {
-		sprite_move_left(sp, true);
+		sprite_move_left(sp, true, false);
 	} else if (next.x > sp->x) {
-		sprite_move_right(sp, true);
+		sprite_move_right(sp, true, false);
 	}
 	if (sp->x != next.x || sp->y != next.y) {
 		WARNING("pathed to wrong tile?");
@@ -947,10 +960,10 @@ static uint16_t sprite_do_handle_input(struct ccd_sprite *sp, unsigned inputs)
 	unsigned ty = sp->y;
 
 	switch (inputs) {
-	case SP_INPUT_UP: sprite_move_up(sp, true); break;
-	case SP_INPUT_DOWN: sprite_move_down(sp, true); break;
-	case SP_INPUT_LEFT: sprite_move_left(sp, true); break;
-	case SP_INPUT_RIGHT: sprite_move_right(sp, true); break;
+	case SP_INPUT_UP: sprite_move_up(sp, true, true); break;
+	case SP_INPUT_DOWN: sprite_move_down(sp, true, true); break;
+	case SP_INPUT_LEFT: sprite_move_left(sp, true, true); break;
+	case SP_INPUT_RIGHT: sprite_move_right(sp, true, true); break;
 	case SP_INPUT_UP | SP_INPUT_LEFT: sprite_move_up_left(sp, true); break;
 	case SP_INPUT_UP | SP_INPUT_RIGHT: sprite_move_up_right(sp, true); break;
 	case SP_INPUT_DOWN | SP_INPUT_LEFT: sprite_move_down_left(sp, true); break;
@@ -1001,16 +1014,16 @@ static uint16_t exec_sprite(struct ccd_sprite *sp)
 	case 0:
 		return 0; // ???
 	case 2:
-		sprite_move_up(sp, true);
+		sprite_move_up(sp, true, false);
 		break;
 	case 3:
-		sprite_move_down(sp, true);
+		sprite_move_down(sp, true, false);
 		break;
 	case 4:
-		sprite_move_left(sp, true);
+		sprite_move_left(sp, true, false);
 		break;
 	case 5:
-		sprite_move_right(sp, true);
+		sprite_move_right(sp, true, false);
 		break;
 	case 6:
 		r = sprite_rewind_pos(sp, sp->script_repetitions);
@@ -1090,10 +1103,10 @@ void map_move_sprite(unsigned sp_no, enum map_direction dir)
 		return;
 
 	switch (dir) {
-	case MAP_UP: sprite_move_up(sp, true); break;
-	case MAP_DOWN: sprite_move_down(sp, true); break;
-	case MAP_LEFT: sprite_move_left(sp, true); break;
-	case MAP_RIGHT: sprite_move_right(sp, true); break;
+	case MAP_UP: sprite_move_up(sp, true, false); break;
+	case MAP_DOWN: sprite_move_down(sp, true, false); break;
+	case MAP_LEFT: sprite_move_left(sp, true, false); break;
+	case MAP_RIGHT: sprite_move_right(sp, true, false); break;
 	default: WARNING("Invalid move direction: %d", dir);
 	}
 	sprite_pos_history_push(sp);
@@ -1381,7 +1394,7 @@ void map_path_sprite(unsigned sp_no, unsigned tx, unsigned ty)
 				continue;
 
 			struct path_data *neighbor = get_path_data(neighbor_pos);
-			uint16_t g = map.path.tiles[cur.y][cur.x].g_score + (i < 3 ? 1 : 2);
+			uint16_t g = map.path.tiles[cur.y][cur.x].g_score + (i <= 3 ? 1 : 2);
 			if (g < neighbor->g_score) {
 				neighbor->pred = cur;
 				neighbor->g_score = g;
