@@ -28,6 +28,7 @@ struct param_list;
 struct anim_draw_call;
 typedef union SDL_Event SDL_Event;
 
+// virtual flags -- mapped to real flag values in game.flags
 enum game_flag {
 	// enables reflector animation (YU-NO specific)
 	FLAG_REFLECTOR,
@@ -43,7 +44,7 @@ enum game_flag {
 	FLAG_LOG_ENABLE,
 	// controls whether text is written to backlog
 	FLAG_LOG_TEXT,
-	// message history?
+	// write to backlog
 	FLAG_LOG,
 	// controls whether system calls are written to backlog
 	FLAG_LOG_SYS,
@@ -53,7 +54,7 @@ enum game_flag {
 	FLAG_VOICE_ENABLE,
 	// enables System.Audio subsystem
 	FLAG_AUDIO_ENABLE,
-	// if set, counts the length of text rather than displaying it
+	// if set, count the length of text rather than displaying it
 	FLAG_STRLEN,
 	// if set, wait for keyup events
 	FLAG_WAIT_KEYUP,
@@ -74,25 +75,35 @@ enum flags_type {
 struct game {
 	enum ai5_game_id id;
 	struct { uint16_t w, h; } surface_sizes[13];
+	// bits per pixel
+	//   8  = 8-bit indexed
+	//   16 = BGR555
+	//   24 = BGR888
 	unsigned bpp;
-	unsigned x_mult;
-	bool use_effect_arc;
-	bool call_saves_procedures;
-	bool proc_clears_flag;
-	bool no_antialias_text;
-	enum flags_type flags_type;
-	unsigned farcall_strlen_retvar;
-	uint32_t var4_size;
+	// size of the 16-bit address space
 	uint32_t mem16_size;
+	// called immediately before running the initial mes file
 	void (*init)(void);
+	// called in vm_peek
 	void (*update)(void);
+	// called for all input events, before built-in input handling
 	void (*handle_event)(SDL_Event *e);
+	// called in early init
 	void (*mem_init)(void);
+	// called whenever a full save file is loaded (savedata_resume_load)
 	void (*mem_restore)(void);
-	void (*custom_TXT)(const char *text);
+	// called whenever text is encountered in the mes file
+	void (*draw_text_zen)(const char *text);
+	void (*draw_text_han)(const char *text);
+	// called after animation draw ops
 	void (*after_anim_draw)(struct anim_draw_call *call);
+	// VM opcode tables
+	void (*stmt_op[256])(void);
+	void (*expr_op[256])(void);
+	// system/util call tables
 	void (*util[GAME_MAX_UTIL])(struct param_list*);
 	void (*sys[GAME_MAX_SYS])(struct param_list*);
+	// mapping of virtual flags to actual flag bits
 	uint32_t flags[GAME_NR_FLAGS];
 };
 

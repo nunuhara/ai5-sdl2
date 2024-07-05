@@ -30,7 +30,7 @@ void sys_display_number(struct param_list *params);
 void sys_cursor_save_pos(struct param_list *params);
 void sys_file(struct param_list *params);
 void sys_load_file(struct param_list *params);
-void _sys_load_image(const char *name, unsigned i);
+void _sys_load_image(const char *name, unsigned i, unsigned x_mult);
 void sys_load_image(struct param_list *params);
 void sys_graphics_copy(struct param_list *params);
 void sys_graphics_copy_masked(struct param_list *params);
@@ -54,7 +54,6 @@ void sys_get_cursor_segment(struct param_list *params);
 void sys_menu_get_no(struct param_list *params);
 void sys_check_input(struct param_list *params);
 void sys_strlen(struct param_list *params);
-void sys_farcall_strlen(struct param_list *params);
 void sys_get_time(struct param_list *params);
 
 #endif // AI5_SDL2_SYS_H

@@ -65,6 +65,118 @@ void vm_load_file(struct archive_data *file, uint32_t offset);
 void vm_load_mes(char *name);
 void vm_call_procedure(unsigned no);
 
+// generic stack operations
+void vm_expr_plus(void);
+void vm_expr_minus(void);
+void vm_expr_mul(void);
+void vm_expr_div(void);
+void vm_expr_mod(void);
+void vm_expr_and(void);
+void vm_expr_or(void);
+void vm_expr_bitand(void);
+void vm_expr_bitior(void);
+void vm_expr_bitxor(void);
+void vm_expr_lt(void);
+void vm_expr_gt(void);
+void vm_expr_lte(void);
+void vm_expr_gte(void);
+void vm_expr_eq(void);
+void vm_expr_neq(void);
+void vm_expr_rand(void);
+void vm_expr_rand_with_imm_range(void);
+void vm_expr_imm16(void);
+void vm_expr_imm32(void);
+uint32_t vm_expr_end(void);
+
+// flag/register/memory operations
+void vm_expr_cflag(void);
+void vm_expr_eflag(void);
+void vm_expr_var16(void);
+void vm_expr_var32(void);
+void vm_expr_ptr16_get8(void);
+void vm_expr_ptr16_get16(void);
+void vm_expr_ptr32_get8(void);
+void vm_expr_ptr32_get16(void);
+void vm_expr_ptr32_get32(void);
+
+void vm_stmt_txt(void);
+void vm_stmt_str(void);
+void vm_stmt_set_cflag(void);
+void vm_stmt_set_cflag_4bit_wrap(void);
+void vm_stmt_set_cflag_4bit_saturate(void);
+void vm_stmt_set_var16(void);
+void vm_stmt_set_eflag(void);
+void vm_stmt_set_eflag_4bit_wrap(void);
+void vm_stmt_set_eflag_4bit_saturate(void);
+void vm_stmt_set_var32(void);
+void vm_stmt_ptr16_set8(void);
+void vm_stmt_ptr16_set16(void);
+void vm_stmt_ptr32_set32(void);
+void vm_stmt_ptr32_set16(void);
+void vm_stmt_ptr32_set8(void);
+void vm_stmt_jz(void);
+void vm_stmt_jmp(void);
+void vm_stmt_sys(void);
+void vm_stmt_mesjmp(void);
+void vm_stmt_mescall(void);
+void vm_stmt_mescall_save_procedures(void);
+void vm_stmt_defmenu(void);
+void vm_stmt_menuexec(void);
+void vm_stmt_defproc(void);
+void vm_stmt_call(void);
+void vm_stmt_util(void);
+void vm_stmt_line(void);
+
+#define DEFAULT_EXPR_OP \
+	[0x80] = vm_expr_var16, \
+	[0xa0] = vm_expr_ptr16_get16, \
+	[0xc0] = vm_expr_ptr16_get8, \
+	[0xe0] = vm_expr_plus, \
+	[0xe1] = vm_expr_minus, \
+	[0xe2] = vm_expr_mul, \
+	[0xe3] = vm_expr_div, \
+	[0xe4] = vm_expr_mod, \
+	[0xe5] = vm_expr_rand, \
+	[0xe6] = vm_expr_and, \
+	[0xe7] = vm_expr_or, \
+	[0xe8] = vm_expr_bitand, \
+	[0xe9] = vm_expr_bitior, \
+	[0xea] = vm_expr_bitxor, \
+	[0xeb] = vm_expr_lt, \
+	[0xec] = vm_expr_gt, \
+	[0xed] = vm_expr_lte, \
+	[0xee] = vm_expr_gte, \
+	[0xef] = vm_expr_eq, \
+	[0xf0] = vm_expr_neq, \
+	[0xf1] = vm_expr_imm16, \
+	[0xf2] = vm_expr_imm32, \
+	[0xf3] = vm_expr_cflag, \
+	[0xf4] = vm_expr_eflag, \
+	[0xf5] = vm_expr_ptr32_get32, \
+	[0xf6] = vm_expr_var32
+
+#define DEFAULT_STMT_OP \
+	[0x01] = vm_stmt_txt, \
+	[0x02] = vm_stmt_str, \
+	[0x03] = vm_stmt_set_cflag, \
+	[0x04] = vm_stmt_set_var16, \
+	[0x05] = vm_stmt_set_eflag, \
+	[0x06] = vm_stmt_ptr16_set8, \
+	[0x07] = vm_stmt_ptr16_set16, \
+	[0x08] = vm_stmt_ptr32_set32, \
+	[0x09] = vm_stmt_jz, \
+	[0x0a] = vm_stmt_jmp, \
+	[0x0b] = vm_stmt_sys, \
+	[0x0c] = vm_stmt_mesjmp, \
+	[0x0d] = vm_stmt_mescall, \
+	[0x0e] = vm_stmt_defmenu, \
+	[0x0f] = vm_stmt_call, \
+	[0x10] = vm_stmt_util, \
+	[0x11] = vm_stmt_line, \
+	[0x12] = vm_stmt_defproc, \
+	[0x13] = vm_stmt_menuexec, \
+	[0x14] = vm_stmt_set_var32
+
 // input.c
 void vm_delay(int ms);
 uint32_t vm_get_ticks(void);

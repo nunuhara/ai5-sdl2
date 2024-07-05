@@ -70,6 +70,8 @@ struct font_spec {
 	unsigned face;
 } font_spec[NR_FONT_TYPES] = {0};
 
+bool text_no_antialias = false;
+
 static struct font *font_lookup(int size)
 {
 	for (int i = 0; i < nr_fonts; i++) {
@@ -256,7 +258,7 @@ static unsigned gfx_text_draw_glyph_indexed(int x, int y, SDL_Surface *dst, uint
 static unsigned gfx_text_draw_glyph_direct(int x, int y, SDL_Surface *dst, uint32_t ch)
 {
 	SDL_Surface *outline, *glyph;
-	if (game->no_antialias_text) {
+	if (text_no_antialias) {
 		// XXX: Antialiasing can cause issues if the text is rendered to a surface
 		//      filled with the mask color and then copied to the main surface with
 		//      copy_masked (e.g. Doukyuusei does this).

@@ -27,11 +27,6 @@
 #include "savedata.h"
 #include "vm.h"
 
-static uint32_t savedata_size(void)
-{
-	return game->mem16_size;
-}
-
 static void close_save(FILE *f)
 {
 	if (fclose(f))
@@ -47,8 +42,8 @@ static void create_save(const char *save_name)
 		return;
 	}
 	uint8_t buf[MEMORY_MEM16_MAX_SIZE];
-	memset(buf, 0, savedata_size());
-	if (fwrite(buf, savedata_size(), 1, f) != 1)
+	memset(buf, 0, game->mem16_size);
+	if (fwrite(buf, game->mem16_size, 1, f) != 1)
 		WARNING("fwrite: %s", strerror(errno));
 	close_save(f);
 }
@@ -98,7 +93,7 @@ void savedata_write(const char *save_name, const uint8_t *buf, uint32_t off, siz
 
 void savedata_resume_load(const char *save_name)
 {
-	savedata_read(save_name, memory_raw, 0, savedata_size());
+	savedata_read(save_name, memory_raw, 0, game->mem16_size);
 	game->mem_restore();
 	vm_load_mes(mem_mes_name());
 	vm_flag_on(FLAG_RETURN);
@@ -106,14 +101,14 @@ void savedata_resume_load(const char *save_name)
 
 void savedata_resume_save(const char *save_name)
 {
-	savedata_write(save_name, memory_raw, 0, savedata_size());
+	savedata_write(save_name, memory_raw, 0, game->mem16_size);
 }
 
 void savedata_load(const char *save_name)
 {
 	// load except mes name
 	savedata_read(save_name, memory_raw, MEMORY_MES_NAME_SIZE,
-			savedata_size() - MEMORY_MES_NAME_SIZE);
+			game->mem16_size - MEMORY_MES_NAME_SIZE);
 	game->mem_restore();
 }
 
@@ -121,23 +116,22 @@ void savedata_save(const char *save_name)
 {
 	// save except mes name
 	savedata_write(save_name, memory_raw, MEMORY_MES_NAME_SIZE,
-			savedata_size() - MEMORY_MES_NAME_SIZE);
+			game->mem16_size - MEMORY_MES_NAME_SIZE);
 }
 
-void savedata_load_var4(const char *save_name)
+void savedata_load_var4(const char *save_name, unsigned var4_size)
 {
-	savedata_read(save_name, memory_raw, MEMORY_VAR4_OFFSET, game->var4_size);
+	savedata_read(save_name, memory_raw, MEMORY_VAR4_OFFSET, var4_size);
 }
 
-void savedata_save_var4(const char *save_name)
+void savedata_save_var4(const char *save_name, unsigned var4_size)
 {
-	savedata_write(save_name, memory_raw, MEMORY_VAR4_OFFSET, game->var4_size);
+	savedata_write(save_name, memory_raw, MEMORY_VAR4_OFFSET, var4_size);
 }
 
-void savedata_save_union_var4(const char *save_name)
+void savedata_save_union_var4(const char *save_name, unsigned var4_size)
 {
 	uint8_t buf[MEMORY_VAR4_MAX_SIZE];
-	unsigned var4_size = game->var4_size;
 	FILE *f = open_save(save_name, "r+b");
 	if (!f) {
 		WARNING("Failed to open save file \"%s\": %s", save_name, strerror(errno));
@@ -186,52 +180,8 @@ void savedata_save_var4_slice(const char *save_name, unsigned from, unsigned to)
 void savedata_copy(const char *src_save, const char *dst_save)
 {
 	uint8_t buf[MEMORY_MEM16_MAX_SIZE];
-	savedata_read(src_save, buf, 0, savedata_size());
-	savedata_write(dst_save, buf, 0, savedata_size());
-}
-
-void savedata_f11(const char *save_name)
-{
-	uint8_t buf[MEMORY_MEM16_MAX_SIZE];
-	uint8_t *load_var4 = buf + MEMORY_MES_NAME_SIZE;
-	uint8_t *cur_var4 = mem_var4();
-	savedata_read(save_name, buf, 0, MEMORY_VAR4_OFFSET + game->var4_size);
-	memcpy(memory_raw, buf, MEMORY_MES_NAME_SIZE);
-	cur_var4[18] = load_var4[18];
-	cur_var4[21] = load_var4[21];
-	cur_var4[29] = load_var4[29];
-	for (int i = 50; i < 90; i++) {
-		cur_var4[i] = load_var4[i];
-	}
-	for (int i = 96; i < 2000; i++) {
-		cur_var4[i] = load_var4[i];
-	}
-	game->mem_restore();
-	vm_load_mes(mem_mes_name());
-	vm_flag_on(FLAG_RETURN);
-}
-
-static uint8_t stashed_mes_name[MEMORY_MES_NAME_SIZE];
-
-void savedata_stash_name(void)
-{
-	memcpy(stashed_mes_name, memory_raw, MEMORY_MES_NAME_SIZE);
-}
-
-void savedata_f12(const char *save_name)
-{
-	uint8_t buf[MEMORY_MEM16_MAX_SIZE];
-	uint8_t *out_var4 = buf + MEMORY_MES_NAME_SIZE;
-	uint8_t *cur_var4 = mem_var4();
-	savedata_read(save_name, buf, 0, MEMORY_VAR4_OFFSET + game->var4_size);
-	memcpy(buf, stashed_mes_name, MEMORY_MES_NAME_SIZE);
-	for (int i = 50; i < 90; i++) {
-		out_var4[i] = cur_var4[i];
-	}
-	for (int i = 96; i < 2000; i++) {
-		out_var4[i] = cur_var4[i];
-	}
-	savedata_write(save_name, buf, 0, MEMORY_VAR4_OFFSET + game->var4_size);
+	savedata_read(src_save, buf, 0, game->mem16_size);
+	savedata_write(dst_save, buf, 0, game->mem16_size);
 }
 
 void savedata_set_mes_name(const char *save_name, const char *mes_name)

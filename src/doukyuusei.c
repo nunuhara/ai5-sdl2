@@ -158,7 +158,7 @@ static void doukyuusei_anim(struct param_list *params)
 
 static void doukyuusei_savedata_load_var4(const char *save_name)
 {
-	savedata_load_var4(save_name);
+	savedata_load_var4(save_name, VAR4_SIZE);
 	doukyuusei_mem_restore();
 }
 
@@ -222,14 +222,14 @@ static void doukyuusei_savedata(struct param_list *params)
 	case 0: savedata_resume_load(sys_save_name(params)); break;
 	case 1: savedata_resume_save(sys_save_name(params)); break;
 	case 2: doukyuusei_savedata_load_var4(sys_save_name(params)); break;
-	case 3: savedata_save_union_var4(sys_save_name(params)); break;
+	case 3: savedata_save_union_var4(sys_save_name(params), VAR4_SIZE); break;
 	case 4: doukyuusei_savedata_load_extra_var32(sys_save_name(params)); break;
 	case 5: doukyuusei_savedata_save_extra_var32(sys_save_name(params)); break;
 	case 6: memset(memory_raw + MEMORY_VAR4_OFFSET, 0, VAR4_SIZE); break;
 	case 7: doukyuusei_load_variables(sys_save_name(params), vm_string_param(params, 2)); break;
 	case 8: doukyuusei_savedata_load_special_flags(); break;
 	case 9: doukyuusei_savedata_save_special_flags(); break;
-	case 10: savedata_save_var4(sys_save_name(params)); break;
+	case 10: savedata_save_var4(sys_save_name(params), VAR4_SIZE); break;
 	default: VM_ERROR("System.SaveData.function[%u] not implemented",
 				 params->params[0].val);
 	}
@@ -502,6 +502,14 @@ static void doukyuusei_after_anim_draw(struct anim_draw_call *call)
 	gfx_blend_fill(dst_x, dst_y, w, h, 0, 0, 127);
 	// compose message box on top
 	gfx_copy_masked(src_x, src_y, w, h, 7, dst_x, dst_y, 0, mem_get_sysvar16(mes_sysvar16_mask_color));
+}
+
+static void doukyuusei_strlen(struct param_list *params)
+{
+	vm_flag_on(FLAG_STRLEN);
+	mem_set_var32(11, 0);
+	sys_farcall(params);
+	vm_flag_off(FLAG_STRLEN);
 }
 
 static void doukyuusei_sys_25(struct param_list *params)
@@ -861,7 +869,7 @@ static void util_save_var4(struct param_list *params)
  */
 static void util_misa_train_in(struct param_list *params)
 {
-	_sys_load_image("Y04BTR.G16", 11);
+	_sys_load_image("Y04BTR.G16", 11, 1);
 
 	uint16_t mask_color = mem_get_sysvar16(mes_sysvar16_mask_color);
 	vm_timer_t timer = vm_timer_create();
@@ -1337,6 +1345,16 @@ static void doukyuusei_init(void)
 	audio_set_volume(AUDIO_CH_BGM, -1500);
 	audio_set_volume(AUDIO_CH_SE0, -1500);
 	audio_set_volume(AUDIO_CH_VOICE0, -500);
+	text_no_antialias = true;
+}
+
+static void doukyuusei_draw_text(const char *text)
+{
+	if (vm_flag_is_on(FLAG_STRLEN)) {
+		mem_set_var32(11, mem_get_var32(11) + strlen(text));
+	} else {
+		vm_draw_text(text);
+	}
 }
 
 struct game game_doukyuusei = {
@@ -1357,18 +1375,21 @@ struct game game_doukyuusei = {
 		{    0,    0 }
 	},
 	.bpp = 16,
-	.x_mult = 1,
-	.use_effect_arc = false,
-	.call_saves_procedures = false,
-	.proc_clears_flag = false,
-	.no_antialias_text = true,
-	.flags_type = FLAGS_4BIT_CAPPED,
-	.farcall_strlen_retvar = 11,
-	.var4_size = VAR4_SIZE,
 	.mem16_size = MEM16_SIZE,
 	.mem_init = doukyuusei_mem_init,
 	.mem_restore = doukyuusei_mem_restore,
 	.init = doukyuusei_init,
+	.draw_text_zen = doukyuusei_draw_text,
+	.draw_text_han = doukyuusei_draw_text,
+	.expr_op = {
+		DEFAULT_EXPR_OP,
+		[0xe5] = vm_expr_rand_with_imm_range,
+	},
+	.stmt_op = {
+		DEFAULT_STMT_OP,
+		[0x03] = vm_stmt_set_cflag_4bit_saturate,
+		[0x05] = vm_stmt_set_eflag_4bit_saturate,
+	},
 	.sys = {
 		[0]  = sys_set_font_size,
 		[1]  = sys_display_number,
@@ -1390,7 +1411,7 @@ struct game game_doukyuusei = {
 		[17] = doukyuusei_map,
 		[18] = sys_check_input,
 		[19] = doukyuusei_backlog,
-		[24] = sys_farcall_strlen,
+		[24] = doukyuusei_strlen,
 		[25] = doukyuusei_sys_25,
 		[26] = doukyuusei_sys_26,
 		[255] = util_noop,

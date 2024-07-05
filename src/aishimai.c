@@ -418,7 +418,7 @@ static void ai_shimai_resume_load(const char *save_name)
 
 static void ai_shimai_load_var4(const char *save_name)
 {
-	savedata_load_var4(save_name);
+	savedata_load_var4(save_name, VAR4_SIZE);
 	ai_shimai_mem_restore();
 }
 
@@ -458,7 +458,7 @@ static void ai_shimai_savedata(struct param_list *params)
 	case 0: ai_shimai_resume_load(sys_save_name(params)); break;
 	case 1: savedata_resume_save(sys_save_name(params)); break;
 	case 2: ai_shimai_load_var4(sys_save_name(params)); break;
-	case 3: savedata_save_union_var4(sys_save_name(params)); break;
+	case 3: savedata_save_union_var4(sys_save_name(params), VAR4_SIZE); break;
 	case 4: ai_shimai_load_extra_var32(sys_save_name(params)); break;
 	case 5: ai_shimai_save_extra_var32(sys_save_name(params)); break;
 	case 6: memset(memory_raw + MEMORY_VAR4_OFFSET, 0, VAR4_SIZE); break;
@@ -1231,17 +1231,14 @@ struct game game_ai_shimai = {
 		{ 0, 0 }
 	},
 	.bpp = 24,
-	.x_mult = 1,
-	.use_effect_arc = false,
-	.call_saves_procedures = false,
-	.proc_clears_flag = true,
-	.var4_size = VAR4_SIZE,
 	.mem16_size = MEM16_SIZE,
 	.handle_event = ai_shimai_handle_event,
 	.mem_init = ai_shimai_mem_init,
 	.mem_restore = ai_shimai_mem_restore,
 	.init = ai_shimai_init,
-	.custom_TXT = ai_shimai_TXT,
+	.draw_text_zen = ai_shimai_TXT,
+	.expr_op = { DEFAULT_EXPR_OP },
+	.stmt_op = { DEFAULT_STMT_OP },
 	.sys = {
 		[0]  = sys_set_font_size,
 		[1]  = sys_display_number,

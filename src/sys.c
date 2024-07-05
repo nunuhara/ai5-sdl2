@@ -128,7 +128,10 @@ void sys_display_number(struct param_list *params)
 	}
 
 	// draw number
-	vm_draw_text((char*)buf);
+	if (game->draw_text_zen)
+		game->draw_text_zen((char*)buf);
+	else
+		vm_draw_text((char*)buf);
 }
 
 void sys_cursor_save_pos(struct param_list *params)
@@ -155,7 +158,7 @@ void sys_load_file(struct param_list *params)
 	vm_load_data_file(vm_string_param(params, 0), vm_expr_param(params, 1));
 }
 
-void _sys_load_image(const char *name, unsigned i)
+void _sys_load_image(const char *name, unsigned i, unsigned x_mult)
 {
 	struct archive_data *data = asset_cg_load(name);
 	if (!data) {
@@ -179,9 +182,9 @@ void _sys_load_image(const char *name, unsigned i)
 
 	// draw CG
 	if (!vm_flag_is_on(FLAG_PALETTE_ONLY)) {
-		mem_set_sysvar16(mes_sysvar16_cg_x, cg->metrics.x / game->x_mult);
+		mem_set_sysvar16(mes_sysvar16_cg_x, cg->metrics.x / x_mult);
 		mem_set_sysvar16(mes_sysvar16_cg_y, cg->metrics.y);
-		mem_set_sysvar16(mes_sysvar16_cg_w, cg->metrics.w / game->x_mult);
+		mem_set_sysvar16(mes_sysvar16_cg_w, cg->metrics.w / x_mult);
 		mem_set_sysvar16(mes_sysvar16_cg_h, cg->metrics.h);
 		gfx_draw_cg(i, cg);
 	}
@@ -196,7 +199,7 @@ void _sys_load_image(const char *name, unsigned i)
 void sys_load_image(struct param_list *params)
 {
 	anim_halt_all();
-	_sys_load_image(vm_string_param(params, 0), mem_get_sysvar16(mes_sysvar16_dst_surface));
+	_sys_load_image(vm_string_param(params, 0), mem_get_sysvar16(mes_sysvar16_dst_surface), 1);
 }
 
 void sys_graphics_copy(struct param_list *params)
@@ -210,8 +213,7 @@ void sys_graphics_copy(struct param_list *params)
 	int dst_x = vm_expr_param(params, 6);
 	int dst_y = vm_expr_param(params, 7);
 	unsigned dst_i = vm_expr_param(params, 8);
-	gfx_copy(src_x * game->x_mult, src_y, src_w * game->x_mult, src_h, src_i,
-			dst_x * game->x_mult, dst_y, dst_i);
+	gfx_copy(src_x, src_y, src_w, src_h, src_i, dst_x, dst_y, dst_i);
 }
 
 void sys_graphics_copy_masked(struct param_list *params)
@@ -225,8 +227,7 @@ void sys_graphics_copy_masked(struct param_list *params)
 	int dst_x = vm_expr_param(params, 6);
 	int dst_y = vm_expr_param(params, 7);
 	unsigned dst_i = vm_expr_param(params, 8);
-	gfx_copy_masked(src_x * game->x_mult, src_y, src_w * game->x_mult, src_h, src_i,
-			dst_x * game->x_mult, dst_y, dst_i,
+	gfx_copy_masked(src_x, src_y, src_w, src_h, src_i, dst_x, dst_y, dst_i,
 			mem_get_sysvar16(mes_sysvar16_mask_color));
 }
 
@@ -241,8 +242,7 @@ void sys_graphics_copy_masked24(struct param_list *params)
 	int dst_x = vm_expr_param(params, 6);
 	int dst_y = vm_expr_param(params, 7);
 	unsigned dst_i = vm_expr_param(params, 8);
-	gfx_copy_masked(src_x * game->x_mult, src_y, src_w * game->x_mult, src_h, src_i,
-			dst_x * game->x_mult, dst_y, dst_i,
+	gfx_copy_masked(src_x, src_y, src_w, src_h, src_i, dst_x, dst_y, dst_i,
 			mem_get_sysvar32(mes_sysvar32_mask_color));
 }
 
@@ -253,8 +253,7 @@ void sys_graphics_fill_bg(struct param_list *params)
 	int y = vm_expr_param(params, 2);
 	int w = (vm_expr_param(params, 3) - x) + 1;
 	int h = (vm_expr_param(params, 4) - y) + 1;
-	gfx_text_fill(x * game->x_mult, y, w * game->x_mult, h,
-			mem_get_sysvar16(mes_sysvar16_dst_surface));
+	gfx_text_fill(x, y, w, h, mem_get_sysvar16(mes_sysvar16_dst_surface));
 }
 
 void sys_graphics_copy_swap(struct param_list *params)
@@ -268,8 +267,7 @@ void sys_graphics_copy_swap(struct param_list *params)
 	int dst_x = vm_expr_param(params, 6);
 	int dst_y = vm_expr_param(params, 7);
 	unsigned dst_i = vm_expr_param(params, 8);
-	gfx_copy_swap(src_x * game->x_mult, src_y, src_w * game->x_mult, src_h, src_i,
-			dst_x * game->x_mult, dst_y, dst_i);
+	gfx_copy_swap(src_x, src_y, src_w, src_h, src_i, dst_x, dst_y, dst_i);
 }
 
 void sys_graphics_swap_bg_fg(struct param_list *params)
@@ -279,8 +277,7 @@ void sys_graphics_swap_bg_fg(struct param_list *params)
 	int y = vm_expr_param(params, 2);
 	int w = (vm_expr_param(params, 3) - x) + 1;
 	int h = (vm_expr_param(params, 4) - y) + 1;
-	gfx_text_swap_colors(x * game->x_mult, y, w * game->x_mult, h,
-			mem_get_sysvar16(mes_sysvar16_dst_surface));
+	gfx_text_swap_colors(x, y, w, h, mem_get_sysvar16(mes_sysvar16_dst_surface));
 }
 
 void sys_graphics_compose(struct param_list *params)
@@ -297,8 +294,7 @@ void sys_graphics_compose(struct param_list *params)
 	int dst_x = vm_expr_param(params, 9);
 	int dst_y = vm_expr_param(params, 10);
 	unsigned dst_i = vm_expr_param(params, 11);
-	gfx_compose(fg_x * game->x_mult, fg_y, w * game->x_mult, h, fg_i, bg_x * game->x_mult,
-			bg_y, bg_i, dst_x * game->x_mult, dst_y, dst_i,
+	gfx_compose(fg_x, fg_y, w, h, fg_i, bg_x, bg_y, bg_i, dst_x, dst_y, dst_i,
 			mem_get_sysvar16(mes_sysvar16_mask_color));
 }
 
@@ -317,11 +313,9 @@ void sys_graphics_blend(struct param_list *params)
 	if (alpha < 1)
 		return;
 	if (alpha > 15)
-		gfx_copy(src_x * game->x_mult, src_y, src_w * game->x_mult, src_h, src_i,
-				dst_x * game->x_mult, dst_y, dst_i);
+		gfx_copy(src_x, src_y, src_w, src_h, src_i, dst_x, dst_y, dst_i);
 	else
-		gfx_blend(src_x * game->x_mult, src_y, src_w * game->x_mult, src_h, src_i,
-				dst_x * game->x_mult, dst_y, dst_i, alpha * 16 - 8);
+		gfx_blend(src_x, src_y, src_w, src_h, src_i, dst_x, dst_y, dst_i, alpha * 16 - 8);
 }
 
 void sys_graphics_blend_masked(struct param_list *params)
@@ -339,8 +333,7 @@ void sys_graphics_blend_masked(struct param_list *params)
 	if (!mem_ptr_valid(mask, w * h))
 		VM_ERROR("Invalid mask pointer");
 
-	gfx_blend_masked(src_x * game->x_mult, src_y, w * game->x_mult, h, src_i,
-			dst_x * game->x_mult, dst_y, dst_i, mask);
+	gfx_blend_masked(src_x, src_y, w, h, src_i, dst_x, dst_y, dst_i, mask);
 }
 
 void sys_graphics_invert_colors(struct param_list *params)
@@ -351,7 +344,7 @@ void sys_graphics_invert_colors(struct param_list *params)
 	int w = (vm_expr_param(params, 3) - x) + 1;
 	int h = (vm_expr_param(params, 4) - y) + 1;
 	unsigned i = mem_get_sysvar16(mes_sysvar16_dst_surface);
-	gfx_invert_colors(x * game->x_mult, y, w * game->x_mult, h, i);
+	gfx_invert_colors(x, y, w, h, i);
 }
 
 void sys_graphics_copy_progressive(struct param_list *params)
@@ -365,8 +358,7 @@ void sys_graphics_copy_progressive(struct param_list *params)
 	int dst_x = vm_expr_param(params, 6);
 	int dst_y = vm_expr_param(params, 7);
 	unsigned dst_i = vm_expr_param(params, 8);
-	gfx_copy_progressive(src_x * game->x_mult, src_y, src_w * game->x_mult, src_h, src_i,
-			dst_x * game->x_mult, dst_y, dst_i);
+	gfx_copy_progressive(src_x, src_y, src_w, src_h, src_i, dst_x, dst_y, dst_i);
 }
 
 void sys_graphics_pixel_crossfade(struct param_list *params)
@@ -380,8 +372,7 @@ void sys_graphics_pixel_crossfade(struct param_list *params)
 	int dst_x = vm_expr_param(params, 6);
 	int dst_y = vm_expr_param(params, 7);
 	unsigned dst_i = vm_expr_param(params, 8);
-	gfx_pixel_crossfade(src_x * game->x_mult, src_y, src_w * game->x_mult, src_h, src_i,
-			dst_x * game->x_mult, dst_y, dst_i);
+	gfx_pixel_crossfade(src_x, src_y, src_w, src_h, src_i, dst_x, dst_y, dst_i);
 }
 
 void sys_graphics_pixel_crossfade_masked(struct param_list *params)
@@ -395,8 +386,7 @@ void sys_graphics_pixel_crossfade_masked(struct param_list *params)
 	int dst_x = vm_expr_param(params, 6);
 	int dst_y = vm_expr_param(params, 7);
 	unsigned dst_i = vm_expr_param(params, 8);
-	gfx_pixel_crossfade_masked(src_x * game->x_mult, src_y, src_w * game->x_mult, src_h,
-			src_i, dst_x * game->x_mult, dst_y, dst_i,
+	gfx_pixel_crossfade_masked(src_x, src_y, src_w, src_h, src_i, dst_x, dst_y, dst_i,
 			mem_get_sysvar16(mes_sysvar16_mask_color));
 }
 void sys_wait(struct param_list *params)
@@ -530,14 +520,6 @@ void sys_strlen(struct param_list *params)
 		VM_ERROR("Invalid pointer: %u", ptr);
 	uint8_t *str = memory_raw + ptr;
 	mem_set_var32(18, strnlen((char*)str, sizeof(struct memory) - ptr));
-}
-
-void sys_farcall_strlen(struct param_list *params)
-{
-	vm_flag_on(FLAG_STRLEN);
-	mem_set_var32(game->farcall_strlen_retvar, 0);
-	sys_farcall(params);
-	vm_flag_off(FLAG_STRLEN);
 }
 
 void sys_get_time(struct param_list *params)

@@ -26,6 +26,7 @@
 #include "asset.h"
 #include "cmdline.h"
 #include "debug.h"
+#include "gfx_private.h"
 #include "memory.h"
 #include "vm.h"
 
@@ -135,6 +136,16 @@ static void dbg_clear_breakpoint(const char *filename, uint32_t addr)
 	printf("No breakpoint set at %s:0x%08x\n", filename, addr);
 }
 
+static bool parse_number(const char *str, long *out)
+{
+	char *endptr;
+	long i = strtol(str, &endptr, 0);
+	if (!*str || *endptr)
+		return false;
+	*out = i;
+	return true;
+}
+
 /*
  * Parse a string of the form "file:address", e.g. "START.MES:0xF00".
  */
@@ -146,9 +157,8 @@ static char *parse_breakpoint(char *str, uint32_t *addr_out)
 		return NULL;
 	}
 
-	char *endptr;
-	long i = strtol(p+1, &endptr, 0);
-	if (!p[1] || *endptr || i < 0) {
+	long i;
+	if (!parse_number(p+1, &i) || i < 0) {
 		printf("Invalid address: %s\n", p+1);
 		return NULL;
 	}
@@ -206,6 +216,34 @@ static int dbg_cmd_quit(unsigned nr_args, char **args)
 	return DBG_QUIT;
 }
 
+static int dbg_cmd_set_flag(unsigned nr_args, char **args)
+{
+	long flag_no, value;
+	if (!parse_number(args[0], &flag_no) || flag_no < 0
+			|| flag_no > game->mem16_size - MEMORY_MES_NAME_SIZE) {
+		printf("Invalid flag number: %s\n", args[0]);
+		return DBG_REPL;
+	}
+	if (!parse_number(args[1], &value) || value < 0 || value >= 256) {
+		printf("Invalid flag value: %s\n", args[1]);
+		return DBG_REPL;
+	}
+	mem_set_var4(flag_no, value);
+	return DBG_REPL;
+}
+
+static int dbg_cmd_surface_dump(unsigned nr_args, char **args)
+{
+	for (int i = 0; i < ARRAY_SIZE(game->surface_sizes); i++) {
+		if (game->surface_sizes[i].w == 0)
+			continue;
+		char name[20];
+		sprintf(name, "surface%d.png", i);
+		gfx_dump_surface(i, name);
+	}
+	return DBG_REPL;
+}
+
 static int dbg_cmd_vm_state(unsigned nr_args, char **args)
 {
 	printf("\n%s @ %08x\n", asset_mes_name, vm.ip.ptr);
@@ -250,6 +288,8 @@ static struct cmdline_cmd dbg_commands[] = {
 	{ "help", "h", NULL, "Display debugger help", 0, 2, dbg_cmd_help },
 	{ "map", NULL, NULL, "Display memory map", 0, 0, dbg_cmd_map },
 	{ "quit", "q", NULL, "Quit AI5-SDL2", 0, 0, dbg_cmd_quit },
+	{ "set-flag", NULL, "<flag-number> <value>", "Set a flag", 2, 2, dbg_cmd_set_flag },
+	{ "surface-dump", "sd", NULL, "Dump surfaces", 0, 0, dbg_cmd_surface_dump },
 	{ "vm-state", "vm", NULL, "Display current VM state", 0, 0, dbg_cmd_vm_state },
 };
 

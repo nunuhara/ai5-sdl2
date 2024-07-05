@@ -14,6 +14,8 @@
  * along with this program; if not, see <http://gnu.org/licenses/>.
  */
 
+#include <string.h>
+
 #include "nulib.h"
 
 #include "anim.h"
@@ -128,32 +130,7 @@ void classics_anim(struct param_list *params)
 	case 4:  WARNING("System.Anim.function[4] not implemented"); break;
 	case 5:  anim_stop_all(); break;
 	case 6:  anim_halt_all(); break;
-	case 20: anim_set_offset(vm_expr_param(params, 1), vm_expr_param(params, 2) * game->x_mult,
-				vm_expr_param(params, 3)); break;
 	default: VM_ERROR("System.Anim.function[%u] not implemented", params->params[0].val);
-	}
-}
-
-void classics_savedata(struct param_list *params)
-{
-	switch (vm_expr_param(params, 0)) {
-	case 0: savedata_resume_load(sys_save_name(params)); break;
-	case 1: savedata_resume_save(sys_save_name(params)); break;
-	case 2: savedata_load(sys_save_name(params)); break;
-	case 3: savedata_save(sys_save_name(params)); break;
-	case 4: savedata_load_var4(sys_save_name(params)); break;
-	case 5: savedata_save_var4(sys_save_name(params)); break;
-	case 6: savedata_save_union_var4(sys_save_name(params)); break;
-	case 7: savedata_load_var4_slice(sys_save_name(params), vm_expr_param(params, 2),
-				vm_expr_param(params, 3)); break;
-	case 8: savedata_save_var4_slice(sys_save_name(params), vm_expr_param(params, 2),
-				vm_expr_param(params, 3)); break;
-	case 9: savedata_copy(sys_save_name(params),
-				_sys_save_name(vm_expr_param(params, 2))); break;
-	case 11: savedata_f11(sys_save_name(params)); break;
-	case 12: savedata_f12(sys_save_name(params)); break;
-	case 13: savedata_set_mes_name(sys_save_name(params), vm_string_param(params, 2)); break;
-	default: VM_ERROR("System.savedata.function[%u] not implemented", params->params[0].val);
 	}
 }
 

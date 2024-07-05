@@ -150,153 +150,148 @@ void vm_load_mes(char *name)
 	archive_data_release(file);
 }
 
+void vm_expr_var16(void)
+{
+	vm_stack_push(mem_get_var16(vm_read_byte()));
+}
+
+void vm_expr_ptr16_get16(void)
+{
+	int32_t i = vm_stack_pop();
+	uint8_t var = vm_read_byte();
+	uint8_t *src = memory_ptr.system_var16;
+	if (var)
+		src = memory_raw + mem_get_var16(var - 1);
+	if (unlikely(!mem_ptr_valid(src + i * 2, 2)))
+		VM_ERROR("Out of bounds read");
+	vm_stack_push(le_get16(src, i * 2));
+}
+
+void vm_expr_ptr16_get8(void)
+{
+	uint32_t i = vm_stack_pop();
+	uint8_t var = vm_read_byte();
+	uint8_t *src = memory_raw + mem_get_var16(var);
+	if (unlikely(!mem_ptr_valid(src + i, 1)))
+		VM_ERROR("Out of bounds read");
+	vm_stack_push(src[i]);
+}
+
+#define VM_EXPR_OPERATOR(name, op) \
+	void name(void) \
+	{ \
+		uint32_t b = vm_stack_pop(); \
+		uint32_t a = vm_stack_pop(); \
+		vm_stack_push(a op b); \
+	}
+VM_EXPR_OPERATOR(vm_expr_plus,   +)
+VM_EXPR_OPERATOR(vm_expr_minus,  -)
+VM_EXPR_OPERATOR(vm_expr_mul,    *)
+VM_EXPR_OPERATOR(vm_expr_div,    /)
+VM_EXPR_OPERATOR(vm_expr_mod,    %)
+VM_EXPR_OPERATOR(vm_expr_and,   &&)
+VM_EXPR_OPERATOR(vm_expr_or,    ||)
+VM_EXPR_OPERATOR(vm_expr_bitand, &)
+VM_EXPR_OPERATOR(vm_expr_bitior, |)
+VM_EXPR_OPERATOR(vm_expr_bitxor, ^)
+VM_EXPR_OPERATOR(vm_expr_lt,     <)
+VM_EXPR_OPERATOR(vm_expr_gt,     >)
+VM_EXPR_OPERATOR(vm_expr_lte,   <=)
+VM_EXPR_OPERATOR(vm_expr_gte,   >=)
+VM_EXPR_OPERATOR(vm_expr_eq,    ==)
+VM_EXPR_OPERATOR(vm_expr_neq,   !=)
+#undef VM_EXPR_OPERATOR
+
+void vm_expr_rand(void)
+{
+	uint32_t range = vm_stack_pop();
+	vm_stack_push(rand() % range);
+}
+
+// doukyuusei
+void vm_expr_rand_with_imm_range(void)
+{
+	uint16_t range = vm_read_word();
+	vm_stack_push(rand() % range);
+}
+
+void vm_expr_imm16(void)
+{
+	vm_stack_push(vm_read_word());
+}
+
+void vm_expr_imm32(void)
+{
+	vm_stack_push(vm_read_dword());
+}
+
+void vm_expr_cflag(void)
+{
+	vm_stack_push(mem_get_var4(vm_read_word()));
+}
+
+void vm_expr_eflag(void)
+{
+	vm_stack_push(mem_get_var4(vm_stack_pop()));
+}
+
+void vm_expr_ptr32_get32(void)
+{
+	int32_t i = vm_stack_pop();
+	uint8_t var = vm_read_byte();
+	uint8_t *src = memory_ptr.system_var32;
+	if (var)
+		src = memory_raw + mem_get_var32(var - 1);
+	if (unlikely(!mem_ptr_valid(src + i * 4, 4)))
+		VM_ERROR("Out of bounds read");
+	vm_stack_push(le_get32(src, i * 4));
+
+}
+
+void vm_expr_ptr32_get16(void)
+{
+	int32_t i = vm_stack_pop();
+	uint8_t var = vm_read_byte();
+	uint8_t *src = memory_raw + mem_get_var32(var - 1);
+	if (unlikely(!mem_ptr_valid(src + i * 2, 2)))
+		VM_ERROR("Out of bounds read");
+	vm_stack_push(le_get16(src, i * 2));
+}
+
+void vm_expr_ptr32_get8(void)
+{
+	int32_t i = vm_stack_pop();
+	uint8_t var = vm_read_byte();
+	uint8_t *src = memory_raw + mem_get_var32(var - 1);
+	if (unlikely(!mem_ptr_valid(src + i, 1)))
+		VM_ERROR("Out of bounds read");
+	vm_stack_push(src[i]);
+}
+
+void vm_expr_var32(void)
+{
+	vm_stack_push(mem_get_var32(vm_read_byte()));
+}
+
+uint32_t vm_expr_end(void)
+{
+	uint32_t r = vm_stack_pop();
+	if (vm.stack_ptr > 0)
+		VM_ERROR("Stack pointer is non-zero at end of expression");
+	return r;
+}
+
 static uint32_t vm_eval(void)
 {
-#define OPERATOR(op) { \
-	uint32_t b = vm_stack_pop(); \
-	uint32_t a = vm_stack_pop(); \
-	vm_stack_push(a op b); \
-}
 	while (true) {
 		uint8_t op = vm_read_byte();
-		switch (mes_opcode_to_expr(op)) {
-		case MES_EXPR_IMM:
+		if (op == 0xff)
+			return vm_expr_end();
+		if (game->expr_op[op])
+			game->expr_op[op]();
+		else
 			vm_stack_push(op);
-			break;
-		case MES_EXPR_VAR:
-			vm_stack_push(mem_get_var16(vm_read_byte()));
-			break;
-		case MES_EXPR_ARRAY16_GET16: {
-			int32_t i = vm_stack_pop();
-			uint8_t var = vm_read_byte();
-			uint8_t *src = memory_ptr.system_var16;
-			if (var)
-				src = memory_raw + mem_get_var16(var - 1);
-			if (unlikely(!mem_ptr_valid(src + i * 2, 2)))
-				VM_ERROR("Out of bounds read");
-			vm_stack_push(le_get16(src, i * 2));
-			break;
-		}
-		case MES_EXPR_ARRAY16_GET8: {
-			uint32_t i = vm_stack_pop();
-			uint8_t var = vm_read_byte();
-			uint8_t *src = memory_raw + mem_get_var16(var);
-			if (unlikely(!mem_ptr_valid(src + i, 1)))
-				VM_ERROR("Out of bounds read");
-			vm_stack_push(src[i]);
-			break;
-		}
-		case MES_EXPR_PLUS:
-			OPERATOR(+);
-			break;
-		case MES_EXPR_MINUS:
-			OPERATOR(-);
-			break;
-		case MES_EXPR_MUL:
-			OPERATOR(*);
-			break;
-		case MES_EXPR_DIV:
-			OPERATOR(/);
-			break;
-		case MES_EXPR_MOD:
-			OPERATOR(%);
-			break;
-		case MES_EXPR_RAND:
-			// FIXME? confirm this is correct
-			if (ai5_target_game == GAME_DOUKYUUSEI) {
-				uint16_t range = vm_read_word();
-				vm_stack_push(rand() % range);
-			} else {
-				uint32_t range = vm_stack_pop();
-				vm_stack_push(rand() % range);
-			}
-			break;
-		case MES_EXPR_AND:
-			OPERATOR(&&);
-			break;
-		case MES_EXPR_OR:
-			OPERATOR(||);
-			break;
-		case MES_EXPR_BITAND:
-			OPERATOR(&);
-			break;
-		case MES_EXPR_BITIOR:
-			OPERATOR(|);
-			break;
-		case MES_EXPR_BITXOR:
-			OPERATOR(^);
-			break;
-		case MES_EXPR_LT:
-			OPERATOR(<);
-			break;
-		case MES_EXPR_GT:
-			OPERATOR(>);
-			break;
-		case MES_EXPR_LTE:
-			OPERATOR(<=);
-			break;
-		case MES_EXPR_GTE:
-			OPERATOR(>=);
-			break;
-		case MES_EXPR_EQ:
-			OPERATOR(==);
-			break;
-		case MES_EXPR_NEQ:
-			OPERATOR(!=);
-			break;
-		case MES_EXPR_IMM16:
-			vm_stack_push(vm_read_word());
-			break;
-		case MES_EXPR_IMM32:
-			vm_stack_push(vm_read_dword());
-			break;
-		case MES_EXPR_REG16:
-			vm_stack_push(mem_get_var4(vm_read_word()));
-			break;
-		case MES_EXPR_REG8:
-			vm_stack_push(mem_get_var4(vm_stack_pop()));
-			break;
-		case MES_EXPR_ARRAY32_GET32: {
-			int32_t i = vm_stack_pop();
-			uint8_t var = vm_read_byte();
-			uint8_t *src = memory_ptr.system_var32;
-			if (var)
-				src = memory_raw + mem_get_var32(var - 1);
-			if (unlikely(!mem_ptr_valid(src + i * 4, 4)))
-				VM_ERROR("Out of bounds read");
-			vm_stack_push(le_get32(src, i * 4));
-			break;
-		}
-		case MES_EXPR_ARRAY32_GET16: {
-			int32_t i = vm_stack_pop();
-			uint8_t var = vm_read_byte();
-			uint8_t *src = memory_raw + mem_get_var32(var - 1);
-			if (unlikely(!mem_ptr_valid(src + i * 2, 2)))
-				VM_ERROR("Out of bounds read");
-			vm_stack_push(le_get16(src, i * 2));
-			break;
-		}
-		case MES_EXPR_ARRAY32_GET8: {
-			int32_t i = vm_stack_pop();
-			uint8_t var = vm_read_byte();
-			uint8_t *src = memory_raw + mem_get_var32(var - 1);
-			if (unlikely(!mem_ptr_valid(src + i, 1)))
-				VM_ERROR("Out of bounds read");
-			vm_stack_push(src[i]);
-			break;
-		}
-		case MES_EXPR_VAR32:
-			vm_stack_push(mem_get_var32(vm_read_byte()));
-			break;
-		case MES_EXPR_END: {
-			uint32_t r = vm_stack_pop();
-			if (vm.stack_ptr > 0)
-				VM_ERROR("Stack pointer is non-zero at end of expression");
-			return r;
-		}
-		}
 	}
-#undef OPERATOR
 	return 0;
 }
 
@@ -340,15 +335,6 @@ char *vm_string_param(struct param_list *params, int i)
 
 void vm_draw_text(const char *text)
 {
-	if (vm_flag_is_on(FLAG_STRLEN)) {
-		mem_set_var32(game->farcall_strlen_retvar,
-				mem_get_var32(game->farcall_strlen_retvar) + strlen(text));
-		return;
-	}
-	if (yuno_eng) {
-		yuno_eng_draw_text(text);
-		return;
-	}
 	const uint16_t surface = mem_get_sysvar16(mes_sysvar16_dst_surface);
 	const uint16_t start_x = mem_get_sysvar16(mes_sysvar16_text_start_x);
 	const uint16_t end_x = mem_get_sysvar16(mes_sysvar16_text_end_x);
@@ -359,16 +345,14 @@ void vm_draw_text(const char *text)
 	while (*text) {
 		int ch;
 		bool zenkaku = SJIS_2BYTE(*text);
-		uint16_t next_x = x + (zenkaku ? char_space / game->x_mult
-				: char_space / (game->x_mult * 2));
+		uint16_t next_x = x + (zenkaku ? char_space : char_space / 2);
 		if (next_x > end_x) {
 			y += line_space;
 			x = start_x;
-			next_x = x + (zenkaku ? char_space / game->x_mult
-					: char_space / (game->x_mult * 2));
+			next_x = x + (zenkaku ? char_space : char_space / 2);
 		}
 		text = sjis_char2unicode(text, &ch);
-		gfx_text_draw_glyph(x * game->x_mult, y, surface, ch);
+		gfx_text_draw_glyph(x, y, surface, ch);
 		x = next_x;
 	}
 	mem_set_sysvar16(mes_sysvar16_text_cursor_x, x);
@@ -377,46 +361,8 @@ void vm_draw_text(const char *text)
 
 #define TXT_BUF_SIZE 4096
 
-static void stmt_txt(bool with_op)
+void handle_text(void(*read_text)(char*), void(*draw_text)(const char*), bool with_op)
 {
-	size_t str_i = 0;
-	char str[TXT_BUF_SIZE];
-
-	if (vm_flag_is_on(FLAG_LOG_ENABLE) && vm_flag_is_on(FLAG_LOG_TEXT)) {
-		backlog_prepare();
-		vm_flag_on(FLAG_LOG);
-		if (with_op)
-			backlog_push_byte(mes_code_tables.stmt_op_to_int[MES_STMT_TXT]);
-	}
-
-	uint8_t c;
-	while ((c = vm_peek_byte())) {
-		if (unlikely(!mes_char_is_zenkaku(c))) {
-			if (!yuno_eng)
-				WARNING("Invalid byte in TXT statement: %02x", (unsigned)c);
-			goto unterminated;
-		}
-		str[str_i++] = vm_read_byte();
-		str[str_i++] = vm_read_byte();
-	}
-	vm_read_byte();
-unterminated:
-	str[str_i] = 0;
-	texthook_push(str);
-	if (game->custom_TXT)
-		game->custom_TXT(str);
-	else
-		vm_draw_text(str);
-
-	if (vm_flag_is_on(FLAG_LOG_ENABLE) && vm_flag_is_on(FLAG_LOG_TEXT))
-		vm_flag_off(FLAG_LOG);
-}
-
-static void stmt_str(bool with_op)
-{
-	size_t str_i = 0;
-	char str[TXT_BUF_SIZE];
-
 	if (vm_flag_is_on(FLAG_LOG_ENABLE) && vm_flag_is_on(FLAG_LOG_TEXT)) {
 		backlog_prepare();
 		vm_flag_on(FLAG_LOG);
@@ -424,30 +370,68 @@ static void stmt_str(bool with_op)
 			backlog_push_byte(mes_code_tables.stmt_op_to_int[MES_STMT_STR]);
 	}
 
-	if (vm_flag_is_on(FLAG_LOG_ENABLE) && vm_flag_is_on(FLAG_LOG_TEXT))
-		vm_flag_on(FLAG_LOG);
+	char str[TXT_BUF_SIZE];
+	read_text(str);
+	texthook_push(str);
+	draw_text(str);
 
+	if (vm_flag_is_on(FLAG_LOG_ENABLE) && vm_flag_is_on(FLAG_LOG_TEXT))
+		vm_flag_off(FLAG_LOG);
+}
+
+static void read_zenkaku(char *str)
+{
 	uint8_t c;
+	int str_i = 0;
 	while ((c = vm_peek_byte())) {
-		if (unlikely(!mes_char_is_hankaku(c))) {
-			if (!yuno_eng)
-				WARNING("Invalid byte in STR statement: %02x", (unsigned)c);
+		if (unlikely(!mes_char_is_zenkaku(c)))
 			goto unterminated;
-		}
+		str[str_i++] = vm_read_byte();
+		str[str_i++] = vm_read_byte();
+	}
+	vm_read_byte();
+unterminated:
+	str[str_i] = 0;
+}
+
+static void read_hankaku(char *str)
+{
+	uint8_t c;
+	int str_i = 0;
+	while ((c = vm_peek_byte())) {
+		if (unlikely(!mes_char_is_hankaku(c)))
+			goto unterminated;
 		str[str_i++] = c;
 		vm_read_byte();
 	}
 	vm_read_byte();
 unterminated:
 	str[str_i] = 0;
-	texthook_push(str);
-	vm_draw_text(str);
-
-	if (vm_flag_is_on(FLAG_LOG_ENABLE) && vm_flag_is_on(FLAG_LOG_TEXT))
-		vm_flag_off(FLAG_LOG);
 }
 
-static void stmt_setrbc(void)
+static void _vm_stmt_txt(bool with_op)
+{
+	handle_text(read_zenkaku, game->draw_text_zen ? game->draw_text_zen : vm_draw_text,
+			with_op);
+}
+
+void vm_stmt_txt(void)
+{
+	_vm_stmt_txt(true);
+}
+
+static void _vm_stmt_str(bool with_op)
+{
+	handle_text(read_hankaku, game->draw_text_han ? game->draw_text_han : vm_draw_text,
+			with_op);
+}
+
+void vm_stmt_str(void)
+{
+	_vm_stmt_str(true);
+}
+
+void vm_stmt_set_cflag(void)
 {
 	uint16_t i = vm_read_word();
 	do {
@@ -457,7 +441,7 @@ static void stmt_setrbc(void)
 	} while (vm_read_byte());
 }
 
-static void stmt_setrbc_4bit_wrapped(void)
+void vm_stmt_set_cflag_4bit_wrap(void)
 {
 	uint16_t i = vm_read_word();
 	do {
@@ -467,7 +451,7 @@ static void stmt_setrbc_4bit_wrapped(void)
 	} while (vm_read_byte());
 }
 
-static void stmt_setrbc_4bit_capped(void)
+void vm_stmt_set_cflag_4bit_saturate(void)
 {
 	uint16_t i = vm_read_word();
 	do {
@@ -477,7 +461,7 @@ static void stmt_setrbc_4bit_capped(void)
 	} while (vm_read_byte());
 }
 
-static void stmt_setv(void)
+void vm_stmt_set_var16(void)
 {
 	uint8_t i = vm_read_byte();
 	do {
@@ -487,7 +471,7 @@ static void stmt_setv(void)
 	} while (vm_read_byte());
 }
 
-static void stmt_setrbe(void)
+void vm_stmt_set_eflag(void)
 {
 	int32_t i = vm_eval();
 	do {
@@ -497,7 +481,7 @@ static void stmt_setrbe(void)
 	} while (vm_read_byte());
 }
 
-static void stmt_setrbe_4bit_wrapped(void)
+void vm_stmt_set_eflag_4bit_wrap(void)
 {
 	int32_t i = vm_eval();
 	do {
@@ -507,7 +491,7 @@ static void stmt_setrbe_4bit_wrapped(void)
 	} while (vm_read_byte());
 }
 
-static void stmt_setrbe_4bit_capped(void)
+void vm_stmt_set_eflag_4bit_saturate(void)
 {
 	int32_t i = vm_eval();
 	do {
@@ -517,7 +501,7 @@ static void stmt_setrbe_4bit_capped(void)
 	} while (vm_read_byte());
 }
 
-static void stmt_setrd(void)
+void vm_stmt_set_var32(void)
 {
 	int32_t i = vm_read_byte();
 
@@ -528,7 +512,7 @@ static void stmt_setrd(void)
 	} while (vm_read_byte());
 }
 
-static void stmt_setac(void)
+void vm_stmt_ptr16_set8(void)
 {
 	int32_t i = vm_eval();
 	uint8_t var = vm_read_byte();
@@ -541,7 +525,7 @@ static void stmt_setac(void)
 	} while (vm_read_byte());
 }
 
-static void stmt_seta_at(void)
+void vm_stmt_ptr16_set16(void)
 {
 	int32_t i = vm_eval();
 	uint8_t var = vm_read_byte();
@@ -557,7 +541,7 @@ static void stmt_seta_at(void)
 	} while (vm_read_byte());
 }
 
-static void stmt_setad(void)
+void vm_stmt_ptr32_set32(void)
 {
 	int32_t i = vm_eval();
 	uint8_t var = vm_read_byte();
@@ -573,7 +557,7 @@ static void stmt_setad(void)
 	} while (vm_read_byte());
 }
 
-static void stmt_setaw(void)
+void vm_stmt_ptr32_set16(void)
 {
 	int32_t i = vm_eval();
 	uint8_t var = vm_read_byte();
@@ -587,7 +571,7 @@ static void stmt_setaw(void)
 	} while (vm_read_byte());
 }
 
-static void stmt_setab(void)
+void vm_stmt_ptr32_set8(void)
 {
 	int32_t i = vm_eval();
 	uint8_t var = vm_read_byte();
@@ -600,7 +584,7 @@ static void stmt_setab(void)
 	} while (vm_read_byte());
 }
 
-static void stmt_jz(void)
+void vm_stmt_jz(void)
 {
 	uint32_t val = vm_eval();
 	uint32_t ptr = vm_read_dword();
@@ -609,12 +593,12 @@ static void stmt_jz(void)
 	vm.ip.ptr = ptr;
 }
 
-static void stmt_jmp(void)
+void vm_stmt_jmp(void)
 {
 	vm.ip.ptr = le_get32(vm.ip.code, vm.ip.ptr);
 }
 
-static void stmt_sys(void)
+void vm_stmt_sys(void)
 {
 	if (vm_flag_is_on(FLAG_LOG_ENABLE) && vm_flag_is_on(FLAG_LOG_SYS)) {
 		vm_flag_on(FLAG_LOG);
@@ -636,7 +620,7 @@ static void stmt_sys(void)
 		vm_flag_off(FLAG_LOG);
 }
 
-static void stmt_goto(void)
+void vm_stmt_mesjmp(void)
 {
 	struct param_list params = {0};
 	read_params(&params);
@@ -646,7 +630,7 @@ static void stmt_goto(void)
 	vm_flag_on(FLAG_RETURN);
 }
 
-static void stmt_call(void)
+static void _vm_stmt_mescall(bool save_procedures)
 {
 	struct param_list params = {0};
 	read_params(&params);
@@ -657,7 +641,7 @@ static void stmt_call(void)
 	frame->ip = vm.ip;
 	memcpy(frame->mes_name, mem_mes_name(), 12);
 	frame->mes_name[12] = '\0';
-	if (game->call_saves_procedures)
+	if (save_procedures)
 		memcpy(frame->procedures, vm.procedures, sizeof(vm.procedures));
 
 	// load and execute mes file
@@ -671,7 +655,7 @@ static void stmt_call(void)
 	vm.ip.code = frame->ip.code;
 	if (!vm_flag_is_on(FLAG_RETURN)) {
 		vm.ip.ptr = frame->ip.ptr;
-		if (game->call_saves_procedures)
+		if (save_procedures)
 			memcpy(vm.procedures, frame->procedures, sizeof(vm.procedures));
 		vm_load_mes(frame->mes_name);
 		frame->ip.ptr = 0;
@@ -680,7 +664,18 @@ static void stmt_call(void)
 	}
 }
 
-static void stmt_menui(void)
+void vm_stmt_mescall(void)
+{
+	_vm_stmt_mescall(false);
+}
+
+// YU-NO
+void vm_stmt_mescall_save_procedures(void)
+{
+	_vm_stmt_mescall(true);
+}
+
+void vm_stmt_defmenu(void)
 {
 	struct param_list params = {0};
 	read_params(&params);
@@ -700,21 +695,20 @@ void vm_call_procedure(unsigned no)
 	vm.ip = saved_ip;
 }
 
-static void stmt_proc(void)
+void vm_stmt_call(void)
 {
 	bool flag_on = vm_flag_is_on(FLAG_PROC_CLEAR);
-	if (game->proc_clears_flag)
-		vm_flag_off(FLAG_PROC_CLEAR);
+	vm_flag_off(FLAG_PROC_CLEAR);
 
 	struct param_list params = {0};
 	read_params(&params);
 	vm_call_procedure(vm_expr_param(&params, 0));
 
-	if (game->proc_clears_flag && flag_on)
+	if (flag_on)
 		vm_flag_on(FLAG_PROC_CLEAR);
 }
 
-static void stmt_util(void)
+void vm_stmt_util(void)
 {
 	struct param_list params = {0};
 	read_params(&params);
@@ -728,7 +722,7 @@ static void stmt_util(void)
 	game->util[no](&params);
 }
 
-static void stmt_line(void)
+void vm_stmt_line(void)
 {
 	// FIXME: is this correct?
 	if (vm_read_byte())
@@ -741,7 +735,7 @@ static void stmt_line(void)
 	mem_set_sysvar16(mes_sysvar16_text_cursor_y, cur_y + line_space);
 }
 
-static void stmt_procd(void)
+void vm_stmt_defproc(void)
 {
 	uint32_t i = vm_eval();
 	if (unlikely(i >= VM_MAX_PROCEDURES))
@@ -749,6 +743,11 @@ static void stmt_procd(void)
 	vm.procedures[i] = vm.ip;
 	vm.procedures[i].ptr += 4;
 	vm.ip.ptr = vm_read_dword();
+}
+
+void vm_stmt_menuexec(void)
+{
+	menu_exec();
 }
 
 bool vm_exec_statement(void)
@@ -762,53 +761,20 @@ bool vm_exec_statement(void)
 
 	uint8_t op = vm_read_byte();
 retry:
-	switch ((uint8_t)mes_opcode_to_stmt(op)) {
-	case MES_STMT_END:     return false;
-	case MES_STMT_TXT:     stmt_txt(true); break;
-	case MES_STMT_STR:     stmt_str(true); break;
-	case MES_STMT_SETRBC:
-		switch (game->flags_type) {
-		case FLAGS_4BIT_WRAPPED: stmt_setrbc_4bit_wrapped(); break;
-		case FLAGS_4BIT_CAPPED:  stmt_setrbc_4bit_capped(); break;
-		case FLAGS_8BIT:         stmt_setrbc(); break;
-		}
-		break;
-	case MES_STMT_SETV:    stmt_setv(); break;
-	case MES_STMT_SETRBE:
-		switch (game->flags_type) {
-		case FLAGS_4BIT_WRAPPED: stmt_setrbe_4bit_wrapped(); break;
-		case FLAGS_4BIT_CAPPED:  stmt_setrbe_4bit_capped(); break;
-		case FLAGS_8BIT:         stmt_setrbe(); break;
-		}
-		break;
-	case MES_STMT_SETAC:   stmt_setac(); break;
-	case MES_STMT_SETA_AT: stmt_seta_at(); break;
-	case MES_STMT_SETAD:   stmt_setad(); break;
-	case MES_STMT_SETAW:   stmt_setaw(); break;
-	case MES_STMT_SETAB:   stmt_setab(); break;
-	case MES_STMT_JZ:      stmt_jz(); break;
-	case MES_STMT_JMP:     stmt_jmp(); break;
-	case MES_STMT_SYS:     stmt_sys(); break;
-	case MES_STMT_GOTO:    stmt_goto(); break;
-	case MES_STMT_CALL:    stmt_call(); break;
-	case MES_STMT_MENUI:   stmt_menui(); break;
-	case MES_STMT_PROC:    stmt_proc(); break;
-	case MES_STMT_UTIL:    stmt_util(); break;
-	case MES_STMT_LINE:    stmt_line(); break;
-	case MES_STMT_PROCD:   stmt_procd(); break;
-	case MES_STMT_MENUS:   menu_exec(); break;
-	case MES_STMT_SETRD:   stmt_setrd(); break;
-	case MES_CODE_INVALID:
+	if (unlikely(!game->stmt_op[op])) {
+		if (!op)
+			return false;
 		if (op == MES_STMT_BREAKPOINT) {
 			op = dbg_handle_breakpoint((vm.ip.code + vm.ip.ptr - 1) - memory_raw);
 			goto retry;
 		}
 		vm_rewind_byte();
 		if (mes_char_is_hankaku(op))
-			stmt_str(false);
+			_vm_stmt_str(false);
 		else
-			stmt_txt(false);
-		break;
+			_vm_stmt_txt(false);
+	} else {
+		game->stmt_op[op]();
 	}
 	return true;
 }

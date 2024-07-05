@@ -102,4 +102,6 @@ void gfx_text_swap_colors(int x, int y, int w, int h, unsigned i);
 unsigned gfx_text_draw_glyph(int x, int y, unsigned i, uint32_t ch);
 unsigned gfx_text_size_char(uint32_t ch);
 
+extern bool text_no_antialias;
+
 #endif // AI5_GFX_H

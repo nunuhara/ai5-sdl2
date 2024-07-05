@@ -90,6 +90,5 @@ struct config {
 extern struct config config;
 
 extern bool yuno_eng;
-void yuno_eng_draw_text(const char *text);
 
 #endif // AI5_H

@@ -50,4 +50,7 @@ extern char *asset_bgm_name;
 extern char *asset_effect_name;
 extern char *asset_data_name;
 
+// default: true
+extern bool asset_effect_is_bgm;
+
 #endif // AI5_ASSET_H

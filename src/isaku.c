@@ -128,7 +128,7 @@ static void isaku_savedata(struct param_list *params)
 	case 0: savedata_resume_load(sys_save_name(params)); break;
 	case 1: savedata_resume_save(sys_save_name(params)); break;
 	case 2: savedata_load(sys_save_name(params)); break;
-	case 3: savedata_save_union_var4(sys_save_name(params)); break;
+	case 3: savedata_save_union_var4(sys_save_name(params), VAR4_SIZE); break;
 	//case 4: savedata_load_isaku_vars(save_name); break;
 	//case 5: savedata_save_isaku_vars(save_name); break;
 	//case 6: savedata_clear_var4(save_name); break;
@@ -400,6 +400,14 @@ static void isaku_item_window(struct param_list *params)
 	}
 }
 
+static void isaku_strlen(struct param_list *params)
+{
+	vm_flag_on(FLAG_STRLEN);
+	mem_set_var32(18, 0);
+	sys_farcall(params);
+	vm_flag_off(FLAG_STRLEN);
+}
+
 struct menu {
 	bool enabled;
 	bool requested;
@@ -521,6 +529,14 @@ static void isaku_handle_event(SDL_Event *e)
 	}
 }
 
+static void isaku_draw_text(const char *text)
+{
+	if (vm_flag_is_on(FLAG_STRLEN))
+		mem_set_var32(18, mem_get_var32(18) + strlen(text));
+	else
+		vm_draw_text(text);
+}
+
 struct game game_isaku = {
 	.id = GAME_ISAKU,
 	.surface_sizes = {
@@ -536,16 +552,14 @@ struct game game_isaku = {
 		{  0, 0 }
 	},
 	.bpp = 16,
-	.x_mult = 1,
-	.use_effect_arc = false,
-	.call_saves_procedures = false,
-	.proc_clears_flag = true,
-	.farcall_strlen_retvar = 18,
-	.var4_size = VAR4_SIZE,
 	.mem16_size = MEM16_SIZE,
 	.handle_event = isaku_handle_event,
 	.mem_init = isaku_mem_init,
 	.mem_restore = isaku_mem_restore,
+	.draw_text_zen = isaku_draw_text,
+	.draw_text_han = isaku_draw_text,
+	.expr_op = { DEFAULT_EXPR_OP },
+	.stmt_op = { DEFAULT_STMT_OP },
 	.sys = {
 		[0]  = sys_set_font_size,
 		[1]  = sys_display_number,
@@ -565,7 +579,7 @@ struct game game_isaku = {
 		[15] = sys_menu_get_no,
 		[18] = sys_check_input,
 		[22] = isaku_item_window,
-		[24] = sys_farcall_strlen,
+		[24] = isaku_strlen,
 		[25] = isaku_save_menu,
 		[26] = isaku_load_menu,
 		[27] = sys_27,

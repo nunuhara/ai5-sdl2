@@ -19,10 +19,12 @@
 #include "ai5/mes.h"
 
 #include "anim.h"
+#include "asset.h"
 #include "classics.h"
 #include "game.h"
 #include "gfx.h"
 #include "memory.h"
+#include "savedata.h"
 #include "sys.h"
 #include "vm_private.h"
 
@@ -73,6 +75,24 @@ static void shangrlia_mem_init(void)
 	shangrlia_mem_restore();
 }
 
+static void shangrlia_savedata(struct param_list *params)
+{
+	switch (vm_expr_param(params, 0)) {
+	case 0: savedata_resume_load(sys_save_name(params)); break;
+	case 1: savedata_resume_save(sys_save_name(params)); break;
+	case 2: savedata_load(sys_save_name(params)); break;
+	case 3: savedata_save(sys_save_name(params)); break;
+	case 4: savedata_load_var4(sys_save_name(params), VAR4_SIZE); break;
+	case 5: savedata_save_var4(sys_save_name(params), VAR4_SIZE); break;
+	case 6: savedata_save_union_var4(sys_save_name(params), VAR4_SIZE); break;
+	case 7: savedata_load_var4_slice(sys_save_name(params), vm_expr_param(params, 2),
+				vm_expr_param(params, 3)); break;
+	case 8: savedata_save_var4_slice(sys_save_name(params), vm_expr_param(params, 2),
+				vm_expr_param(params, 3)); break;
+	default: VM_ERROR("System.savedata.function[%u] not implemented", params->params[0].val);
+	}
+}
+
 static void sys_22(struct param_list *params)
 {
 	WARNING("System.function[22] not implemented");
@@ -97,6 +117,11 @@ static void shangrlia_set_speaker(struct param_list *params)
 		anim_start(no);
 }
 
+static void shangrlia_init(void)
+{
+	asset_effect_is_bgm = false;
+}
+
 struct game game_shangrlia = {
 	.id = GAME_SHANGRLIA,
 	.surface_sizes = {
@@ -108,20 +133,18 @@ struct game game_shangrlia = {
 		{ 0, 0 },
 	},
 	.bpp = 8,
-	.x_mult = 1,
-	.use_effect_arc = true,
-	.call_saves_procedures = true,
-	.proc_clears_flag = false,
-	.var4_size = VAR4_SIZE,
 	.mem16_size = MEM16_SIZE,
 	.mem_init = shangrlia_mem_init,
 	.mem_restore = shangrlia_mem_restore,
+	.init = shangrlia_init,
+	.expr_op = { CLASSICS_EXPR_OP },
+	.stmt_op = { CLASSICS_STMT_OP },
 	.sys = {
 		[0] = sys_set_font_size,
 		[1] = sys_display_number,
 		[2] = classics_cursor,
 		[3] = classics_anim,
-		[4] = classics_savedata,
+		[4] = shangrlia_savedata,
 		[5] = classics_audio,
 		[6] = NULL,
 		[7] = sys_file,

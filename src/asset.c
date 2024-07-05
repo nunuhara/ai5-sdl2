@@ -42,6 +42,8 @@ char *asset_voice_name = NULL;
 char *asset_voicesub_name = NULL;
 char *asset_data_name = NULL;
 
+bool asset_effect_is_bgm = true;
+
 static struct archive *open_arc(const char *name)
 {
 	char *path = path_get_icase(name);
@@ -180,7 +182,7 @@ struct archive_data *asset_bgm_load(const char *name)
 
 struct archive_data *asset_effect_load(const char *name)
 {
-	if (!game->use_effect_arc)
+	if (asset_effect_is_bgm)
 		return asset_bgm_load(name);
 	if (!arc.effect)
 		return asset_fs_load(name);
