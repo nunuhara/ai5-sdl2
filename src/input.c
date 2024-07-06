@@ -24,6 +24,7 @@
 #include "gfx_private.h"
 #include "vm.h"
 
+static uint32_t key_down_timestamp[INPUT_NR_INPUTS] = {0};
 static bool key_down[INPUT_NR_INPUTS] = {0};
 
 uint32_t cursor_swap_event = 0;
@@ -63,6 +64,8 @@ static void key_event(SDL_KeyboardEvent *ev, bool down)
 	if (type == INPUT_NONE)
 		return;
 	key_down[type] = down;
+	if (down)
+		key_down_timestamp[type] = SDL_GetTicks();
 }
 
 static enum input_event_type input_event_from_button(int button)
@@ -80,6 +83,8 @@ static void mouse_event(SDL_MouseButtonEvent *ev, bool down)
 	if (type == INPUT_NONE)
 		return;
 	key_down[type] = down;
+	if (down)
+		key_down_timestamp[type] = SDL_GetTicks();
 }
 
 void handle_events(void)
@@ -162,7 +167,9 @@ bool input_down(enum input_event_type type)
 {
 	assert(type >= 0 && type < INPUT_NR_INPUTS);
 	handle_events();
-	return key_down[type];
+	if (key_down[type] || SDL_GetTicks() - key_down_timestamp[type] < 30)
+		return true;
+	return false;
 }
 
 void input_wait_until_up(enum input_event_type type)
