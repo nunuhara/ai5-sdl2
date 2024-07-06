@@ -97,9 +97,15 @@ endif
 
 install_subdir('fonts', install_dir : get_option('datadir') / 'ai5-sdl2')
 
+winsys = 'console'
+if get_option('buildtype').startswith('release')
+  winsys = 'windows'
+endif
+
 executable('ai5', sources,
   dependencies : deps,
   c_args : ['-Wno-unused-parameter'],
   link_args : static_link_args,
   include_directories : incdirs,
+  win_subsystem : winsys,
   install : true)
