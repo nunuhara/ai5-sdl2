@@ -30,11 +30,15 @@
 #define AI5_DATA_DIR "."
 #endif
 
-#ifdef EMBED_FONTS
+#ifdef EMBED_DOTGOTHIC
 extern unsigned char font_dotgothic[];
 extern unsigned int  font_dotgothic_len;
+#endif
+#ifdef EMBED_KOSUGI
 extern unsigned char font_kosugi[];
 extern unsigned int  font_kosugi_len;
+#endif
+#ifdef EMBED_NOTO
 extern unsigned char font_noto[];
 extern unsigned int  font_noto_len;
 #endif
@@ -108,6 +112,25 @@ static struct font *font_insert(int size, TTF_Font *id, TTF_Font *id_outline)
 	.rwops_outline = SDL_RWFromConstMem(font_##name, font_##name##_len), \
 }
 
+static void init_fonts_standard(void)
+{
+#ifdef EMBED_DOTGOTHIC
+	font_spec[FONT_SMALL] = EMBEDDED_FONT(dotgothic);
+#else
+	font_spec[FONT_SMALL].path = xstrdup(AI5_DATA_DIR "/fonts/DotGothic16-Regular.ttf");
+#endif
+#ifdef EMBED_KOSUGI
+	font_spec[FONT_LARGE] = EMBEDDED_FONT(kosugi);
+#else
+	font_spec[FONT_LARGE].path = xstrdup(AI5_DATA_DIR "/fonts/Kosugi-Regular.ttf");
+#endif
+#ifdef EMBED_NOTO
+	font_spec[FONT_ENG] = EMBEDDED_FONT(noto);
+#else
+	font_spec[FONT_ENG].path = xstrdup(AI5_DATA_DIR "/fonts/NotoSansJP-Thin.ttf");
+#endif
+}
+
 void gfx_text_init(const char *font_path, int face)
 {
 	if (TTF_Init() == -1)
@@ -140,21 +163,10 @@ void gfx_text_init(const char *font_path, int face)
 			font_spec[FONT_ENG].path = xstrdup(font_spec[FONT_SMALL].path);
 			font_spec[FONT_ENG].face = 1;
 		} else {
-			// XXX: We always embed fonts on windows
-			font_spec[FONT_SMALL] = EMBEDDED_FONT(dotgothic);
-			font_spec[FONT_LARGE] = EMBEDDED_FONT(kosugi);
-			font_spec[FONT_ENG] = EMBEDDED_FONT(noto);
+			init_fonts_standard();
 		}
 #else
-#ifdef EMBED_FONTS
-		font_spec[FONT_SMALL] = EMBEDDED_FONT(dotgothic);
-		font_spec[FONT_LARGE] = EMBEDDED_FONT(kosugi);
-		font_spec[FONT_ENG] = EMBEDDED_FONT(noto);
-#else
-		font_spec[FONT_SMALL].path = xstrdup(AI5_DATA_DIR "/fonts/DotGothic16-Regular.ttf");
-		font_spec[FONT_LARGE].path = xstrdup(AI5_DATA_DIR "/fonts/Kosugi-Regular.ttf");
-		font_spec[FONT_ENG].path = xstrdup(AI5_DATA_DIR "/fonts/NotoSansJP-Thin.ttf");
-#endif // EMBED_FONTS
+		init_fonts_standard();
 #endif // _WIN32
 	}
 	gfx_text_set_size(mem_get_sysvar16(mes_sysvar16_font_height),

@@ -5,10 +5,12 @@ add_project_arguments('-DAI5_DATA_DIR="' + get_option('prefix') / get_option('da
 static_libs = false
 static_link_args = []
 embed_fonts = false
+no_embed_noto = false
 if host_machine.system() == 'windows'
   static_libs = true
   static_link_args = ['-static', '-lstdc++']
   embed_fonts = true
+  no_embed_noto = true
 endif
 
 libm = meson.get_compiler('c').find_library('m', required: false)
@@ -58,7 +60,6 @@ sources = [
 ]
 
 if embed_fonts
-  add_project_arguments('-DEMBED_FONTS', language : 'c')
   xxd = find_program('xxd')
   packfont = generator(xxd,
     output : '@BASENAME@.c',
@@ -66,7 +67,15 @@ if embed_fonts
     arguments : ['-i', '@EXTRA_ARGS@', '@INPUT@'])
   sources += packfont.process('fonts/DotGothic16-Regular.ttf', extra_args : ['-n', 'font_dotgothic'])
   sources += packfont.process('fonts/Kosugi-Regular.ttf', extra_args : ['-n', 'font_kosugi'])
-  sources += packfont.process('fonts/NotoSansJP-Thin.ttf', extra_args : ['-n', 'font_noto'])
+  add_project_arguments('-DEMBED_DOTGOTHIC', language : 'c')
+  add_project_arguments('-DEMBED_KOSUGI', language : 'c')
+  message('Embedding fonts/DotGothic16-Regular.ttf')
+  message('Embedding fonts/Kosugi-Regular.ttf')
+  if not no_embed_noto
+    sources += packfont.process('fonts/NotoSansJP-Thin.ttf', extra_args : ['-n', 'font_noto'])
+    add_project_arguments('-DEMBED_NOTO', language : 'c')
+    message('Embedding fonts/NotoSansJP-Thin.ttf')
+  endif
 endif
 
 deps = [libai5_dep, libm, sdl2, sdl2_ttf]
