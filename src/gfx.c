@@ -1126,14 +1126,19 @@ void gfx_blend_fill(int x, int y, int w, int h, unsigned i, uint32_t c, uint8_t 
 	if (!gfx_fill_begin(s, &r))
 		return;
 
+	uint32_t a = (uint32_t)rate + 1;
+	uint32_t inv_a = 256 - (uint32_t)rate;
 	SDL_Color color = gfx_decode_direct(c);
+	color.r *= a;
+	color.g *= a;
+	color.b *= a;
 	direct_foreach_px(p, s, &r,
-		uint32_t a = (uint32_t)rate + 1;
-		uint32_t inv_a = 256 - (uint32_t)rate;
-		p[0] = (uint8_t)((a * color.r + inv_a * p[0]) >> 8);
-		p[1] = (uint8_t)((a * color.g + inv_a * p[1]) >> 8);
-		p[2] = (uint8_t)((a * color.b + inv_a * p[2]) >> 8);
+		p[0] = (uint8_t)((color.r + inv_a * p[0]) >> 8);
+		p[1] = (uint8_t)((color.g + inv_a * p[1]) >> 8);
+		p[2] = (uint8_t)((color.b + inv_a * p[2]) >> 8);
 	);
+
+	gfx_fill_end(s);
 	gfx_dirty(i);
 }
 
