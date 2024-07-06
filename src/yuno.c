@@ -101,7 +101,7 @@ static void yuno_anim(struct param_list *params)
 	}
 }
 
-static void yuno_savedata_f11(const char *save_name)
+static void yuno_savedata_load_jewel_save(const char *save_name)
 {
 	uint8_t buf[MEMORY_MEM16_MAX_SIZE];
 	uint8_t *load_var4 = buf + MEMORY_MES_NAME_SIZE;
@@ -114,7 +114,7 @@ static void yuno_savedata_f11(const char *save_name)
 	for (int i = 50; i < 90; i++) {
 		cur_var4[i] = load_var4[i];
 	}
-	for (int i = 96; i < 2000; i++) {
+	for (int i = 150; i < 2000; i++) {
 		cur_var4[i] = load_var4[i];
 	}
 	game->mem_restore();
@@ -124,7 +124,7 @@ static void yuno_savedata_f11(const char *save_name)
 
 static uint8_t stashed_mes_name[MEMORY_MES_NAME_SIZE];
 
-static void yuno_savedata_f12(const char *save_name)
+static void yuno_savedata_save_jewel_save(const char *save_name)
 {
 	uint8_t buf[MEMORY_MEM16_MAX_SIZE];
 	uint8_t *out_var4 = buf + MEMORY_MES_NAME_SIZE;
@@ -134,7 +134,7 @@ static void yuno_savedata_f12(const char *save_name)
 	for (int i = 50; i < 90; i++) {
 		out_var4[i] = cur_var4[i];
 	}
-	for (int i = 96; i < 2000; i++) {
+	for (int i = 150; i < 2000; i++) {
 		out_var4[i] = cur_var4[i];
 	}
 	savedata_write(save_name, buf, 0, MEMORY_VAR4_OFFSET + VAR4_SIZE);
@@ -156,8 +156,8 @@ static void yuno_savedata(struct param_list *params)
 				vm_expr_param(params, 3)); break;
 	case 9: savedata_copy(sys_save_name(params),
 				_sys_save_name(vm_expr_param(params, 2))); break;
-	case 11: yuno_savedata_f11(sys_save_name(params)); break;
-	case 12: yuno_savedata_f12(sys_save_name(params)); break;
+	case 11: yuno_savedata_load_jewel_save(sys_save_name(params)); break;
+	case 12: yuno_savedata_save_jewel_save(sys_save_name(params)); break;
 	case 13: savedata_set_mes_name(sys_save_name(params), vm_string_param(params, 2)); break;
 	default: VM_ERROR("System.savedata.function[%u] not implemented", params->params[0].val);
 	}
