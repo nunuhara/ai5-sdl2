@@ -80,6 +80,8 @@ struct config {
 	} soundinfo;
 
 	char *exe_path;
+	char *font_path;
+	int font_face;
 	unsigned progressive_frame_time;
 	unsigned msg_skip_delay;
 	bool texthook_clipboard;

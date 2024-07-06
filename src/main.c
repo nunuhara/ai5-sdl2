@@ -44,6 +44,7 @@
 #define DEFAULT_PROGRESSIVE_FRAME_TIME 4
 #define DEFAULT_MSG_SKIP_DELAY 16
 struct config config = {
+	.font_face = -1,
 	.progressive_frame_time = DEFAULT_PROGRESSIVE_FRAME_TIME,
 	.msg_skip_delay = DEFAULT_MSG_SKIP_DELAY,
 };
@@ -134,6 +135,20 @@ static int cfg_handler(void *user, const char *section, const char *name, const 
 		config->soundinfo.voice = atoi(value);
 	} else if (MATCH("SOUNDINFO", "EFFECT")) {
 		config->soundinfo.effect = atoi(value);
+	} else if (MATCH("AI5SDL2", "FONT")) {
+		config->font_path = strdup(value);
+	} else if (MATCH("AI5SDL2", "FONTFACE")) {
+		config->font_face = atoi(value);
+	} else if (MATCH("AI5SDL2", "CGLOADFRAMETIME")) {
+		config->progressive_frame_time = clamp(0, 100, atoi(value));
+	} else if (MATCH("AI5SDL2", "MSGSKIPDELAY")) {
+		config->msg_skip_delay = clamp(0, 5000, atoi(value));
+	} else if (MATCH("AI5SDL2", "TEXTHOOKCLIPBOARD")) {
+		config->texthook_clipboard = !!atoi(value);
+	} else if (MATCH("AI5SDL2", "TEXTHOOKSTDOUT")) {
+		config->texthook_stdout = !!atoi(value);
+	} else if (MATCH("AI5SDL2", "MAPNOWALLSLIDE")) {
+		config->map_no_wallslide = !!atoi(value);
 	} else {
 		WARNING("Unknown INI value: %s.%s", section, name);
 		return 0;
@@ -252,8 +267,6 @@ int main(int argc, char *argv[])
 	bool have_game = false;
 	char *ini_name = NULL;
 	bool debug = false;
-	char *font_path = NULL;
-	int font_face = -1;
 
 	while (1) {
 		static struct option long_options[] = {
@@ -299,10 +312,10 @@ int main(int argc, char *argv[])
 			debug_on_F12 = true;
 			break;
 		case LOPT_FONT:
-			font_path = optarg;
+			config.font_path = strdup(optarg);
 			break;
 		case LOPT_FONT_FACE:
-			font_face = atoi(optarg);
+			config.font_face = atoi(optarg);
 			break;
 		case LOPT_MSG_SKIP_DELAY:
 			config.msg_skip_delay = clamp(0, 5000, atoi(optarg));
@@ -355,9 +368,18 @@ int main(int argc, char *argv[])
 	if (!ini_name)
 		usage_error("Couldn't find AI5WIN.INI (not a game directory?)");
 
-	// parse ini file
+	// parse AI5WIN ini file
 	if (ini_parse(ini_name, cfg_handler, &config) < 0)
 		sys_error("Failed to read INI file \"%s\"\n", ini_name);
+
+	// parse ai5-sdl2 ini file
+	char *our_ini_name = path_get_icase("AI5SDL2.INI");
+	if (our_ini_name) {
+		if (ini_parse(our_ini_name, cfg_handler, &config) < 0)
+			sys_error("Failed to read INI file \"%s\"\n", our_ini_name);
+		free(our_ini_name);
+	}
+
 	if (!config.start_mes)
 		config.start_mes = string_new("MAIN.MES");
 #define DEFAULT_NAME(f, n) if (f.arc && !f.name) { f.name = string_new(n); }
@@ -392,7 +414,7 @@ int main(int argc, char *argv[])
 	asset_init();
 	game->mem_init();
 	gfx_init(config.title);
-	gfx_text_init(font_path, font_face);
+	gfx_text_init(config.font_path, config.font_face);
 	input_init();
 	cursor_init(config.exe_path);
 	audio_init();
