@@ -216,6 +216,18 @@ static int dbg_cmd_quit(unsigned nr_args, char **args)
 	return DBG_QUIT;
 }
 
+static int dbg_cmd_get_flag(unsigned nr_args, char **args)
+{
+	long flag_no;
+	if (!parse_number(args[0], &flag_no) || flag_no < 0
+			|| flag_no > game->mem16_size - MEMORY_MES_NAME_SIZE) {
+		printf("Invalid flag number: %s\n", args[0]);
+		return DBG_REPL;
+	}
+	printf("flag[%ld] = %u\n", flag_no, mem_get_var4(flag_no));
+	return DBG_REPL;
+}
+
 static int dbg_cmd_set_flag(unsigned nr_args, char **args)
 {
 	long flag_no, value;
@@ -288,6 +300,7 @@ static struct cmdline_cmd dbg_commands[] = {
 	{ "help", "h", NULL, "Display debugger help", 0, 2, dbg_cmd_help },
 	{ "map", NULL, NULL, "Display memory map", 0, 0, dbg_cmd_map },
 	{ "quit", "q", NULL, "Quit AI5-SDL2", 0, 0, dbg_cmd_quit },
+	{ "get-flag", NULL, "<flag-number>", "Get a flag", 1, 1, dbg_cmd_get_flag },
 	{ "set-flag", NULL, "<flag-number> <value>", "Set a flag", 2, 2, dbg_cmd_set_flag },
 	{ "surface-dump", "sd", NULL, "Dump surfaces", 0, 0, dbg_cmd_surface_dump },
 	{ "vm-state", "vm", NULL, "Display current VM state", 0, 0, dbg_cmd_vm_state },
