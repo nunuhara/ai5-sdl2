@@ -177,6 +177,7 @@ static struct cg *gfx_surface_to_cg(SDL_Surface *s)
 	cg->metrics.w = s->w;
 	cg->metrics.h = s->h;
 	cg->metrics.bpp = 24;
+	cg->ref = 1;
 
 	cg->pixels = xcalloc(cg->metrics.w * cg->metrics.h, 4);
 	if (game->bpp == 8) {
@@ -526,6 +527,7 @@ void gfx_dump_surface(unsigned i, const char *filename)
 	cg->metrics.w = s->w;
 	cg->metrics.h = s->h;
 	cg->metrics.bpp = 8;
+	cg->ref = 1;
 
 	cg->palette = xcalloc(4, 256);
 	pal_set_color(cg->palette, 0,  0,   0,   0);

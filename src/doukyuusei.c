@@ -1286,8 +1286,6 @@ static void util_movie_play(struct param_list *params)
 		WARNING("Failed to copy final video frame");
 	}
 
-	gfx_dump_surface(0, "s0.png");
-
 	gfx_display_unfreeze();
 	gfx_dirty(0);
 
