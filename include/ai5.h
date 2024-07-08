@@ -86,6 +86,7 @@ struct config {
 	unsigned msg_skip_delay;
 	bool texthook_clipboard;
 	bool texthook_stdout;
+	bool no_warp_mouse;
 	bool map_no_wallslide;
 };
 

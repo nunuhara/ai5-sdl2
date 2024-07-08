@@ -146,6 +146,8 @@ static int cfg_handler(void *user, const char *section, const char *name, const 
 		config->texthook_clipboard = !!atoi(value);
 	} else if (MATCH("AI5SDL2", "TEXTHOOKSTDOUT")) {
 		config->texthook_stdout = !!atoi(value);
+	} else if (MATCH("AI5SDL2", "NOWARPMOUSE")) {
+		config->no_warp_mouse = !!atoi(value);
 	} else if (MATCH("AI5SDL2", "MAPNOWALLSLIDE")) {
 		config->map_no_wallslide = !!atoi(value);
 	} else {
@@ -159,7 +161,6 @@ static int cfg_handler(void *user, const char *section, const char *name, const 
 static void usage(void)
 {
 	printf("Usage: ai5 [options] [inifile-or-directory]\n");
-	printf("    --transition-speed=<ms>  Set the speed of CG transition effects (default: 1.0)\n");
 	printf("    -d, --debug              Start in the debugger REPL\n");
 	printf("    --font                   Specify the font\n");
 	printf("    --font-face=<n>          Specify the font face index\n");
@@ -168,8 +169,10 @@ static void usage(void)
 	printf("    -h, --help               Display this message and exit\n");
 	printf("    --msg-skip-delay=<ms>    Set the message skip delay time (default: %u)\n",
 			DEFAULT_MSG_SKIP_DELAY);
+	printf("    --no-warp-mouse          Don't move the mouse\n");
 	printf("    --texthook-clipboard     Copy text to the system clipboard\n");
 	printf("    --texthook-stdout        Copy text to standard output\n");
+	printf("    --transition-speed=<ms>  Set the speed of CG transition effects (default: 1.0)\n");
 	printf("    --version                Display the AI5-SDL2 version and exit\n");
 
 	if (ai5_target_game == GAME_DOUKYUUSEI) {
@@ -248,15 +251,16 @@ static bool set_game_from_config(void)
 enum {
 	LOPT_HELP = 256,
 	LOPT_VERSION,
-	LOPT_TRANSITION_SPEED,
 	LOPT_DEBUG,
 	LOPT_FONT,
 	LOPT_FONT_FACE,
 	LOPT_GAME,
 	LOPT_MAP_NO_WALLSLIDE,
+	LOPT_NO_WARP_MOUSE,
 	LOPT_MSG_SKIP_DELAY,
 	LOPT_TEXTHOOK_CLIPBOARD,
 	LOPT_TEXTHOOK_STDOUT,
+	LOPT_TRANSITION_SPEED,
 };
 
 int main(int argc, char *argv[])
@@ -269,14 +273,15 @@ int main(int argc, char *argv[])
 	while (1) {
 		static struct option long_options[] = {
 			{ "game", required_argument, 0, LOPT_GAME },
-			{ "transition-speed", required_argument, 0, LOPT_TRANSITION_SPEED },
 			{ "debug", no_argument, 0, LOPT_DEBUG },
 			{ "font", required_argument, 0, LOPT_FONT },
 			{ "font-face", required_argument, 0, LOPT_FONT_FACE },
 			{ "help", no_argument, 0, LOPT_HELP },
 			{ "msg-skip-delay", required_argument, 0, LOPT_MSG_SKIP_DELAY },
+			{ "no-warp-mouse", no_argument, 0, LOPT_NO_WARP_MOUSE },
 			{ "texthook-clipboard", no_argument, 0, LOPT_TEXTHOOK_CLIPBOARD },
 			{ "texthook-stdout", no_argument, 0, LOPT_TEXTHOOK_STDOUT },
+			{ "transition-speed", required_argument, 0, LOPT_TRANSITION_SPEED },
 			{ "version", no_argument, 0, LOPT_VERSION },
 			// doukyuusei-specific
 			{ "map-no-wallslide", no_argument, 0, LOPT_MAP_NO_WALLSLIDE },
@@ -300,9 +305,6 @@ int main(int argc, char *argv[])
 			set_game(optarg);
 			have_game = true;
 			break;
-		case LOPT_TRANSITION_SPEED:
-			config.transition_speed = clamp(0.0, 10.0, atof(optarg));
-			break;
 		case 'd':
 		case LOPT_DEBUG:
 			debug = true;
@@ -318,11 +320,17 @@ int main(int argc, char *argv[])
 		case LOPT_MSG_SKIP_DELAY:
 			config.msg_skip_delay = clamp(0, 5000, atoi(optarg));
 			break;
+		case LOPT_NO_WARP_MOUSE:
+			config.no_warp_mouse = true;
+			break;
 		case LOPT_TEXTHOOK_CLIPBOARD:
 			config.texthook_clipboard = true;
 			break;
 		case LOPT_TEXTHOOK_STDOUT:
 			config.texthook_stdout = true;
+			break;
+		case LOPT_TRANSITION_SPEED:
+			config.transition_speed = clamp(0.0, 10.0, atof(optarg));
 			break;
 		case LOPT_MAP_NO_WALLSLIDE:
 			config.map_no_wallslide = true;

@@ -24,6 +24,7 @@
 #include "nulib/file.h"
 #include "nulib/little_endian.h"
 
+#include "ai5.h"
 #include "cursor.h"
 #include "gfx_private.h"
 #include "input.h"
@@ -725,6 +726,8 @@ void cursor_hide(void)
 void cursor_set_pos(unsigned x, unsigned y)
 {
 	CURSOR_LOG("cursor_set_pos(%u,%u)", x, y);
+	if (config.no_warp_mouse)
+		return;
 	int wx, wy;
 	SDL_RenderLogicalToWindow(gfx.renderer, x, y, &wx, &wy);
 	SDL_WarpMouseInWindow(gfx.window, wx, wy);
