@@ -359,7 +359,12 @@ void _gfx_display_fade_out(uint32_t vm_color, unsigned ms, bool(*cb)(void))
 	int step = roundf(256.f / ((float)ms / FADE_FRAME_TIME));
 
 	// create mask texture with solid color
-	SDL_Color c = gfx_decode_direct(vm_color);
+	SDL_Color c;
+	if (game->bpp == 8) {
+		c = gfx.palette[vm_color];
+	} else {
+		c = gfx_decode_direct(vm_color);
+	}
 	SDL_CALL(SDL_FillRect, gfx.display, NULL, SDL_MapRGB(gfx.display->format, c.r, c.g, c.b));
 	SDL_Texture *mask = gfx_create_texture(gfx_view.w, gfx_view.h);
 	SDL_CALL(SDL_UpdateTexture, mask, NULL, gfx.display->pixels, gfx.display->pitch);

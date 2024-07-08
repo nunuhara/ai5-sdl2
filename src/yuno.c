@@ -542,6 +542,8 @@ static int read_yume_text(char **dst)
 	return nr_lines;
 }
 
+static void yuno_draw_text(const char *text);
+
 // TODO: play effect from YUME.BIN
 static void util_yume(struct param_list *params)
 {
@@ -561,7 +563,7 @@ static void util_yume(struct param_list *params)
 		// draw text
 		mem_set_sysvar16(mes_sysvar16_text_cursor_x, start_x);
 		mem_set_sysvar16(mes_sysvar16_text_cursor_y, start_y);
-		vm_draw_text(text[i]);
+		yuno_draw_text(text[i]);
 		gfx_display_fade_in(1000);
 
 		// wait for input
