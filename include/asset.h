@@ -37,7 +37,9 @@ void asset_fini(void);
 bool asset_set_voice_archive(const char *name);
 
 struct archive_data *asset_mes_load(const char *name);
-struct archive_data *asset_cg_load(const char *name);
+struct archive_data *_asset_cg_load(const char *name);
+struct cg *asset_cg_decode(struct archive_data *file);
+struct cg *asset_cg_load(const char *name);
 struct archive_data *asset_bgm_load(const char *name);
 struct archive_data *asset_effect_load(const char *name);
 struct archive_data *asset_voice_load(const char *name);

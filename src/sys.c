@@ -160,7 +160,7 @@ void sys_load_file(struct param_list *params)
 
 void _sys_load_image(const char *name, unsigned i, unsigned x_mult)
 {
-	struct archive_data *data = asset_cg_load(name);
+	struct archive_data *data = _asset_cg_load(name);
 	if (!data) {
 		WARNING("Failed to load CG \"%s\"", name);
 		return;
@@ -173,7 +173,7 @@ void _sys_load_image(const char *name, unsigned i, unsigned x_mult)
 	vm_load_file(data, off);
 
 	// decode CG
-	struct cg *cg = cg_load_arcdata(data);
+	struct cg *cg = asset_cg_decode(data);
 	archive_data_release(data);
 	if (!cg) {
 		WARNING("Failed to decode CG \"%s\"", name);

@@ -718,13 +718,7 @@ static void generate_frame(uint8_t prev[W*H], uint8_t frame[W*H])
 static void generate_reflector_frames(void)
 {
 	// load CG containing base frame
-	struct archive_data *data = asset_cg_load("maporb.gp8");
-	if (!data) {
-		WARNING("Failed to load CG: MAPORB.GP8");
-		return;
-	}
-	struct cg *cg = cg_load_arcdata(data);
-	archive_data_release(data);
+	struct cg *cg = asset_cg_load("maporb.gp8");
 	if (!cg) {
 		WARNING("Failed to decode CG: MAPORB.GP8");
 		return;

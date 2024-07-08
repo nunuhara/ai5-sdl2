@@ -16,6 +16,7 @@
 
 #include "nulib.h"
 #include "nulib/file.h"
+#include "nulib/queue.h"
 #include "ai5/arc.h"
 #include "ai5/cg.h"
 
@@ -44,33 +45,36 @@ char *asset_data_name = NULL;
 
 bool asset_effect_is_bgm = true;
 
-static struct archive *open_arc(const char *name)
+static void cg_cache_init(void);
+
+static struct archive *open_arc(const char *name, unsigned flags)
 {
 	char *path = path_get_icase(name);
 	if (!path)
 		return NULL;
-	struct archive *arc = archive_open(path, 0);
+	struct archive *arc = archive_open(path, flags);
 	free(path);
 	return arc;
 }
 
 void asset_init(void)
 {
-#define ARC_OPEN(t, warn) \
+#define ARC_OPEN(t, flags, warn) \
 	if (config.file.t.arc) { \
 		assert(config.file.t.name); \
-		if (!(arc.t = open_arc(config.file.t.name))) \
+		if (!(arc.t = open_arc(config.file.t.name, flags))) \
 			warn("Failed to open archive \"%s\"", config.file.t.name); \
 	}
-	ARC_OPEN(bg, WARNING);
-	ARC_OPEN(mes, ERROR);
-	ARC_OPEN(bgm, WARNING);
-	ARC_OPEN(voice, WARNING);
-	ARC_OPEN(voicesub, WARNING);
-	ARC_OPEN(effect, WARNING);
-	ARC_OPEN(data, WARNING);
-	ARC_OPEN(priv, WARNING);
+	ARC_OPEN(bg,       0,             WARNING);
+	ARC_OPEN(mes,      ARCHIVE_CACHE, ERROR);
+	ARC_OPEN(bgm,      0,             WARNING);
+	ARC_OPEN(voice,    0,             WARNING);
+	ARC_OPEN(voicesub, 0,             WARNING);
+	ARC_OPEN(effect,   0,             WARNING);
+	ARC_OPEN(data,     ARCHIVE_CACHE, WARNING);
+	ARC_OPEN(priv,     0,             WARNING);
 #undef ARC_OPEN
+	cg_cache_init();
 }
 
 void asset_fini(void)
@@ -92,7 +96,7 @@ bool asset_set_voice_archive(const char *name)
 	if (config.file.voice.arc && !strcasecmp(config.file.voice.name, name))
 		return true;
 
-	struct archive *ar = open_arc(name);
+	struct archive *ar = open_arc(name, 0);
 	if (!ar)
 		return false;
 	if (arc.voice)
@@ -156,7 +160,28 @@ struct archive_data *asset_mes_load(const char *name)
 	return file;
 }
 
-struct archive_data *asset_cg_load(const char *name)
+struct cached_cg {
+	TAILQ_ENTRY(cached_cg) entry;
+	unsigned key;
+	const char *name;
+	struct cg *cg;
+};
+
+#define CG_CACHE_SIZE 16
+static struct cached_cg cg_cache_entry[CG_CACHE_SIZE] = {0};
+static TAILQ_HEAD(cg_cache_head, cached_cg) cg_cache;
+static TAILQ_HEAD(cg_freelist_head, cached_cg) cg_free_list;
+
+static void cg_cache_init(void)
+{
+	TAILQ_INIT(&cg_cache);
+	TAILQ_INIT(&cg_free_list);
+	for (int i = 0; i < CG_CACHE_SIZE; i++) {
+		TAILQ_INSERT_TAIL(&cg_free_list, &cg_cache_entry[i], entry);
+	}
+}
+
+struct archive_data *_asset_cg_load(const char *name)
 {
 	if (!arc.bg)
 		return asset_fs_load(name);
@@ -166,6 +191,76 @@ struct archive_data *asset_cg_load(const char *name)
 	free(asset_cg_name);
 	asset_cg_name = xstrdup(name);
 	return file;
+}
+
+static uint64_t cg_name_hash(const char *s)
+{
+	uint16_t h = (uint64_t)*s;
+	if (h) for (++s ; *s; ++s) h = (h << 5) - h + (khint_t)*s;
+	return h;
+}
+
+static struct cg *cg_cache_get(const char *name, uint64_t key)
+{
+	for (int i = 0; i < CG_CACHE_SIZE; i++) {
+		if (!cg_cache_entry[i].name)
+			continue;
+		if (cg_cache_entry[i].key == key && !strcasecmp(cg_cache_entry[i].name, name)) {
+			// move to front of cache
+			TAILQ_REMOVE(&cg_cache, &cg_cache_entry[i], entry);
+			TAILQ_INSERT_HEAD(&cg_cache, &cg_cache_entry[i], entry);
+			return cg_cache_entry[i].cg;
+		}
+	}
+	return NULL;
+}
+
+struct cg *asset_cg_decode(struct archive_data *file)
+{
+	// check for cached CG
+	uint64_t key = cg_name_hash(file->name);
+	struct cg *cg = cg_cache_get(file->name, key);
+	if (cg) {
+		cg->ref++;
+		return cg;
+	}
+
+	// decode CG
+	cg = cg_load_arcdata(file);
+	if (!cg)
+		return NULL;
+
+	// evict least recently used CG from cache
+	struct cached_cg *cached;
+	if (TAILQ_EMPTY(&cg_free_list)) {
+		cached = TAILQ_LAST(&cg_cache, cg_cache_head);
+		TAILQ_REMOVE(&cg_cache, cached, entry);
+		cached->key = 0;
+		cached->name = NULL;
+		cg_free(cached->cg);
+	} else {
+		cached = TAILQ_FIRST(&cg_free_list);
+		TAILQ_REMOVE(&cg_free_list, cached, entry);
+	}
+
+	// add CG to cache
+	cg->ref++;
+	cached->key = key;
+	cached->name = file->name;
+	cached->cg = cg;
+	TAILQ_INSERT_HEAD(&cg_cache, cached, entry);
+
+	return cg;
+}
+
+struct cg *asset_cg_load(const char *name)
+{
+	struct archive_data *data = _asset_cg_load(name);
+	if (!data)
+		return NULL;
+	struct cg *cg = asset_cg_decode(data);
+	archive_data_release(data);
+	return cg;
 }
 
 struct archive_data *asset_bgm_load(const char *name)
