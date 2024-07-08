@@ -555,7 +555,7 @@ static void util_yume(struct param_list *params)
 
 	// XXX: text colors are 0,7, but both are black
 	gfx.palette[7] = (SDL_Color) { 255, 255, 255, 255 };
-	gfx_update_palette();
+	gfx_update_palette(256);
 
 	gfx_fill(0, 0, 640, 400, 0, 0);
 	gfx_display_freeze();

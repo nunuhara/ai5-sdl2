@@ -28,6 +28,13 @@
 #define X 0xff
 #define _ 0x00
 
+void transition_update(vm_timer_t *timer, unsigned dst_i, unsigned ms)
+{
+	gfx_dirty(dst_i);
+	vm_peek();
+	vm_timer_tick(timer, ms * config.transition_speed);
+}
+
 #define FADE_PATTERN_SIZE 4
 #define FADE_SIZE (sizeof(fade_pattern_vert)/FADE_PATTERN_SIZE)
 
@@ -198,11 +205,7 @@ void gfx_fade_down(int x, int y, int w, int h, unsigned dst_i, int src_i)
 		}
 
 		// update
-		gfx_dirty(dst_i);
-		vm_peek();
-
-		// wait until next frame
-		vm_timer_tick(&frame_timer, 10);
+		transition_update(&frame_timer, dst_i, 10);
 	}
 }
 
@@ -258,11 +261,7 @@ void gfx_fade_right(int x, int y, int w, int h, unsigned dst_i, int src_i)
 		}
 
 		// update
-		gfx_dirty(dst_i);
-		vm_peek();
-
-		// wait until next frame
-		vm_timer_tick(&frame_timer, 10);
+		transition_update(&frame_timer, dst_i, 10);
 	}
 }
 
@@ -306,13 +305,6 @@ static void fade_row(uint8_t *base, unsigned row, unsigned w, unsigned h, unsign
 	memset(dst, 0, w);
 }
 
-void progressive_update(vm_timer_t *timer, unsigned dst_i)
-{
-	gfx_dirty(dst_i);
-	vm_peek();
-	vm_timer_tick(timer, config.progressive_frame_time);
-}
-
 /*
  * Fill with color 7, then fill from top and bottom progressively with color 0.
  */
@@ -335,7 +327,7 @@ void gfx_blink_fade(int x, int y, int w, int h, unsigned dst_i)
 		uint8_t *dst = base + row * s->pitch;
 		memset(dst, 7, r.w);
 	}
-	progressive_update(&timer, dst_i);
+	transition_update(&timer, dst_i, 4);
 
 	unsigned logical_h = ((unsigned)r.h + 3u) & ~3u;
 	for (int row = 0; row < logical_h / 2; row += 4) {
@@ -348,7 +340,7 @@ void gfx_blink_fade(int x, int y, int w, int h, unsigned dst_i)
 			if (row_bot + i < r.h)
 				memset(bot + i * s->pitch, 0, r.w);
 		}
-		progressive_update(&timer, dst_i);
+		transition_update(&timer, dst_i, 4);
 	}
 }
 
@@ -371,13 +363,13 @@ void gfx_fade_progressive(int x, int y, int w, int h, unsigned dst_i)
 	for (int row = 0; row <= logical_h; row += 4) {
 		fade_row(base, row, r.w, r.h, s->pitch);
 		fade_row(base, (logical_h - row) + 2, r.w, r.h, s->pitch);
-		progressive_update(&timer, dst_i);
+		transition_update(&timer, dst_i, 4);
 	}
 
 	for (int row = 0; row <= logical_h; row += 4) {
 		fade_row(base, row + 1, r.w, r.h, s->pitch);
 		fade_row(base, (logical_h - row) + 3, r.w, r.h, s->pitch);
-		progressive_update(&timer, dst_i);
+		transition_update(&timer, dst_i, 4);
 	}
 }
 
@@ -417,7 +409,7 @@ void gfx_copy_progressive(int src_x, int src_y, int w, int h, unsigned src_i, in
 		unsigned row_bot = (logical_h - row) + 2;
 		copy_row(src_base, dst_base, row_top, src_r.w, src_r.h, src->pitch, dst->pitch, bytes_pp);
 		copy_row(src_base, dst_base, row_bot, src_r.w, src_r.h, src->pitch, dst->pitch, bytes_pp);
-		progressive_update(&timer, dst_i);
+		transition_update(&timer, dst_i, 4);
 	}
 
 	for (int row = 0; row <= logical_h; row += 4) {
@@ -425,7 +417,7 @@ void gfx_copy_progressive(int src_x, int src_y, int w, int h, unsigned src_i, in
 		unsigned row_bot = (logical_h - row) + 3;
 		copy_row(src_base, dst_base, row_top, src_r.w, src_r.h, src->pitch, dst->pitch, bytes_pp);
 		copy_row(src_base, dst_base, row_bot, src_r.w, src_r.h, src->pitch, dst->pitch, bytes_pp);
-		progressive_update(&timer, dst_i);
+		transition_update(&timer, dst_i, 4);
 	}
 }
 
@@ -468,9 +460,7 @@ void gfx_pixel_crossfade(int src_x, int src_y, int w, int h, unsigned src_i, int
 				memcpy(dst_p, src_p, bytes_pp);
 			}
 		}
-		gfx_dirty(dst_i);
-		vm_peek();
-		vm_timer_tick(&timer, 30);
+		transition_update(&timer, dst_i, 30);
 	}
 }
 
@@ -520,9 +510,7 @@ void gfx_pixel_crossfade_masked(int src_x, int src_y, int w, int h, unsigned src
 					memcpy(dst_p, src_p, bytes_pp);
 			}
 		}
-		gfx_dirty(dst_i);
-		vm_peek();
-		vm_timer_tick(&timer, 30);
+		transition_update(&timer, dst_i, 30);
 	}
 
 }
@@ -577,9 +565,7 @@ void gfx_zoom(int src_x, int src_y, int w, int h, unsigned src_i, unsigned dst_i
 			.h = h + step_h * i
 		};
 		SDL_CALL(SDL_BlitScaled, src, &src_r, dst, &dst_r);
-		gfx_dirty(dst_i);
-		vm_peek();
-		vm_timer_tick(&timer, 32);
+		transition_update(&timer, dst_i, 32);
 	}
 	SDL_CALL(SDL_BlitSurface, src, NULL, dst, NULL);
 	gfx_dirty(dst_i);

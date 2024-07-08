@@ -82,7 +82,7 @@ struct config {
 	char *exe_path;
 	char *font_path;
 	int font_face;
-	unsigned progressive_frame_time;
+	double transition_speed;
 	unsigned msg_skip_delay;
 	bool texthook_clipboard;
 	bool texthook_stdout;

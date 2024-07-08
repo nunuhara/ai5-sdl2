@@ -582,7 +582,7 @@ static void ai_shimai_graphics(struct param_list *params)
 		//      crossfade effect. We throttle it here so that the
 		//      effect is visible on modern systems.
 		if (!input_down(INPUT_CTRL))
-			vm_timer_tick(&timer, config.progressive_frame_time * 4);
+			vm_timer_tick(&timer, config.transition_speed * 16);
 		break;
 	}
 	case 7: sys_graphics_blend_masked(params); break;

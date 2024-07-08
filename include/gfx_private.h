@@ -74,7 +74,7 @@ extern struct gfx gfx;
 
 SDL_Surface *gfx_get_surface(unsigned i);
 SDL_Surface *gfx_get_overlay(void);
-void gfx_update_palette(void);
+void gfx_update_palette(int n);
 bool gfx_fill_clip(SDL_Surface *s, SDL_Rect *r);
 bool gfx_copy_clip(SDL_Surface *src, SDL_Rect *src_r, SDL_Surface *dst, SDL_Point *dst_p);
 
