@@ -68,7 +68,7 @@ void vm_init(void)
 	vm.ip.code = memory.file_data;
 }
 
-uint8_t vm_read_byte(void)
+static uint8_t vm_read_byte(void)
 {
 	uint8_t c = vm.ip.code[vm.ip.ptr++];
 	if (vm_flag_is_on(FLAG_LOG))
@@ -76,38 +76,38 @@ uint8_t vm_read_byte(void)
 	return c;
 }
 
-uint8_t vm_peek_byte(void)
+static uint8_t vm_peek_byte(void)
 {
 	return vm.ip.code[vm.ip.ptr];
 }
 
-void vm_rewind_byte(void)
+static void vm_rewind_byte(void)
 {
 	vm.ip.ptr--;
 }
 
-uint16_t vm_read_word(void)
+static uint16_t vm_read_word(void)
 {
 	uint16_t v = le_get16(vm.ip.code, vm.ip.ptr);
 	vm.ip.ptr += 2;
 	return v;
 }
 
-uint32_t vm_read_dword(void)
+static uint32_t vm_read_dword(void)
 {
 	uint32_t v = le_get32(vm.ip.code, vm.ip.ptr);
 	vm.ip.ptr += 4;
 	return v;
 }
 
-void vm_stack_push(uint32_t val)
+static void vm_stack_push(uint32_t val)
 {
 	vm.stack[vm.stack_ptr++] = val;
 	if (unlikely(vm.stack_ptr >= VM_STACK_SIZE))
 		VM_ERROR("Stack overflow");
 }
 
-uint32_t vm_stack_pop(void)
+static uint32_t vm_stack_pop(void)
 {
 	if (!vm.stack_ptr)
 		VM_ERROR("Tried to pop from empty stack");
@@ -273,7 +273,7 @@ void vm_expr_var32(void)
 	vm_stack_push(mem_get_var32(vm_read_byte()));
 }
 
-uint32_t vm_expr_end(void)
+static uint32_t vm_expr_end(void)
 {
 	uint32_t r = vm_stack_pop();
 	if (vm.stack_ptr > 0)

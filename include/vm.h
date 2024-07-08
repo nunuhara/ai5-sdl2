@@ -86,7 +86,6 @@ void vm_expr_rand(void);
 void vm_expr_rand_with_imm_range(void);
 void vm_expr_imm16(void);
 void vm_expr_imm32(void);
-uint32_t vm_expr_end(void);
 
 // flag/register/memory operations
 void vm_expr_cflag(void);
