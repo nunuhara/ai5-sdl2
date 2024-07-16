@@ -367,7 +367,7 @@ void handle_text(void(*read_text)(char*), void(*draw_text)(const char*), bool wi
 		backlog_prepare();
 		vm_flag_on(FLAG_LOG);
 		if (with_op)
-			backlog_push_byte(mes_code_tables.stmt_op_to_int[MES_STMT_STR]);
+			backlog_push_byte(mes_code_tables.stmt_op_to_int[MES_STMT_HANKAKU]);
 	}
 
 	char str[TXT_BUF_SIZE];

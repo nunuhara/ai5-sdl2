@@ -24,6 +24,7 @@
 #include "anim.h"
 #include "audio.h"
 #include "cursor.h"
+#include "dungeon.h"
 #include "game.h"
 #include "gfx_private.h"
 #include "input.h"
@@ -77,6 +78,29 @@ static void isaku_mem_init(void)
 	isaku_mem_restore();
 }
 
+static unsigned cursor_no(unsigned n)
+{
+	switch (n) {
+	case 0: return 30;
+	case 1: return 32;
+	case 2: return 34;
+	case 3: return 36;
+	case 4: return 38;
+	case 5: return 40;
+	case 6: return 42;
+	// XXX: skip 7
+	case 8: return 44;
+	// XXX: skip 9-12
+	case 13: return 46;
+	case 14: return 48;
+	case 15: return 50;
+	case 16: return 52;
+	default:
+		 WARNING("Invalid cursor number: %u", n);
+	}
+	return 30;
+}
+
 static void isaku_cursor(struct param_list *params)
 {
 	static uint32_t uk = 0;
@@ -85,7 +109,7 @@ static void isaku_cursor(struct param_list *params)
 	case 1: cursor_hide(); break;
 	case 2: sys_cursor_save_pos(params); break;
 	case 3: cursor_set_pos(vm_expr_param(params, 1), vm_expr_param(params, 2)); break;
-	case 4: cursor_load((vm_expr_param(params, 1) + 15) * 2, 2, NULL); break;
+	case 4: cursor_load(cursor_no(vm_expr_param(params, 1)), 2, NULL); break;
 	case 5: uk = 0; break;
 	case 6: mem_set_var16(18, 0); break;
 	case 7: mem_set_var32(18, uk); break;
@@ -209,12 +233,17 @@ static void isaku_display_freeze_unfreeze(struct param_list *params)
 	}
 }
 
+static bool skip_on_shift(void)
+{
+	return !input_down(INPUT_SHIFT);
+}
+
 static void isaku_display_fade_out_fade_in(struct param_list *params)
 {
 	if (params->nr_params > 1) {
-		gfx_display_fade_out(vm_expr_param(params, 1), 1000);
+		_gfx_display_fade_out(vm_expr_param(params, 1), 1000, skip_on_shift);
 	} else {
-		gfx_display_fade_in(1000);
+		_gfx_display_fade_in(1000, skip_on_shift);
 	}
 }
 
@@ -252,6 +281,37 @@ static void isaku_graphics(struct param_list *params)
 	case 4: sys_graphics_swap_bg_fg(params); break;
 	case 5: sys_graphics_copy_progressive(params); break;
 	case 6: sys_graphics_compose(params); break;
+	}
+}
+
+static void isaku_dungeon(struct param_list *params)
+{
+	switch (vm_expr_param(params, 0)) {
+	case 0: dungeon_load(memory_raw + vm_expr_param(params, 1),
+				memory_raw + vm_expr_param(params, 5),
+				memory_raw + vm_expr_param(params, 6),
+				memory_raw + vm_expr_param(params, 7),
+				memory_raw + vm_expr_param(params, 8),
+				memory_raw + vm_expr_param(params, 9));
+		break;
+	case 1: dungeon_set_pos(vm_expr_param(params, 1), vm_expr_param(params, 2),
+				vm_expr_param(params, 3));
+		break;
+	case 2: dungeon_draw(); break;
+	case 3: mem_set_var16(18, dungeon_move(vm_expr_param(params, 1))); break;
+	case 8: WARNING("System.Dungeon.function[8] not implemented"); break;
+	case 9: cursor_load(vm_expr_param(params, 1) + 25, 1, NULL); break;
+	default:
+		VM_ERROR("System.Dungeon.function[%u] not implemented",
+				params->params[0].val);
+	}
+
+	if (vm_expr_param(params, 0) != 9) {
+		uint16_t x, y, dir;
+		dungeon_get_pos(&x, &y, &dir);
+		mem_set_var16(23, x);
+		mem_set_var16(24, y);
+		mem_set_var16(3, dir);
 	}
 }
 
@@ -578,6 +638,7 @@ struct game game_isaku = {
 		[14] = sys_get_cursor_segment,
 		[15] = sys_menu_get_no,
 		[18] = sys_check_input,
+		[20] = isaku_dungeon,
 		[22] = isaku_item_window,
 		[24] = isaku_strlen,
 		[25] = isaku_save_menu,

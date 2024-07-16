@@ -42,6 +42,7 @@ sources = [
   'src/cursor.c',
   'src/debug.c',
   'src/doukyuusei.c',
+  'src/dungeon.c',
   'src/effect.c',
   'src/gfx.c',
   'src/ini.c',
