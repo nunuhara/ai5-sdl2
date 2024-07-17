@@ -598,7 +598,7 @@ static void util_datebar_slide_up(struct param_list *params)
 		// draw bar at new location (8 lines up)
 		gfx_copy(0, bar_y, w, h, s7, 0, dst_y, s0);
 		// update
-		gfx_dirty(s0);
+		gfx_dirty(s0, 0, dst_y, 640, 480 - dst_y);
 		vm_peek();
 		vm_timer_tick(&timer, 16);
 		dst_y -= 8;
@@ -634,7 +634,7 @@ static void util_datebar_slide_down(struct param_list *params)
 		// draw bar at new location (8 lines down)
 		gfx_copy(0, bar_y, w, h, s7, 0, dst_y, s0);
 		// update
-		gfx_dirty(s0);
+		gfx_dirty(s0, 0, dst_y - 8, 640, 480 - (dst_y - 8));
 		vm_peek();
 		vm_timer_tick(&timer, 16);
 		dst_y += 8;
@@ -675,7 +675,7 @@ static void util_cursor_description_slide_up(struct param_list *params)
 		// copy from scratch to destination
 		gfx_copy(0, scratch_y, w, h, s7, dst_x, dst_y, s0);
 		// update
-		gfx_dirty(s0);
+		gfx_dirty(s0, dst_x, dst_y, w, h + 8);
 		vm_peek();
 		vm_timer_tick(&timer, 16);
 		dst_y -= 8;
@@ -716,7 +716,7 @@ static void util_cursor_description_slide_down(struct param_list *params)
 		// copy from scratch to destination
 		gfx_copy(0, scratch_y, w, h, s7, dst_x, dst_y, s0);
 		// update
-		gfx_dirty(s0);
+		gfx_dirty(s0, dst_x, dst_y - 8, w, h + 8);
 		vm_peek();
 		vm_timer_tick(&timer, 16);
 		dst_y += 8;
@@ -741,13 +741,13 @@ static void util_scroll(struct param_list *params)
 		SDL_Rect src_r = { 0, y, 640, 480 };
 		SDL_CALL(SDL_BlitSurface, src, &src_r, dst, &dst_r);
 
-		gfx_dirty(0);
+		gfx_whole_surface_dirty(0);
 		vm_peek();
 		vm_timer_tick(&timer, 16);
 	}
 	SDL_Rect src_r = { 0, 0, 640, 480 };
 	SDL_CALL(SDL_BlitSurface, src, &src_r, dst, &dst_r);
-	gfx_dirty(0);
+	gfx_whole_surface_dirty(0);
 	vm_peek();
 	vm_timer_tick(&timer, 16);
 }
@@ -1287,7 +1287,7 @@ static void util_movie_play(struct param_list *params)
 	}
 
 	gfx_display_unfreeze();
-	gfx_dirty(0);
+	gfx_whole_surface_dirty(0);
 
 #ifdef USE_SDL_MIXER
 	if (movie.audio) {

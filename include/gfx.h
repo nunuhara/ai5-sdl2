@@ -26,8 +26,9 @@ extern struct gfx_view gfx_view;
 
 void gfx_init(const char *name);
 void gfx_update(void);
-void gfx_dirty(unsigned surface);
+void gfx_dirty(unsigned surface, int x, int y, int w, int h);
 void gfx_screen_dirty(void);
+void gfx_whole_surface_dirty(unsigned surface);
 unsigned gfx_current_surface(void);
 void gfx_set_screen_surface(unsigned i);
 

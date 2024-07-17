@@ -349,7 +349,7 @@ void map_draw_tiles(void)
 	gfx_copy(0, 448, 640, 32, 0, 0, 1248, 7);
 	// draw status bar
 	gfx_copy(0, 106, 640, 32, 7, 0, 448, 0);
-	gfx_dirty(0);
+	gfx_whole_surface_dirty(0);
 
 	// XXX: If shift is held down, we double the frame rate.
 	//      This is not what AI5WIN.EXE does (it doubles the amount of movement that

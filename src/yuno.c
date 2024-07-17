@@ -787,7 +787,7 @@ static void yuno_reflector_animation(void)
 	draw_frame(yuno_reflector_frames[frame]);
 	frame = (frame + 1) % ARRAY_SIZE(yuno_reflector_frames);
 	t = now_t;
-	gfx_dirty(gfx.screen);
+	gfx_screen_dirty();
 }
 
 // character sizes for MS PGothic

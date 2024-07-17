@@ -71,15 +71,26 @@ bool gfx_confirm_quit(void)
 struct gfx gfx = { .dirty = true };
 struct gfx_view gfx_view = { 640, 400 };
 
-void gfx_dirty(unsigned surface)
+void gfx_dirty(unsigned surface, int x, int y, int w, int h)
 {
-	if (surface == gfx.screen)
-		gfx.dirty = true;
+	if (surface != gfx.screen)
+		return;
+
+	gfx.dirty = true;
+	SDL_Rect r = { x, y, w, h };
+	SDL_UnionRect(&gfx.damaged, &r, &gfx.damaged);
 }
 
 void gfx_screen_dirty(void)
 {
 	gfx.dirty = true;
+	gfx.damaged = gfx.surface[gfx.screen].src;
+}
+
+void gfx_whole_surface_dirty(unsigned surface)
+{
+	struct gfx_surface *s = &gfx.surface[surface];
+	gfx_dirty(surface, s->src.x, s->src.y, s->src.w, s->src.h);
 }
 
 SDL_Surface *gfx_get_surface(unsigned i)
@@ -319,10 +330,9 @@ void gfx_update(void)
 	if (gfx.hidden || !gfx.dirty)
 		return;
 	struct gfx_surface *screen = &gfx.surface[gfx.screen];
-	SDL_Rect r = { 0, 0, gfx_view.w, gfx_view.h };
-	SDL_CALL(SDL_BlitSurface, screen->s, &r, gfx.display, &r);
+	SDL_CALL(SDL_BlitSurface, screen->s, &gfx.damaged, gfx.display, &gfx.damaged);
 	if (gfx.overlay)
-		SDL_CALL(SDL_BlitSurface, gfx.overlay, &r, gfx.display, &r);
+		SDL_CALL(SDL_BlitSurface, gfx.overlay, &gfx.damaged, gfx.display, &gfx.damaged);
 	if (screen->scaled) {
 		SDL_Rect src = screen->src;
 		SDL_Rect dst = screen->dst;
@@ -330,12 +340,15 @@ void gfx_update(void)
 		SDL_CALL(SDL_UpdateTexture, gfx.texture, NULL, gfx.scaled_display->pixels,
 				gfx.scaled_display->pitch);
 	} else {
-		SDL_CALL(SDL_UpdateTexture, gfx.texture, NULL, gfx.display->pixels, gfx.display->pitch);
+		uint8_t *p = gfx.display->pixels + gfx.damaged.y * gfx.display->pitch
+			+ gfx.damaged.x * gfx.display->format->BytesPerPixel;
+		SDL_CALL(SDL_UpdateTexture, gfx.texture, &gfx.damaged, p, gfx.display->pitch);
 	}
 	SDL_CALL(SDL_RenderClear, gfx.renderer);
 	SDL_CALL(SDL_RenderCopy, gfx.renderer, gfx.texture, NULL, NULL);
 	SDL_RenderPresent(gfx.renderer);
 	gfx.dirty = false;
+	gfx.damaged = (SDL_Rect){0};
 }
 
 void gfx_display_freeze(void)
@@ -476,7 +489,7 @@ void gfx_update_palette(int n)
 	if (game->bpp != 8)
 		return;
 	SDL_CALL(SDL_SetPaletteColors, gfx_screen()->format->palette, gfx.palette, 0, n);
-	gfx_dirty(gfx.screen);
+	gfx_screen_dirty();
 }
 
 void gfx_palette_set(const uint8_t *data)
@@ -829,7 +842,7 @@ void gfx_copy(int src_x, int src_y, int w, int h, unsigned src_i, int dst_x, int
 		gfx_indexed_copy(src_x, src_y, w, h, src, dst_x, dst_y, dst);
 	else
 		gfx_direct_copy(src_x, src_y, w, h, src, dst_x, dst_y, dst);
-	gfx_dirty(dst_i);
+	gfx_dirty(dst_i, dst_x, dst_y, w, h);
 }
 
 static void gfx_indexed_copy_masked(int src_x, int src_y, int w, int h, SDL_Surface *src,
@@ -870,7 +883,7 @@ void gfx_copy_masked(int src_x, int src_y, int w, int h, unsigned src_i, int dst
 		gfx_indexed_copy_masked(src_x, src_y, w, h, src, dst_x, dst_y, dst, mask_color);
 	else
 		gfx_direct_copy_masked(src_x, src_y, w, h, src, dst_x, dst_y, dst, mask_color);
-	gfx_dirty(dst_i);
+	gfx_dirty(dst_i, dst_x, dst_y, w, h);
 }
 
 static void gfx_indexed_copy_swap(int src_x, int src_y, int w, int h, SDL_Surface *src,
@@ -919,8 +932,8 @@ void gfx_copy_swap(int src_x, int src_y, int w, int h, unsigned src_i, int dst_x
 		gfx_indexed_copy_swap(src_x, src_y, w, h, src, dst_x, dst_y, dst);
 	else
 		gfx_direct_copy_swap(src_x, src_y, w, h, src, dst_x, dst_y, dst);
-	gfx_dirty(src_i);
-	gfx_dirty(dst_i);
+	gfx_dirty(src_i, src_x, src_y, w, h);
+	gfx_dirty(dst_i, dst_x, dst_y, w, h);
 }
 
 static void gfx_indexed_compose(int fg_x, int fg_y, int w, int h, SDL_Surface *fg, int bg_x,
@@ -953,7 +966,7 @@ void gfx_compose(int fg_x, int fg_y, int w, int h, unsigned fg_i, int bg_x, int 
 	else
 		gfx_direct_compose(fg_x, fg_y, w, h, fg, bg_x, bg_y, bg, dst_x, dst_y, dst,
 				mask_color);
-	gfx_dirty(dst_i);
+	gfx_dirty(dst_i, dst_x, dst_y, w, h);
 }
 
 void gfx_blend(int src_x, int src_y, int w, int h, unsigned src_i, int dst_x, int dst_y,
@@ -975,7 +988,7 @@ void gfx_blend(int src_x, int src_y, int w, int h, unsigned src_i, int dst_x, in
 	SDL_CALL(SDL_SetSurfaceAlphaMod, src, 255);
 	SDL_CALL(SDL_SetSurfaceBlendMode, src, SDL_BLENDMODE_NONE);
 
-	gfx_dirty(dst_i);
+	gfx_dirty(dst_i, dst_x, dst_y, w, h);
 }
 
 _Static_assert(GFX_DIRECT_FORMAT == SDL_PIXELFORMAT_RGB24);
@@ -1014,7 +1027,7 @@ void gfx_blend_masked(int src_x, int src_y, int w, int h, unsigned src_i, int ds
 		mask++;
 	);
 
-	gfx_dirty(dst_i);
+	gfx_dirty(dst_i, dst_x, dst_y, w, h);
 }
 
 void gfx_invert_colors(int x, int y, int w, int h, unsigned i)
@@ -1032,7 +1045,7 @@ void gfx_invert_colors(int x, int y, int w, int h, unsigned i)
 	);
 
 	gfx_fill_end(s);
-	gfx_dirty(i);
+	gfx_dirty(i, x, y, w, h);
 }
 
 static void gfx_indexed_fill(int x, int y, int w, int h, SDL_Surface *dst, uint8_t c)
@@ -1056,7 +1069,7 @@ void gfx_fill(int x, int y, int w, int h, unsigned i, uint32_t c)
 		gfx_indexed_fill(x, y, w, h, dst, c);
 	else
 		gfx_direct_fill(x, y, w, h, dst, c);
-	gfx_dirty(i);
+	gfx_dirty(i, x, y, w, h);
 }
 
 static void gfx_indexed_swap_colors(SDL_Rect r, SDL_Surface *dst, uint8_t c1,
@@ -1125,7 +1138,7 @@ void gfx_swap_colors(int x, int y, int w, int h, unsigned i, uint32_t c1, uint32
 		gfx_indexed_swap_colors(r, s, c1, c2);
 	else
 		gfx_direct_swap_colors(r, s, c1, c2);
-	gfx_dirty(i);
+	gfx_dirty(i, x, y, w, h);
 }
 
 void gfx_blend_fill(int x, int y, int w, int h, unsigned i, uint32_t c, uint8_t rate)
@@ -1152,7 +1165,7 @@ void gfx_blend_fill(int x, int y, int w, int h, unsigned i, uint32_t c, uint8_t 
 	);
 
 	gfx_fill_end(s);
-	gfx_dirty(i);
+	gfx_dirty(i, x, y, w, h);
 }
 
 static void gfx_indexed_draw_cg(SDL_Surface *s, struct cg *cg)
@@ -1207,5 +1220,5 @@ void gfx_draw_cg(unsigned i, struct cg *cg)
 	if (SDL_MUSTLOCK(s))
 		SDL_UnlockSurface(s);
 
-	gfx_dirty(i);
+	gfx_dirty(i, cg->metrics.x, cg->metrics.y, cg->metrics.w, cg->metrics.h);
 }

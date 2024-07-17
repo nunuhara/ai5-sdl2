@@ -288,7 +288,7 @@ static void render_text(const char *txt, struct render_text_params *p)
 	if (SDL_MUSTLOCK(surf))
 		SDL_UnlockSurface(surf);
 
-	gfx_dirty(p->surface);
+	gfx_whole_surface_dirty(p->surface);
 }
 
 /*
@@ -1162,7 +1162,7 @@ static void util_scroll(struct param_list *params)
 		SDL_Rect dst_r = { 120, y, 400, 1280 - y };
 		SDL_CALL(SDL_BlitSurface, src, &src_r, dst, &dst_r);
 
-		gfx_dirty(0);
+		gfx_whole_surface_dirty(0);
 		vm_peek();
 		if (input_down(INPUT_CANCEL)) {
 			mem_set_var32(18, 1);

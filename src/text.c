@@ -252,8 +252,9 @@ static void glyph_blit_indexed(SDL_Surface *glyph, int dst_x, int dst_y, SDL_Sur
 		SDL_UnlockSurface(glyph);
 }
 
-static unsigned gfx_text_draw_glyph_indexed(int x, int y, SDL_Surface *dst, uint32_t ch)
+static unsigned gfx_text_draw_glyph_indexed(int i, int x, int y, uint32_t ch)
 {
+	SDL_Surface *dst = gfx_get_surface(i);
 	assert(gfx.text.fg < dst->format->palette->ncolors);
 	SDL_Color fg = dst->format->palette->colors[gfx.text.fg];
 	SDL_Surface *s = TTF_RenderGlyph32_Solid(cur_font->id, ch, fg);
@@ -263,13 +264,15 @@ static unsigned gfx_text_draw_glyph_indexed(int x, int y, SDL_Surface *dst, uint
 	y -= cur_font->y_off;
 	unsigned w = s->w;
 	glyph_blit_indexed(s, x, y, dst);
+	gfx_dirty(i, x, y, s->w, s->h);
 	SDL_FreeSurface(s);
 	return w;
 }
 
-static unsigned gfx_text_draw_glyph_direct(int x, int y, SDL_Surface *dst, uint32_t ch)
+static unsigned gfx_text_draw_glyph_direct(int i, int x, int y, uint32_t ch)
 {
 	SDL_Surface *outline, *glyph;
+	SDL_Surface *dst = gfx_get_surface(i);
 	if (text_no_antialias) {
 		// XXX: Antialiasing can cause issues if the text is rendered to a surface
 		//      filled with the mask color and then copied to the main surface with
@@ -289,6 +292,7 @@ static unsigned gfx_text_draw_glyph_direct(int x, int y, SDL_Surface *dst, uint3
 	SDL_Rect glyph_r = { x, y, glyph->w, glyph->h };
 	SDL_CALL(SDL_BlitSurface, outline, NULL, dst, &outline_r);
 	SDL_CALL(SDL_BlitSurface, glyph, NULL, dst, &glyph_r);
+	gfx_dirty(i, x-1, y-1, outline->w, outline->h);
 	SDL_FreeSurface(glyph);
 	SDL_FreeSurface(outline);
 	return glyph_r.w;
@@ -299,13 +303,11 @@ unsigned gfx_text_draw_glyph(int x, int y, unsigned i, uint32_t ch)
 	if (!cur_font)
 		return 0;
 
-	SDL_Surface *dst = gfx_get_surface(i);
 	unsigned r;
 	if (game->bpp == 8)
-		r = gfx_text_draw_glyph_indexed(x, y, dst, ch);
+		r = gfx_text_draw_glyph_indexed(i, x, y, ch);
 	else
-		r = gfx_text_draw_glyph_direct(x, y, dst, ch);
-	gfx_dirty(i);
+		r = gfx_text_draw_glyph_direct(i, x, y, ch);
 	return r;
 }
 

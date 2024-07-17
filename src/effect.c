@@ -30,7 +30,8 @@
 
 void transition_update(vm_timer_t *timer, unsigned dst_i, unsigned ms)
 {
-	gfx_dirty(dst_i);
+	// FIXME: use gfx_dirty with damage coordinates
+	gfx_whole_surface_dirty(dst_i);
 	vm_peek();
 	vm_timer_tick(timer, ms * config.transition_speed);
 }
@@ -294,7 +295,7 @@ void gfx_pixelate(int x, int y, int w, int h, unsigned dst_i, unsigned mag)
 			memset(p, c, min(band_size, r.w - col));
 		}
 	}
-	gfx_dirty(dst_i);
+	gfx_whole_surface_dirty(dst_i);
 }
 
 static void fade_row(uint8_t *base, unsigned row, unsigned w, unsigned h, unsigned pitch)
@@ -540,7 +541,7 @@ void gfx_scale_h(unsigned i, int mag)
 		s->scaled = true;
 	}
 
-	gfx_dirty(i);
+	gfx_whole_surface_dirty(i);
 	gfx_update();
 }
 
@@ -568,5 +569,5 @@ void gfx_zoom(int src_x, int src_y, int w, int h, unsigned src_i, unsigned dst_i
 		transition_update(&timer, dst_i, 32);
 	}
 	SDL_CALL(SDL_BlitSurface, src, NULL, dst, NULL);
-	gfx_dirty(dst_i);
+	gfx_whole_surface_dirty(dst_i);
 }

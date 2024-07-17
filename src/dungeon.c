@@ -829,7 +829,7 @@ static void dungeon_draw_view(enum dungeon_view_mode mode)
 	if (SDL_MUSTLOCK(dst))
 		SDL_UnlockSurface(dst);
 
-	gfx_dirty(dst_i);
+	gfx_whole_surface_dirty(dst_i);
 	vm_timer_tick(&timer, 25);
 	gfx_update();
 }

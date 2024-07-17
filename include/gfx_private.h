@@ -69,6 +69,8 @@ struct gfx {
 	} text;
 	bool dirty;
 	bool hidden;
+
+	SDL_Rect damaged;
 };
 extern struct gfx gfx;
 
