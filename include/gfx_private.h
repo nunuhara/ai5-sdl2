@@ -41,6 +41,8 @@ struct gfx_surface {
 	SDL_Rect src;   // source rectangle for BlitScaled
 	SDL_Rect dst;   // destination rectangle for BlitScaled
 	bool scaled;    // if true, `src` and `rect` differ
+	bool dirty;
+	SDL_Rect damaged;
 };
 
 struct gfx {
@@ -67,10 +69,7 @@ struct gfx {
 		SDL_Color fg_color;
 		unsigned size;
 	} text;
-	bool dirty;
 	bool hidden;
-
-	SDL_Rect damaged;
 };
 extern struct gfx gfx;
 

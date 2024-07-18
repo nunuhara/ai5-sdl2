@@ -29,6 +29,8 @@ void gfx_update(void);
 void gfx_dirty(unsigned surface, int x, int y, int w, int h);
 void gfx_screen_dirty(void);
 void gfx_whole_surface_dirty(unsigned surface);
+bool gfx_is_dirty(unsigned surface);
+void gfx_clean(unsigned surface);
 unsigned gfx_current_surface(void);
 void gfx_set_screen_surface(unsigned i);
 
@@ -103,6 +105,7 @@ void gfx_text_swap_colors(int x, int y, int w, int h, unsigned i);
 unsigned gfx_text_draw_glyph(int x, int y, unsigned i, uint32_t ch);
 unsigned gfx_text_size_char(uint32_t ch);
 
-extern bool text_no_antialias;
+// default: false
+extern bool text_antialias;
 
 #endif // AI5_GFX_H

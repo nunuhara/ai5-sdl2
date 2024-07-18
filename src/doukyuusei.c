@@ -1343,7 +1343,6 @@ static void doukyuusei_init(void)
 	audio_set_volume(AUDIO_CH_BGM, -1500);
 	audio_set_volume(AUDIO_CH_SE0, -1500);
 	audio_set_volume(AUDIO_CH_VOICE0, -500);
-	text_no_antialias = true;
 }
 
 static void doukyuusei_draw_text(const char *text)

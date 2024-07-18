@@ -68,23 +68,31 @@ bool gfx_confirm_quit(void)
 	return result;
 }
 
-struct gfx gfx = { .dirty = true };
+struct gfx gfx = {0};
 struct gfx_view gfx_view = { 640, 400 };
 
 void gfx_dirty(unsigned surface, int x, int y, int w, int h)
 {
-	if (surface != gfx.screen)
-		return;
-
-	gfx.dirty = true;
+	gfx.surface[surface].dirty = true;
 	SDL_Rect r = { x, y, w, h };
-	SDL_UnionRect(&gfx.damaged, &r, &gfx.damaged);
+	SDL_UnionRect(&gfx.surface[surface].damaged, &r, &gfx.surface[surface].damaged);
+}
+
+bool gfx_is_dirty(unsigned surface)
+{
+	return gfx.surface[surface].dirty;
+}
+
+void gfx_clean(unsigned surface)
+{
+	gfx.surface[surface].dirty = false;
+	gfx.surface[surface].damaged = (SDL_Rect){0};
 }
 
 void gfx_screen_dirty(void)
 {
-	gfx.dirty = true;
-	gfx.damaged = gfx.surface[gfx.screen].src;
+	gfx.surface[gfx.screen].dirty = true;
+	gfx.surface[gfx.screen].damaged = gfx.surface[gfx.screen].src;
 }
 
 void gfx_whole_surface_dirty(unsigned surface)
@@ -270,7 +278,10 @@ static void gfx_init_window(void)
 		gfx.surface[i].src = (SDL_Rect) { 0, 0, w, h };
 		gfx.surface[i].dst = (SDL_Rect) { 0, 0, w, h };
 		gfx.surface[i].scaled = false;
+		gfx.surface[i].dirty = false;
+		gfx.surface[i].damaged = (SDL_Rect) {0};
 	}
+	gfx_screen_dirty();
 
 	SDL_CTOR(SDL_CreateRGBSurfaceWithFormat, gfx.display, 0, gfx_view.w, gfx_view.h,
 			GFX_DIRECT_BPP, GFX_DIRECT_FORMAT);
@@ -298,7 +309,7 @@ static void gfx_fini(void)
 		SDL_DestroyWindow(gfx.window);
 		SDL_Quit();
 	}
-	gfx = (struct gfx){ .dirty = true };
+	gfx_screen_dirty();
 }
 
 void gfx_init(const char *name)
@@ -327,12 +338,12 @@ void gfx_init(const char *name)
 
 void gfx_update(void)
 {
-	if (gfx.hidden || !gfx.dirty)
-		return;
 	struct gfx_surface *screen = &gfx.surface[gfx.screen];
-	SDL_CALL(SDL_BlitSurface, screen->s, &gfx.damaged, gfx.display, &gfx.damaged);
+	if (gfx.hidden || !screen->dirty)
+		return;
+	SDL_CALL(SDL_BlitSurface, screen->s, &screen->damaged, gfx.display, &screen->damaged);
 	if (gfx.overlay)
-		SDL_CALL(SDL_BlitSurface, gfx.overlay, &gfx.damaged, gfx.display, &gfx.damaged);
+		SDL_CALL(SDL_BlitSurface, gfx.overlay, &screen->damaged, gfx.display, &screen->damaged);
 	if (screen->scaled) {
 		SDL_Rect src = screen->src;
 		SDL_Rect dst = screen->dst;
@@ -340,15 +351,14 @@ void gfx_update(void)
 		SDL_CALL(SDL_UpdateTexture, gfx.texture, NULL, gfx.scaled_display->pixels,
 				gfx.scaled_display->pitch);
 	} else {
-		uint8_t *p = gfx.display->pixels + gfx.damaged.y * gfx.display->pitch
-			+ gfx.damaged.x * gfx.display->format->BytesPerPixel;
-		SDL_CALL(SDL_UpdateTexture, gfx.texture, &gfx.damaged, p, gfx.display->pitch);
+		uint8_t *p = gfx.display->pixels + screen->damaged.y * gfx.display->pitch
+			+ screen->damaged.x * gfx.display->format->BytesPerPixel;
+		SDL_CALL(SDL_UpdateTexture, gfx.texture, &screen->damaged, p, gfx.display->pitch);
 	}
 	SDL_CALL(SDL_RenderClear, gfx.renderer);
 	SDL_CALL(SDL_RenderCopy, gfx.renderer, gfx.texture, NULL, NULL);
 	SDL_RenderPresent(gfx.renderer);
-	gfx.dirty = false;
-	gfx.damaged = (SDL_Rect){0};
+	gfx_clean(gfx.screen);
 }
 
 void gfx_display_freeze(void)
@@ -361,7 +371,7 @@ void gfx_display_unfreeze(void)
 {
 	GFX_LOG("gfx_display_unfreeze");
 	gfx.hidden = false;
-	gfx.dirty = true;
+	gfx_screen_dirty();
 }
 
 #define FADE_FRAME_TIME 16
@@ -441,7 +451,7 @@ void _gfx_display_fade_in(unsigned ms, bool(*cb)(void))
 	SDL_RenderPresent(gfx.renderer);
 
 	gfx.hidden = false;
-	gfx.dirty = true;
+	gfx_screen_dirty();
 }
 
 void gfx_display_fade_in(unsigned ms)
@@ -467,7 +477,7 @@ void gfx_display_unhide(void)
 	GFX_LOG("gfx_unhide_screen");
 	// allow updates
 	gfx.hidden = false;
-	gfx.dirty = true;
+	gfx_screen_dirty();
 	// restore clear color
 	if (game->bpp != 8) {
 		SDL_CALL(SDL_SetRenderDrawColor, gfx.renderer, 0, 0, 0, 0);

@@ -74,7 +74,7 @@ struct font_spec {
 	unsigned face;
 } font_spec[NR_FONT_TYPES] = {0};
 
-bool text_no_antialias = false;
+bool text_antialias = false;
 
 static struct font *font_lookup(int size)
 {
@@ -273,7 +273,7 @@ static unsigned gfx_text_draw_glyph_direct(int i, int x, int y, uint32_t ch)
 {
 	SDL_Surface *outline, *glyph;
 	SDL_Surface *dst = gfx_get_surface(i);
-	if (text_no_antialias) {
+	if (!text_antialias) {
 		// XXX: Antialiasing can cause issues if the text is rendered to a surface
 		//      filled with the mask color and then copied to the main surface with
 		//      copy_masked (e.g. Doukyuusei does this).

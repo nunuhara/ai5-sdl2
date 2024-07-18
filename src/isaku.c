@@ -35,6 +35,8 @@
 #define VAR4_SIZE 2048
 #define MEM16_SIZE 4096
 
+static bool overlay_on = false;
+
 static void isaku_mem_restore(void)
 {
 	mem_set_sysvar16_ptr(MEMORY_MES_NAME_SIZE + VAR4_SIZE + 56);
@@ -460,6 +462,35 @@ static void isaku_item_window(struct param_list *params)
 	}
 }
 
+static void disable_overlay(void)
+{
+	SDL_Surface *overlay = gfx_get_overlay();
+	SDL_Rect r = { 0, 388, 640, 72 };
+	SDL_CALL(SDL_FillRect, overlay, &r, SDL_MapRGBA(overlay->format, 0, 0, 0, 0));
+	overlay_on = false;
+}
+
+static void isaku_overlay(struct param_list *params)
+{
+	switch (vm_expr_param(params, 0)) {
+	case 0:
+		// XXX: always called with same arguments; we just hardcode them
+		overlay_on = true;
+		gfx_dirty(0, 0, 388, 640, 72);
+		break;
+	case 1:
+		disable_overlay();
+		break;
+	case 3:
+		disable_overlay();
+		gfx_dirty(0, 0, 388, 640, 72);
+		break;
+	default:
+		WARNING("System.function[23].function[%u] not implemented",
+				params->params[0].val);
+	}
+}
+
 static void isaku_strlen(struct param_list *params)
 {
 	vm_flag_on(FLAG_STRLEN);
@@ -597,6 +628,31 @@ static void isaku_draw_text(const char *text)
 		vm_draw_text(text);
 }
 
+static void isaku_init(void)
+{
+	audio_set_volume(AUDIO_CH_BGM, -1500);
+	audio_set_volume(AUDIO_CH_SE0, -1500);
+	audio_set_volume(AUDIO_CH_VOICE0, -500);
+}
+
+static void isaku_update(void)
+{
+	if (!mem_get_var4(2007) || !overlay_on)
+		return;
+	if (!gfx_is_dirty(5))
+		return;
+
+	// copy text to overlay
+	SDL_Color mask = gfx_decode_bgr555(mem_get_sysvar16(mes_sysvar16_mask_color));
+	SDL_Rect rect = { 0, 388, 640, 72 };
+	SDL_Surface *src = gfx_get_surface(5);
+	SDL_Surface *dst = gfx_get_overlay();
+	SDL_CALL(SDL_SetColorKey, src, SDL_TRUE, SDL_MapRGB(src->format, mask.r, mask.g, mask.b));
+	SDL_CALL(SDL_BlitSurface, src, &rect, dst, &rect);
+	SDL_CALL(SDL_SetColorKey, src, SDL_FALSE, 0);
+	gfx_clean(5);
+}
+
 struct game game_isaku = {
 	.id = GAME_ISAKU,
 	.surface_sizes = {
@@ -618,6 +674,8 @@ struct game game_isaku = {
 	.mem_restore = isaku_mem_restore,
 	.draw_text_zen = isaku_draw_text,
 	.draw_text_han = isaku_draw_text,
+	.init = isaku_init,
+	.update = isaku_update,
 	.expr_op = { DEFAULT_EXPR_OP },
 	.stmt_op = { DEFAULT_STMT_OP },
 	.sys = {
@@ -640,6 +698,7 @@ struct game game_isaku = {
 		[18] = sys_check_input,
 		[20] = isaku_dungeon,
 		[22] = isaku_item_window,
+		[23] = isaku_overlay,
 		[24] = isaku_strlen,
 		[25] = isaku_save_menu,
 		[26] = isaku_load_menu,
