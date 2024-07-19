@@ -286,6 +286,15 @@ static void isaku_graphics(struct param_list *params)
 	}
 }
 
+static void isaku_wait(struct param_list *params)
+{
+	if (params->nr_params > 0 && vm_expr_param(params, 0) == 0) {
+		vm_delay(16);
+	} else {
+		sys_wait(params);
+	}
+}
+
 static void isaku_dungeon(struct param_list *params)
 {
 	switch (vm_expr_param(params, 0)) {
@@ -548,6 +557,22 @@ static void sys_27(struct param_list *params)
 	}
 }
 
+static void util_offset_screen(struct param_list *params)
+{
+	int16_t x_off = (uint16_t)vm_expr_param(params, 1);
+	int16_t y_off = (uint16_t)vm_expr_param(params, 2);
+	struct gfx_surface *s = &gfx.surface[0];
+	if (!x_off && !y_off) {
+		s->dst = s->src;
+		s->scaled = false;
+	} else {
+		s->dst.x = x_off;
+		s->dst.y = y_off;
+		s->scaled = true;
+	}
+	gfx_screen_dirty();
+}
+
 static void util_load_heap(struct param_list *params)
 {
 	savedata_read("FLAG08", memory_raw, 3132, 100);
@@ -573,6 +598,24 @@ static void util_delay(struct param_list *params)
 		vm_peek();
 		vm_timer_tick(&t, 16);
 	}
+}
+
+static void util_crossfade(struct param_list *params)
+{
+	// XXX: params are always the same except for start/end alpha
+	unsigned start_a = vm_expr_param(params, 12) * 8;;
+	unsigned end_a = min(255, vm_expr_param(params, 13) * 8);
+
+	vm_timer_t timer = vm_timer_create();
+	for (unsigned a = start_a; a < end_a; a += 8) {
+		// XXX: one surface is always solid black
+		gfx_fill(0, 0, 640, 480, 0, 0);
+		gfx_blend(0, 0, 640, 480, 3, 0, 0, 0, a);
+		vm_peek();
+		vm_timer_tick(&timer, 33);
+	}
+	if (end_a == 255)
+		gfx_copy(0, 0, 640, 480, 3, 0, 0, 0);
 }
 
 static void isaku_handle_event(SDL_Event *e)
@@ -690,11 +733,12 @@ struct game game_isaku = {
 		[8]  = sys_load_image,
 		[9]  = isaku_display,
 		[10] = isaku_graphics,
-		[11] = sys_wait,
+		[11] = isaku_wait,
 		[12] = sys_set_text_colors_direct,
 		[13] = sys_farcall,
 		[14] = sys_get_cursor_segment,
 		[15] = sys_menu_get_no,
+		[16] = sys_get_time,
 		[18] = sys_check_input,
 		[20] = isaku_dungeon,
 		[22] = isaku_item_window,
@@ -705,12 +749,18 @@ struct game game_isaku = {
 		[27] = sys_27,
 	},
 	.util = {
+		[0]  = util_offset_screen,
 		[2]  = util_warn_unimplemented,
 		[3]  = util_load_heap,
 		[4]  = util_save_heap,
+		[6]  = NULL, // TODO: util_scroll_left
 		[7]  = util_delay,
+		[8]  = util_crossfade,
+		[9]  = NULL, // TODO: util_ending1
+		[10] = NULL, // TODO: util_ending2
 		[11] = util_warn_unimplemented,
 		[12] = util_warn_unimplemented,
+		[13] = NULL, // TODO: util_ending3
 	},
 	.flags = {
 		[FLAG_ANIM_ENABLE]  = 0x0004,
