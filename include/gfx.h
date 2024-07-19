@@ -31,6 +31,8 @@ void gfx_screen_dirty(void);
 void gfx_whole_surface_dirty(unsigned surface);
 bool gfx_is_dirty(unsigned surface);
 void gfx_clean(unsigned surface);
+void gfx_overlay_enable(void);
+void gfx_overlay_disable(void);
 unsigned gfx_current_surface(void);
 void gfx_set_screen_surface(unsigned i);
 

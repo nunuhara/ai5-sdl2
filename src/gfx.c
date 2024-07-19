@@ -101,6 +101,20 @@ void gfx_whole_surface_dirty(unsigned surface)
 	gfx_dirty(surface, s->src.x, s->src.y, s->src.w, s->src.h);
 }
 
+static bool gfx_overlay_enabled = true;
+
+void gfx_overlay_enable(void)
+{
+	gfx_overlay_enabled = true;
+	gfx_screen_dirty();
+}
+
+void gfx_overlay_disable(void)
+{
+	gfx_overlay_enabled = false;
+	gfx_screen_dirty();
+}
+
 SDL_Surface *gfx_get_surface(unsigned i)
 {
 	if (unlikely(i >= GFX_NR_SURFACES || !gfx.surface[i].s)) {
@@ -342,7 +356,7 @@ void gfx_update(void)
 	if (gfx.hidden || !screen->dirty)
 		return;
 	SDL_CALL(SDL_BlitSurface, screen->s, &screen->damaged, gfx.display, &screen->damaged);
-	if (gfx.overlay)
+	if (gfx.overlay && gfx_overlay_enabled)
 		SDL_CALL(SDL_BlitSurface, gfx.overlay, &screen->damaged, gfx.display, &screen->damaged);
 	if (screen->scaled) {
 		SDL_Rect src = screen->src;

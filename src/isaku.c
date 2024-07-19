@@ -21,6 +21,7 @@
 #include "ai5/anim.h"
 #include "ai5/mes.h"
 
+#include "ai5.h"
 #include "anim.h"
 #include "audio.h"
 #include "cursor.h"
@@ -275,9 +276,26 @@ static void isaku_display(struct param_list *params)
 
 static void isaku_graphics(struct param_list *params)
 {
+	static int frame = 0;
+	static vm_timer_t timer = 0;
 	switch (vm_expr_param(params, 0)) {
-	case 0: sys_graphics_copy(params); break;
-	case 1: sys_graphics_copy_masked(params); break;
+	case 0:
+		sys_graphics_copy(params);
+		if (vm_expr_param(params, 2) == vm_expr_param(params, 4)) {
+			if (!frame) {
+				vm_timer_tick(&timer, 4);
+			}
+			frame = (frame + 1) % 4;
+		}
+		break;
+	case 1:
+		sys_graphics_copy_masked(params);
+		if (vm_expr_param(params, 2) == vm_expr_param(params, 4)) {
+			if (!frame)
+				vm_timer_tick(&timer, 4);
+			frame = (frame + 1) % 4;
+		}
+		break;
 	case 2: sys_graphics_fill_bg(params); break;
 	case 3: sys_graphics_copy_swap(params); break;
 	case 4: sys_graphics_swap_bg_fg(params); break;
@@ -548,9 +566,44 @@ static void isaku_load_menu(struct param_list *params)
 	isaku_menu(params, &load_menu);
 }
 
-static void sys_27(struct param_list *params)
+static bool message_clear_enabled = false;
+static bool message_cleared = false;
+
+static void message_clear(void)
+{
+	if (!message_clear_enabled)
+		return;
+
+	if (overlay_on) {
+		gfx_overlay_disable();
+		message_cleared = true;
+		while (message_cleared)
+			vm_peek();
+		gfx_overlay_enable();
+	} else {
+		gfx_copy(0, 316, 640, 72, 5, 0, 388, 0);
+		message_cleared = true;
+		while (message_cleared)
+			vm_peek();
+		gfx_copy(0, 388, 640, 72, 5, 0, 388, 0);
+	}
+}
+
+static void isaku_message(struct param_list *params)
 {
 	switch (vm_expr_param(params, 0)) {
+	case 0:
+		message_clear_enabled = true;
+		message_cleared = false;
+		break;
+	case 1:
+		// XXX: System.wait not called, so we handle msg_skip_delay here
+		if (input_down(INPUT_CTRL)) {
+			vm_peek();
+			vm_delay(config.msg_skip_delay);
+		}
+		message_clear_enabled = false;
+		break;
 	default:
 		WARNING("System.function[27].function[%u] not implemented",
 				params->params[0].val);
@@ -649,6 +702,12 @@ static void isaku_handle_event(SDL_Event *e)
 		case SDLK_F9:
 			menu_open(&load_menu);
 			break;
+		case SDLK_TAB:
+			if (message_cleared)
+				message_cleared = false;
+			else
+				message_clear();
+			break;
 		}
 	case SDL_MOUSEBUTTONDOWN:
 	case SDL_MOUSEBUTTONUP:
@@ -746,7 +805,7 @@ struct game game_isaku = {
 		[24] = isaku_strlen,
 		[25] = isaku_save_menu,
 		[26] = isaku_load_menu,
-		[27] = sys_27,
+		[27] = isaku_message,
 	},
 	.util = {
 		[0]  = util_offset_screen,
