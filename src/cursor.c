@@ -25,6 +25,7 @@
 #include "nulib/little_endian.h"
 
 #include "ai5.h"
+#include "ai5/cg.h"
 #include "cursor.h"
 #include "gfx_private.h"
 #include "input.h"
@@ -193,7 +194,7 @@ struct cursor_data {
 	uint16_t hotspot_x;
 	uint16_t hotspot_y;
 	struct bitmap_info bm_info;
-	struct { uint8_t b, g, r, u; } colors[2];
+	struct { uint8_t b, g, r, u; } colors[256];
 };
 
 struct resource {
@@ -404,43 +405,92 @@ bool read_cursor_data(struct buffer *b, struct cursor_data *cur, uint8_t **xor_b
 	// only simple monochrome bitmaps are supported
 	if (cur->bm_info.planes != 1)
 		return false;
-	if (cur->bm_info.bpp != 1)
+	if (cur->bm_info.bpp != 1 && cur->bm_info.bpp != 8)
 		return false;
 	if (cur->bm_info.compression != 0)
 		return false;
-	if (cur->bm_info.colors_used != 0 && cur->bm_info.colors_used != 2)
+	if (cur->bm_info.colors_used != 0 && cur->bm_info.colors_used != 2
+			&& cur->bm_info.colors_used != 256)
 		return false;
-	for (int i = 0; i < 2; i++) {
+	unsigned nr_colors = max(2, cur->bm_info.colors_used);
+	for (unsigned i = 0; i < nr_colors; i++) {
 		cur->colors[i].b = buffer_read_u8(b);
 		cur->colors[i].g = buffer_read_u8(b);
 		cur->colors[i].r = buffer_read_u8(b);
 		cur->colors[i].u = buffer_read_u8(b);
 	}
 	*xor_bitmap = (uint8_t*)buffer_strdata(b);
-	buffer_skip(b, cur->bm_info.size_image / 2);
+	if (cur->bm_info.bpp == 8) {
+		buffer_skip(b, cur->bm_info.width * (cur->bm_info.height / 2));
+	} else {
+		buffer_skip(b, cur->bm_info.size_image / 2);
+	}
 	*and_bitmap = (uint8_t*)buffer_strdata(b);
 	return true;
 }
 
-SDL_Cursor *read_cursor(struct buffer *b, struct resource *res)
+static SDL_Cursor *load_color_cursor(struct cursor_data *data, uint8_t *pixels,
+		uint8_t *bitmask)
 {
-	struct cursor_data cur;
-	uint8_t *xor_bitmap = NULL;
-	uint8_t *and_bitmap = NULL;
-	buffer_seek(b, res->leaf.addr);
-	if (!read_cursor_data(b, &cur, &xor_bitmap, &and_bitmap))
-		return NULL;
+	unsigned w = data->bm_info.width;
+	unsigned h = data->bm_info.height / 2;
 
-	int stride = cur.bm_info.width / 8 + (cur.bm_info.width % 8 ? 1 : 0);
+	// expand mask
+	uint8_t *mask = xmalloc(w * h);
+	for (int row = 0; row < h; row++) {
+		uint8_t *dst = mask + row * w;
+		uint8_t *src = bitmask + row * (w/8);
+		for (int bit = 0x80, col = 0; col < w; bit >>= 1, col++, dst++) {
+			if (bit == 0) {
+				bit = 0x80;
+				src++;
+			}
+			*dst = (*src & bit) ? 0 : 255;
+		}
+	}
+
+	// convert pixels/mask to RGBA CG
+	struct cg *cg = cg_alloc_direct(w, h);
+	for (unsigned row = 0; row < h; row++) {
+		uint8_t *dst = cg->pixels + row * w * 4;
+		uint8_t *p_src = pixels + (h - (row + 1)) * w;
+		uint8_t *m_src = mask + (h - (row + 1)) * w;
+		for (unsigned col = 0; col < w; col++, p_src++, m_src++, dst += 4) {
+			uint8_t c = *p_src;
+			dst[0] = data->colors[c].r;
+			dst[1] = data->colors[c].g;
+			dst[2] = data->colors[c].b;
+			dst[3] = *m_src;
+		}
+	}
+
+	free(mask);
+
+	SDL_Surface *s;
+	SDL_CTOR(SDL_CreateRGBSurfaceWithFormatFrom, s, cg->pixels, cg->metrics.w,
+			cg->metrics.h, 32, cg->metrics.w * 4, SDL_PIXELFORMAT_RGBA32);
+
+	SDL_Cursor *c = SDL_CreateColorCursor(s, data->hotspot_x, data->hotspot_y);
+	if (!c)
+		WARNING("SDL_CreateColorCursor: %s", SDL_GetError());
+	SDL_FreeSurface(s);
+	cg_free(cg);
+	return c;
+}
+
+static SDL_Cursor *load_monochrome_cursor(struct cursor_data *cur, uint8_t *xor_bitmap,
+		uint8_t *and_bitmap)
+{
+	int stride = cur->bm_info.width / 8 + (cur->bm_info.width % 8 ? 1 : 0);
 	stride = (stride + 3) & ~3;
 
 	// convert masks to format expected by SDL
-	uint8_t *data = xcalloc(1, cur.bm_info.size_image / 2);
-	uint8_t *mask = xcalloc(1, cur.bm_info.size_image / 2);
-	for (int row = 0; row < cur.bm_info.height / 2; row++) {
-		int dst_byte = (cur.bm_info.height / 2 - (row + 1)) * stride;
+	uint8_t *data = xcalloc(1, cur->bm_info.size_image / 2);
+	uint8_t *mask = xcalloc(1, cur->bm_info.size_image / 2);
+	for (int row = 0; row < cur->bm_info.height / 2; row++) {
+		int dst_byte = (cur->bm_info.height / 2 - (row + 1)) * stride;
 		int src_byte = row * stride;
-		for (int col = 0; col < cur.bm_info.width / 8; col++) {
+		for (int col = 0; col < cur->bm_info.width / 8; col++) {
 			for (int bit = 7; bit >= 0; bit--) {
 				uint8_t xor = (xor_bitmap[src_byte] >> bit) & 1;
 				uint8_t and = (and_bitmap[src_byte] >> bit) & 1;
@@ -462,15 +512,27 @@ SDL_Cursor *read_cursor(struct buffer *b, struct resource *res)
 	}
 
 	SDL_Cursor *c = SDL_CreateCursor(data, mask,
-			cur.bm_info.width, cur.bm_info.height / 2,
-			cur.hotspot_x, cur.hotspot_y);
+			cur->bm_info.width, cur->bm_info.height / 2,
+			cur->hotspot_x, cur->hotspot_y);
 	free(data);
 	free(mask);
-	if (!c) {
+	if (!c)
 		WARNING("SDL_CreateCursor: %s", SDL_GetError());
-		return NULL;
-	}
 	return c;
+}
+
+SDL_Cursor *read_cursor(struct buffer *b, struct resource *res)
+{
+	struct cursor_data cur;
+	uint8_t *xor_bitmap = NULL;
+	uint8_t *and_bitmap = NULL;
+	buffer_seek(b, res->leaf.addr);
+	if (!read_cursor_data(b, &cur, &xor_bitmap, &and_bitmap))
+		return NULL;
+
+	if (cur.bm_info.bpp == 8)
+		return load_color_cursor(&cur, xor_bitmap, and_bitmap);
+	return load_monochrome_cursor(&cur, xor_bitmap, and_bitmap);
 }
 
 int read_group_cursor(struct buffer *b, struct resource *res)

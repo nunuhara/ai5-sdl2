@@ -626,6 +626,11 @@ static void util_offset_screen(struct param_list *params)
 	gfx_screen_dirty();
 }
 
+static void util_item_cursor(struct param_list *params)
+{
+	cursor_load(vm_expr_param(params, 1) - 100, 1, NULL);
+}
+
 static void util_load_heap(struct param_list *params)
 {
 	savedata_read("FLAG08", memory_raw, 3132, 100);
@@ -809,7 +814,7 @@ struct game game_isaku = {
 	},
 	.util = {
 		[0]  = util_offset_screen,
-		[2]  = util_warn_unimplemented,
+		[2]  = util_item_cursor,
 		[3]  = util_load_heap,
 		[4]  = util_save_heap,
 		[6]  = NULL, // TODO: util_scroll_left
