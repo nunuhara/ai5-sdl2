@@ -19,11 +19,13 @@
 #include "nulib.h"
 #include "nulib/little_endian.h"
 #include "ai5/anim.h"
+#include "ai5/cg.h"
 #include "ai5/mes.h"
 
 #include "ai5.h"
 #include "anim.h"
 #include "audio.h"
+#include "asset.h"
 #include "cursor.h"
 #include "dungeon.h"
 #include "game.h"
@@ -149,6 +151,11 @@ static void isaku_anim(struct param_list *params)
 	}
 }
 
+static void isaku_clear_var4(void)
+{
+	memset(memory_raw + MEMORY_MES_NAME_SIZE, 0, VAR4_SIZE);
+}
+
 static void isaku_savedata(struct param_list *params)
 {
 	switch (vm_expr_param(params, 0)) {
@@ -156,9 +163,9 @@ static void isaku_savedata(struct param_list *params)
 	case 1: savedata_resume_save(sys_save_name(params)); break;
 	case 2: savedata_load(sys_save_name(params)); break;
 	case 3: savedata_save_union_var4(sys_save_name(params), VAR4_SIZE); break;
-	//case 4: savedata_load_isaku_vars(save_name); break;
-	//case 5: savedata_save_isaku_vars(save_name); break;
-	//case 6: savedata_clear_var4(save_name); break;
+	//case 4: unused
+	//case 5: unused
+	case 6: isaku_clear_var4(); break;
 	default: VM_ERROR("System.SaveData.function[%u] not implemented",
 				 params->params[0].val);
 	}
@@ -214,6 +221,15 @@ static void isaku_audio(struct param_list *params)
 	}
 }
 
+static void isaku_voice_play_sync(const char *name)
+{
+	audio_voice_play(name, 0);
+	while (audio_is_playing(AUDIO_CH_VOICE(0))) {
+		vm_peek();
+		vm_delay(50);
+	}
+}
+
 static void isaku_voice(struct param_list *params)
 {
 	if (!vm_flag_is_on(FLAG_VOICE_ENABLE))
@@ -221,6 +237,7 @@ static void isaku_voice(struct param_list *params)
 	switch (vm_expr_param(params, 0)) {
 	case 0: audio_voice_play(vm_string_param(params, 1), 0); break;
 	case 1: audio_stop(AUDIO_CH_VOICE(0)); break;
+	case 2: isaku_voice_play_sync(vm_string_param(params, 1)); break;
 	default: WARNING("System.Voice.function[%u] not implemented",
 				 params->params[0].val);
 	}
@@ -250,28 +267,34 @@ static void isaku_display_fade_out_fade_in(struct param_list *params)
 	}
 }
 
-// this is not actually used in Isaku, though it is available
-static void isaku_display_scan_out_scan_in(struct param_list *params)
-{
-	if (params->nr_params > 1) {
-		WARNING("System.Display.scan_out unimplemented");
-		gfx_display_fade_out(vm_expr_param(params, 1), 1000);
-	} else {
-		WARNING("System.Display.scan_in unimplemented");
-		gfx_display_fade_in(1000);
-	}
-}
-
 static void isaku_display(struct param_list *params)
 {
 	anim_halt_all();
 	switch (vm_expr_param(params, 0)) {
 	case 0: isaku_display_freeze_unfreeze(params); break;
 	case 1: isaku_display_fade_out_fade_in(params); break;
-	case 2: isaku_display_scan_out_scan_in(params); break;
+	case 2: isaku_display_fade_out_fade_in(params); break;
 	default: VM_ERROR("System.Display.function[%u] unimplemented",
 				 params->params[0].val);
 	}
+}
+
+static void isaku_graphics_crossfade(struct param_list *params)
+{
+	// XXX: params are always the same except for src/dst
+	unsigned src_a = vm_expr_param(params, 5);
+	unsigned src_b = vm_expr_param(params, 8);
+
+	vm_timer_t timer = vm_timer_create();
+	for (unsigned a = 0; a < 256; a += 8) {
+		if (input_down(INPUT_CTRL))
+			break;
+		gfx_copy(0, 0, 640, 480, src_b, 0, 0, 0);
+		gfx_blend(0, 0, 640, 480, src_a, 0, 0, 0, a);
+		vm_peek();
+		vm_timer_tick(&timer, 33);
+	}
+	gfx_copy(0, 0, 640, 480, src_a, 0, 0, 0);
 }
 
 static void isaku_graphics(struct param_list *params)
@@ -301,6 +324,7 @@ static void isaku_graphics(struct param_list *params)
 	case 4: sys_graphics_swap_bg_fg(params); break;
 	case 5: sys_graphics_copy_progressive(params); break;
 	case 6: sys_graphics_compose(params); break;
+	case 7: isaku_graphics_crossfade(params); break;
 	}
 }
 
@@ -328,6 +352,10 @@ static void isaku_dungeon(struct param_list *params)
 		break;
 	case 2: dungeon_draw(); break;
 	case 3: mem_set_var16(18, dungeon_move(vm_expr_param(params, 1))); break;
+	//case 4: unused
+	//case 5: unused
+	//case 6: unused
+	//case 7: unused
 	case 8: WARNING("System.Dungeon.function[8] not implemented"); break;
 	case 9: cursor_load(vm_expr_param(params, 1) + 25, 1, NULL); break;
 	default:
@@ -495,8 +523,12 @@ static void disable_overlay(void)
 	SDL_Rect r = { 0, 388, 640, 72 };
 	SDL_CALL(SDL_FillRect, overlay, &r, SDL_MapRGBA(overlay->format, 0, 0, 0, 0));
 	overlay_on = false;
+	gfx_overlay_disable();
 }
 
+/*
+ * Text overlay, used in (most?) scenes with full-screen CG.
+ */
 static void isaku_overlay(struct param_list *params)
 {
 	switch (vm_expr_param(params, 0)) {
@@ -508,6 +540,7 @@ static void isaku_overlay(struct param_list *params)
 	case 1:
 		disable_overlay();
 		break;
+	//case 2: unused
 	case 3:
 		disable_overlay();
 		gfx_dirty(0, 0, 388, 640, 72);
@@ -641,6 +674,24 @@ static void util_save_heap(struct param_list *params)
 	savedata_write("FLAG08", memory_raw, 3132, 100);
 }
 
+/*
+ * Left scroll animation. Used during Jinpachi's confession.
+ */
+static void util_scroll_left(struct param_list *params)
+{
+	// XXX: always called with same params
+	const unsigned src = 1;
+	const unsigned dst = 0;
+	const unsigned d = 894 - 640;
+
+	vm_timer_t timer = vm_timer_create();
+	for (unsigned x = 0; x < d; x += 4) {
+		gfx_copy(x, 0, 640, 480, src, 0, 0, dst);
+		vm_peek();
+		vm_timer_tick(&timer, 16);
+	}
+}
+
 static void util_delay(struct param_list *params)
 {
 	vm_timer_t t = vm_timer_create();
@@ -658,10 +709,14 @@ static void util_delay(struct param_list *params)
 	}
 }
 
+/*
+ * Crossfade animation with start/end alpha. Used when looking behind the
+ * projector screen.
+ */
 static void util_crossfade(struct param_list *params)
 {
 	// XXX: params are always the same except for start/end alpha
-	unsigned start_a = vm_expr_param(params, 12) * 8;;
+	unsigned start_a = vm_expr_param(params, 12) * 8;
 	unsigned end_a = min(255, vm_expr_param(params, 13) * 8);
 
 	vm_timer_t timer = vm_timer_create();
@@ -674,6 +729,105 @@ static void util_crossfade(struct param_list *params)
 	}
 	if (end_a == 255)
 		gfx_copy(0, 0, 640, 480, 3, 0, 0, 0);
+}
+
+static struct cg *bad_end_cg[13] = {0};
+
+static void util_bad_end_prepare(struct param_list *params)
+{
+	char name[20];
+	for (int i = 0; i < 13; i++) {
+		sprintf(name, "A30_%02d.G16", i + 1);
+		if (!(bad_end_cg[i] = asset_cg_load(name)))
+			WARNING("Failed to load CG: %s", name);
+	}
+}
+
+static void util_bad_end_play(struct param_list *params)
+{
+	vm_timer_t timer = vm_timer_create();
+	for (int i = 0; i < 13; i++) {
+		if (bad_end_cg[i]) {
+			gfx_draw_cg(0, bad_end_cg[i]);
+			cg_free(bad_end_cg[i]);
+		}
+		vm_peek();
+		vm_timer_tick(&timer, 50);
+	}
+}
+
+/*
+ * Credits upwards scroll animation. There is an alpha gradient at the top and
+ * bottom of the target area.
+ */
+static void util_credits_scroll(struct param_list *params)
+{
+	SDL_Rect r = { 140, 160, 360, 160 };
+	const int top_fade_start = r.y;
+	const int bot_fade_start = r.y + r.h - 32;
+
+	// XXX: We use the overlay surface here to make the gradient easier to implement.
+	//      AI5WIN.EXE does not.
+	SDL_Surface *src = gfx_get_surface(1);
+	SDL_Surface *dst = gfx_get_overlay();
+
+	// set color key
+	SDL_Color mask_c = gfx_decode_bgr555(mem_get_sysvar16(mes_sysvar16_mask_color));
+	uint32_t mask = SDL_MapRGB(dst->format, mask_c.r, mask_c.g, mask_c.b);
+	SDL_CALL(SDL_SetColorKey, src, SDL_TRUE, mask);
+
+	gfx_overlay_enable();
+
+	int dst_y = r.y + r.h;
+	vm_timer_t timer = vm_timer_create();
+	for (int src_y = 0; src_y < 1600;) {
+		if (dst_y > 0)
+			dst_y--;
+
+		// draw to overlay
+		int dst_h = (r.y + r.h) - dst_y;
+		SDL_Rect src_r = { r.x, src_y, r.w, dst_h };
+		SDL_Rect dst_r = { r.x, dst_y, r.w, dst_h };
+		SDL_CALL(SDL_BlitSurface, src, &src_r, dst, &dst_r);
+
+		if (SDL_MUSTLOCK(dst))
+			SDL_CALL(SDL_LockSurface, dst);
+
+		// top fade
+		for (int i = 0; i < 32; i++) {
+			uint8_t *dst_p = dst->pixels + (top_fade_start + i) * dst->pitch + r.x * 4;
+			for (int col = 0; col < r.w; col++, dst_p += 4) {
+				if (dst_p[3]) {
+					dst_p[3] = i * 8;
+				}
+			}
+		}
+		// bottom fade
+		for (int i = 0; i < 32; i++) {
+			uint8_t *dst_p = dst->pixels + (bot_fade_start + i) * dst->pitch + r.x * 4;
+			for (int col = 0; col < r.w; col++, dst_p += 4) {
+				if (dst_p[3]) {
+					dst_p[3] = (31 - i) * 8;
+				}
+			}
+		}
+
+		if (SDL_MUSTLOCK(dst))
+			SDL_UnlockSurface(dst);
+
+		gfx_dirty(0, r.x, r.y, r.w, r.h);
+		vm_peek();
+		vm_timer_tick(&timer, input_down(INPUT_CTRL) ? 16 : 50);
+
+		// clear
+		SDL_CALL(SDL_FillRect, dst, &r, 0);
+
+		if (dst_y == 0)
+			src_y++;
+	}
+
+	gfx_overlay_disable();
+	SDL_CALL(SDL_SetColorKey, src, SDL_FALSE, 0);
 }
 
 static void isaku_handle_event(SDL_Event *e)
@@ -750,6 +904,7 @@ static void isaku_update(void)
 		return;
 
 	// copy text to overlay
+	gfx_overlay_enable();
 	SDL_Color mask = gfx_decode_bgr555(mem_get_sysvar16(mes_sysvar16_mask_color));
 	SDL_Rect rect = { 0, 388, 640, 72 };
 	SDL_Surface *src = gfx_get_surface(5);
@@ -817,14 +972,14 @@ struct game game_isaku = {
 		[2]  = util_item_cursor,
 		[3]  = util_load_heap,
 		[4]  = util_save_heap,
-		[6]  = NULL, // TODO: util_scroll_left
+		[6]  = util_scroll_left,
 		[7]  = util_delay,
 		[8]  = util_crossfade,
-		[9]  = NULL, // TODO: util_ending1
-		[10] = NULL, // TODO: util_ending2
+		[9]  = util_bad_end_prepare,
+		[10] = util_bad_end_play,
 		[11] = util_warn_unimplemented,
 		[12] = util_warn_unimplemented,
-		[13] = NULL, // TODO: util_ending3
+		[13] = util_credits_scroll,
 	},
 	.flags = {
 		[FLAG_ANIM_ENABLE]  = 0x0004,
