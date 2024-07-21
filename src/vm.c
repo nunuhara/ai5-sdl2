@@ -373,6 +373,8 @@ void handle_text(void(*read_text)(char*), void(*draw_text)(const char*), bool wi
 	char str[TXT_BUF_SIZE];
 	read_text(str);
 	texthook_push(str);
+
+	gfx_text_set_weight(mem_get_sysvar16(mes_sysvar16_font_weight));
 	draw_text(str);
 
 	if (vm_flag_is_on(FLAG_LOG_ENABLE) && vm_flag_is_on(FLAG_LOG_TEXT))

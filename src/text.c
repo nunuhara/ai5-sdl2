@@ -342,6 +342,15 @@ void gfx_text_set_size(int size, int weight)
 	gfx.text.size = size;
 }
 
+void gfx_text_set_weight(int weight)
+{
+	int style = weight ? TTF_STYLE_BOLD : TTF_STYLE_NORMAL;
+	if (TTF_GetFontStyle(cur_font->id) != style) {
+		TTF_SetFontStyle(cur_font->id, style);
+		TTF_SetFontStyle(cur_font->id_outline, style);
+	}
+}
+
 unsigned gfx_text_size_char(uint32_t ch)
 {
 	int minx, maxx, miny, maxy, advance;
