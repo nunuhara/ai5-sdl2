@@ -79,6 +79,12 @@ struct config {
 		bool voice;
 	} soundinfo;
 
+	// [ITEMWIN]
+	struct {
+		int x;
+		int y;
+	} itemwin;
+
 	char *exe_path;
 	char *font_path;
 	int font_face;

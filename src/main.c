@@ -71,6 +71,10 @@ static int cfg_handler(void *user, const char *section, const char *name, const 
 		config->screen = atoi(value);
 	} else if (MATCH("CONFIG", "bNOTIFY")) {
 		config->notify = atoi(value);
+	} else if (MATCH("CONFIG", "DUNGEON")) {
+		// ignore
+	} else if (MATCH("CONFIG", "bDEBUG")) {
+		// ignore
 	// [FILE]
 	} else if (MATCH("FILE", "bARCBG")) {
 		config->file.bg.arc = atoi(value);
@@ -134,6 +138,12 @@ static int cfg_handler(void *user, const char *section, const char *name, const 
 		config->soundinfo.voice = atoi(value);
 	} else if (MATCH("SOUNDINFO", "EFFECT")) {
 		config->soundinfo.effect = atoi(value);
+	// [ITEMWIN]
+	} else if (MATCH("ITEMWIN", "X")) {
+		config->itemwin.x = atoi(value);
+	} else if (MATCH("ITEMWIN", "Y")) {
+		config->itemwin.y = atoi(value);
+	// [AI5SDL2]
 	} else if (MATCH("AI5SDL2", "FONT")) {
 		config->font_path = strdup(value);
 	} else if (MATCH("AI5SDL2", "FONTFACE")) {

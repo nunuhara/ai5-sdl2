@@ -387,8 +387,10 @@ struct {
 
 static void item_window_create(void)
 {
+	int x, y;
+	SDL_GetWindowPosition(gfx.window, &x, &y);
 	SDL_CTOR(SDL_CreateWindow, item_window.window, "Items",
-			SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
+			x + config.itemwin.x, y + config.itemwin.y,
 			ITEM_WINDOW_W, ITEM_WINDOW_H,
 			SDL_WINDOW_HIDDEN);
 	item_window.window_id = SDL_GetWindowID(item_window.window);
