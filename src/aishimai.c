@@ -26,6 +26,7 @@
 #include "anim.h"
 #include "audio.h"
 #include "backlog.h"
+#include "char.h"
 #include "cursor.h"
 #include "game.h"
 #include "gfx_private.h"
@@ -261,6 +262,7 @@ static void render_text(const char *txt, struct render_text_params *p)
 	if (SDL_MUSTLOCK(surf))
 		SDL_CALL(SDL_LockSurface, surf);
 
+	bool last_char_is_close = false;
 	for (; *txt; txt += 2) {
 		// get index of char in font data
 		uint16_t char_code = le_get16((uint8_t*)txt, 0);
@@ -268,6 +270,22 @@ static void render_text(const char *txt, struct render_text_params *p)
 		if (char_i < 0) {
 			WARNING("Invalid character: %04x", char_code);
 			continue;
+		}
+
+		// opener at end of line: drop to next line
+		if (x + char_space > end_x && char_is_opener(txt)) {
+			y += line_space;
+			x = start_x;
+		}
+
+		// closer at start of line: go to last column of previous line
+		// (game allows some extra space for this)
+		if (x == start_x && !last_char_is_close && char_is_closer(txt)) {
+			y -= line_space;
+			x = end_x;
+			last_char_is_close = true;
+		} else {
+			last_char_is_close = false;
 		}
 
 		uint8_t *char_msk = p->font_msk + (char_i * p->char_w * p->char_h);

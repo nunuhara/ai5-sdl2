@@ -27,6 +27,7 @@
 #include "anim.h"
 #include "asset.h"
 #include "audio.h"
+#include "char.h"
 #include "classics.h"
 #include "cursor.h"
 #include "game.h"
@@ -952,18 +953,37 @@ static void yuno_draw_text(const char *text)
 	const uint16_t line_space = mem_get_sysvar16(mes_sysvar16_line_space);
 	uint16_t x = mem_get_sysvar16(mes_sysvar16_text_cursor_x);
 	uint16_t y = mem_get_sysvar16(mes_sysvar16_text_cursor_y);
+
+	bool last_char_is_close = false;
 	while (*text) {
 		int ch;
 		bool zenkaku = SJIS_2BYTE(*text);
-		uint16_t next_x = x + (zenkaku ? char_space / 8 : char_space / 16);
-		if (next_x > end_x) {
-			y += line_space;
+		uint16_t this_char_space = zenkaku ? char_space / 8 : char_space / 16;
+		uint16_t this_x = x;
+		if (x + this_char_space > end_x) {
 			x = start_x;
-			next_x = x + (zenkaku ? char_space / 8 : char_space / 16);
+			y += line_space;
 		}
+
+		// opener at end of line: drop to next line
+		if (x + this_char_space * 2 > end_x && char_is_opener(text)) {
+			x = start_x;
+			y += line_space;
+		}
+
+		// closer at start of line: go to last column of previous line
+		// (game allows some extra space for this)
+		if (x == start_x && !last_char_is_close && char_is_closer(text)) {
+			x = this_x;
+			y -= line_space;
+			last_char_is_close = true;
+		} else {
+			last_char_is_close = false;
+		}
+
 		text = sjis_char2unicode(text, &ch);
 		gfx_text_draw_glyph(x * 8, y, surface, ch);
-		x = next_x;
+		x += this_char_space;
 	}
 	mem_set_sysvar16(mes_sysvar16_text_cursor_x, x);
 	mem_set_sysvar16(mes_sysvar16_text_cursor_y, y);

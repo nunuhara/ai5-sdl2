@@ -33,6 +33,7 @@
 #include "asset.h"
 #include "audio.h"
 #include "backlog.h"
+#include "char.h"
 #include "debug.h"
 #include "game.h"
 #include "gfx.h"
@@ -333,6 +334,60 @@ char *vm_string_param(struct param_list *params, int i)
 	return params->params[i].str;
 }
 
+static uint16_t char_opener[] = {
+	0x69, // （
+	0x6b, // 〔
+	0x6d, // ［
+	0x6f, // ｛
+	0x71, // 〈
+	0x73, // 《
+	0x75, // 「
+	0x77, // 『
+	0x79, // 【
+};
+
+static uint16_t char_closer[] = {
+	0x41, // 、
+	0x42, // 。
+	0x45, // ・
+	0x48, // ？
+	0x49, // ！
+	0x6a, // ）
+	0x6c, // 〕
+	0x6e, // ］
+	0x70, // ｝
+	0x72, // 〉
+	0x74, // 》
+	0x76, // 」
+	0x78, // 』
+	0x7a, // 】
+};
+
+bool char_is_opener(const char *_ch)
+{
+	const uint8_t *ch = (const uint8_t*)_ch;
+	if (ch[0] != 0x81 || ch[1] < 0x69 || ch[1] > 0x79)
+		return false;
+	for (int i = 0; i < ARRAY_SIZE(char_opener); i++) {
+		if (char_opener[i] == ch[1])
+			return true;
+	}
+	return false;
+}
+
+bool char_is_closer(const char *_ch)
+{
+	const uint8_t *ch = (const uint8_t*)_ch;
+	if (ch[0] != 0x81 || ch[1] < 0x41 || ch[1] > 0x7a)
+		return false;
+
+	for (int i = 0; i < ARRAY_SIZE(char_closer); i++) {
+		if (char_closer[i] == ch[1])
+			return true;
+	}
+	return false;
+}
+
 void vm_draw_text(const char *text)
 {
 	const uint16_t surface = mem_get_sysvar16(mes_sysvar16_dst_surface);
@@ -342,18 +397,36 @@ void vm_draw_text(const char *text)
 	const uint16_t line_space = mem_get_sysvar16(mes_sysvar16_line_space);
 	uint16_t x = mem_get_sysvar16(mes_sysvar16_text_cursor_x);
 	uint16_t y = mem_get_sysvar16(mes_sysvar16_text_cursor_y);
+	bool last_char_is_close = false;
 	while (*text) {
 		int ch;
 		bool zenkaku = SJIS_2BYTE(*text);
-		uint16_t next_x = x + (zenkaku ? char_space : char_space / 2);
-		if (next_x > end_x) {
-			y += line_space;
+		uint16_t this_char_space = zenkaku ? char_space : char_space / 2;
+		uint16_t this_x = x;
+		if (x + this_char_space > end_x) {
 			x = start_x;
-			next_x = x + (zenkaku ? char_space : char_space / 2);
+			y += line_space;
 		}
+
+		// opener at end of line: drop to next line
+		if (x + this_char_space * 2 > end_x && char_is_opener(text)) {
+			x = start_x;
+			y += line_space;
+		}
+
+		// closer at start of line: go to last column of previous line
+		// (game allows some extra space for this)
+		if (x == start_x && !last_char_is_close && char_is_closer(text)) {
+			x = this_x;
+			y -= line_space;
+			last_char_is_close = true;
+		} else {
+			last_char_is_close = false;
+		}
+
 		text = sjis_char2unicode(text, &ch);
 		gfx_text_draw_glyph(x, y, surface, ch);
-		x = next_x;
+		x += this_char_space;
 	}
 	mem_set_sysvar16(mes_sysvar16_text_cursor_x, x);
 	mem_set_sysvar16(mes_sysvar16_text_cursor_y, y);
