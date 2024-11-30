@@ -393,6 +393,8 @@ void gfx_display_unfreeze(void)
 void _gfx_display_fade_out(uint32_t vm_color, unsigned ms, bool(*cb)(void))
 {
 	GFX_LOG("gfx_display_fade_out(%u,%u)", vm_color, ms);
+	if (gfx.hidden)
+		return;
 	gfx.hidden = true;
 
 	int step = roundf(256.f / ((ms * config.transition_speed) / FADE_FRAME_TIME));
