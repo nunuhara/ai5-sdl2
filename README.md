@@ -14,6 +14,7 @@ Only the games listed below are supported.
 | YU-NO (English translation patch)                | yuno-eng   |
 | 同級生 Windows版                                 | doukyuusei |
 | 遺作 リニューアル                                | isaku      |
+| 愛姉妹 ～二人の果実～                            | aishimai   |
 
 Additional Features
 -------------------
