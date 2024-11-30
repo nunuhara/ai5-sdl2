@@ -372,6 +372,15 @@ static void isaku_dungeon(struct param_list *params)
 	}
 }
 
+static bool builtin_se_enabled = false;
+
+static void builtin_se_play(const char *name)
+{
+	if (!builtin_se_enabled)
+		return;
+	audio_se_play(name, 0);
+}
+
 #define ITEM_WINDOW_W 320
 #define ITEM_WINDOW_H 32
 struct {
@@ -420,11 +429,11 @@ static void item_window_toggle(void)
 		return;
 	if (item_window.opened) {
 		SDL_HideWindow(item_window.window);
-		audio_se_play("wincls.wav", 0);
+		builtin_se_play("wincls.wav");
 		item_window.opened = false;
 	} else {
 		SDL_ShowWindow(item_window.window);
-		audio_se_play("winopn.wav", 0);
+		builtin_se_play("winopn.wav");
 		item_window.opened = true;
 		item_window_update();
 		gfx_dump_surface(7, "item_window.png");
@@ -572,10 +581,10 @@ static struct menu load_menu = { .name = "LoadMenu" };
 static void menu_open(struct menu *menu)
 {
 	if (!menu->enabled) {
-		audio_se_play("error.wav", 0);
+		builtin_se_play("error.wav");
 		return;
 	}
-	audio_se_play("winopn.wav", 0);
+	builtin_se_play("winopn.wav");
 	menu->requested = true;
 }
 
@@ -756,6 +765,16 @@ static void util_bad_end_play(struct param_list *params)
 		vm_peek();
 		vm_timer_tick(&timer, 50);
 	}
+}
+
+static void util_enable_builtin_se(struct param_list *params)
+{
+	builtin_se_enabled = true;
+}
+
+static void util_disable_builtin_se(struct param_list *params)
+{
+	builtin_se_enabled = false;
 }
 
 /*
@@ -979,8 +998,8 @@ struct game game_isaku = {
 		[8]  = util_crossfade,
 		[9]  = util_bad_end_prepare,
 		[10] = util_bad_end_play,
-		[11] = util_warn_unimplemented,
-		[12] = util_warn_unimplemented,
+		[11] = util_enable_builtin_se,
+		[12] = util_disable_builtin_se,
 		[13] = util_credits_scroll,
 	},
 	.flags = {
