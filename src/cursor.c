@@ -174,6 +174,25 @@ struct cursor_dir_entry {
 	uint16_t res_id;
 };
 
+// group_icon resource data (table header)
+struct icon_dir {
+	uint16_t reserved;
+	uint16_t type;
+	uint16_t count;
+};
+
+// entry in group_icon table
+struct icon_dir_entry {
+	uint8_t width;
+	uint8_t height;
+	uint8_t color_count;
+	uint8_t reserved;
+	uint16_t plane_count;
+	uint16_t bit_count;
+	uint32_t bytes_in_res;
+	uint16_t res_id;
+};
+
 // BITMAPINFOHEADER
 struct bitmap_info {
 	uint32_t size;
@@ -189,12 +208,22 @@ struct bitmap_info {
 	uint32_t colors_important;
 };
 
+struct color_map {
+	struct { uint8_t b, g, r, u; } colors[256];
+};
+
 // cursor resource data
 struct cursor_data {
 	uint16_t hotspot_x;
 	uint16_t hotspot_y;
 	struct bitmap_info bm_info;
-	struct { uint8_t b, g, r, u; } colors[256];
+	struct color_map colors;
+};
+
+// icon resource data
+struct icon_data {
+	struct bitmap_info bm_info;
+	struct color_map colors;
 };
 
 struct resource {
@@ -384,6 +413,21 @@ void free_resources(struct resource *root)
 	free(root);
 }
 
+void read_bitmap_info(struct buffer *b, struct bitmap_info *bm_info)
+{
+	bm_info->size = buffer_read_u32(b);
+	bm_info->width = buffer_read_u32(b);
+	bm_info->height = buffer_read_u32(b);
+	bm_info->planes = buffer_read_u16(b);
+	bm_info->bpp = buffer_read_u16(b);
+	bm_info->compression = buffer_read_u32(b);
+	bm_info->size_image = buffer_read_u32(b);
+	bm_info->ppm_x = buffer_read_u32(b);
+	bm_info->ppm_y = buffer_read_u32(b);
+	bm_info->colors_used = buffer_read_u32(b);
+	bm_info->colors_important = buffer_read_u32(b);
+}
+
 bool read_cursor_data(struct buffer *b, struct cursor_data *cur, uint8_t **xor_bitmap,
 		uint8_t **and_bitmap)
 {
@@ -391,17 +435,7 @@ bool read_cursor_data(struct buffer *b, struct cursor_data *cur, uint8_t **xor_b
 		return false;
 	cur->hotspot_x = buffer_read_u16(b);
 	cur->hotspot_y = buffer_read_u16(b);
-	cur->bm_info.size = buffer_read_u32(b);
-	cur->bm_info.width = buffer_read_u32(b);
-	cur->bm_info.height = buffer_read_u32(b);
-	cur->bm_info.planes = buffer_read_u16(b);
-	cur->bm_info.bpp = buffer_read_u16(b);
-	cur->bm_info.compression = buffer_read_u32(b);
-	cur->bm_info.size_image = buffer_read_u32(b);
-	cur->bm_info.ppm_x = buffer_read_u32(b);
-	cur->bm_info.ppm_y = buffer_read_u32(b);
-	cur->bm_info.colors_used = buffer_read_u32(b);
-	cur->bm_info.colors_important = buffer_read_u32(b);
+	read_bitmap_info(b, &cur->bm_info);
 	// only simple monochrome bitmaps are supported
 	if (cur->bm_info.planes != 1)
 		return false;
@@ -414,10 +448,10 @@ bool read_cursor_data(struct buffer *b, struct cursor_data *cur, uint8_t **xor_b
 		return false;
 	unsigned nr_colors = max(2, cur->bm_info.colors_used);
 	for (unsigned i = 0; i < nr_colors; i++) {
-		cur->colors[i].b = buffer_read_u8(b);
-		cur->colors[i].g = buffer_read_u8(b);
-		cur->colors[i].r = buffer_read_u8(b);
-		cur->colors[i].u = buffer_read_u8(b);
+		cur->colors.colors[i].b = buffer_read_u8(b);
+		cur->colors.colors[i].g = buffer_read_u8(b);
+		cur->colors.colors[i].r = buffer_read_u8(b);
+		cur->colors.colors[i].u = buffer_read_u8(b);
 	}
 	*xor_bitmap = (uint8_t*)buffer_strdata(b);
 	if (cur->bm_info.bpp == 8) {
@@ -429,11 +463,11 @@ bool read_cursor_data(struct buffer *b, struct cursor_data *cur, uint8_t **xor_b
 	return true;
 }
 
-static SDL_Cursor *load_color_cursor(struct cursor_data *data, uint8_t *pixels,
-		uint8_t *bitmask)
+static struct cg *load_bmp_8bpp(struct bitmap_info *bm_info, struct color_map *colors,
+		uint8_t *pixels, uint8_t *bitmask)
 {
-	unsigned w = data->bm_info.width;
-	unsigned h = data->bm_info.height / 2;
+	unsigned w = bm_info->width;
+	unsigned h = bm_info->height / 2;
 
 	// expand mask
 	uint8_t *mask = xmalloc(w * h);
@@ -457,15 +491,21 @@ static SDL_Cursor *load_color_cursor(struct cursor_data *data, uint8_t *pixels,
 		uint8_t *m_src = mask + (h - (row + 1)) * w;
 		for (unsigned col = 0; col < w; col++, p_src++, m_src++, dst += 4) {
 			uint8_t c = *p_src;
-			dst[0] = data->colors[c].r;
-			dst[1] = data->colors[c].g;
-			dst[2] = data->colors[c].b;
+			dst[0] = colors->colors[c].r;
+			dst[1] = colors->colors[c].g;
+			dst[2] = colors->colors[c].b;
 			dst[3] = *m_src;
 		}
 	}
 
 	free(mask);
+	return cg;
+}
 
+static SDL_Cursor *load_color_cursor(struct cursor_data *data, uint8_t *pixels,
+		uint8_t *bitmask)
+{
+	struct cg *cg = load_bmp_8bpp(&data->bm_info, &data->colors, pixels, bitmask);
 	SDL_Surface *s;
 	SDL_CTOR(SDL_CreateRGBSurfaceWithFormatFrom, s, cg->pixels, cg->metrics.w,
 			cg->metrics.h, 32, cg->metrics.w * 4, SDL_PIXELFORMAT_RGBA32);
@@ -539,7 +579,7 @@ int read_group_cursor(struct buffer *b, struct resource *res)
 {
 	buffer_seek(b, res->leaf.addr);
 	if (buffer_remaining(b) < sizeof(struct cursor_dir))
-		return false;
+		return -1;
 
 	uint16_t count = read_member16(b, struct cursor_dir, count);
 	if (count < 1) {
@@ -554,6 +594,72 @@ int read_group_cursor(struct buffer *b, struct resource *res)
 	return buffer_read_u16(b);
 }
 
+bool read_icon_data(struct buffer *b, struct icon_data *icon, uint8_t **image, uint8_t **bitmask)
+{
+	if (buffer_remaining(b) < sizeof(struct icon_data))
+		return false;
+	read_bitmap_info(b, &icon->bm_info);
+	if (icon->bm_info.planes != 1)
+		return false;
+	if (icon->bm_info.bpp != 8)
+		return false;
+	if (icon->bm_info.compression != 0)
+		return false;
+	for (unsigned i = 0; i < 256; i++) {
+		icon->colors.colors[i].b = buffer_read_u8(b);
+		icon->colors.colors[i].g = buffer_read_u8(b);
+		icon->colors.colors[i].r = buffer_read_u8(b);
+		icon->colors.colors[i].u = buffer_read_u8(b);
+	}
+	*image = (uint8_t*)buffer_strdata(b);
+	buffer_skip(b, icon->bm_info.width * (icon->bm_info.height / 2));
+	*bitmask = (uint8_t*)buffer_strdata(b);
+	return true;
+}
+
+SDL_Surface *read_icon(struct buffer *b, struct resource *res, struct cg **cg_out)
+{
+	struct icon_data icon;
+	uint8_t *image;
+	uint8_t *bitmask;
+	buffer_seek(b, res->leaf.addr);
+	if (!read_icon_data(b, &icon, &image, &bitmask)) {
+		//WARNING("failed to read icon data");
+		return NULL;
+	}
+
+	if (icon.bm_info.bpp != 8) {
+		WARNING("icon bpp is not 8: %d", icon.bm_info.bpp);
+		return NULL;
+	}
+
+	struct cg *cg = load_bmp_8bpp(&icon.bm_info, &icon.colors, image, bitmask);
+	SDL_Surface *s;
+	SDL_CTOR(SDL_CreateRGBSurfaceWithFormatFrom, s, cg->pixels, cg->metrics.w,
+		cg->metrics.h, 32, cg->metrics.w * 4, SDL_PIXELFORMAT_RGBA32);
+	*cg_out = cg;
+	return s;
+}
+
+int read_group_icon(struct buffer *b, struct resource *res)
+{
+	buffer_seek(b, res->leaf.addr);
+	if (buffer_remaining(b) < sizeof(struct icon_dir))
+		return -1;
+
+	uint16_t count = read_member16(b, struct icon_dir, count);
+	if (count < 1) {
+		WARNING("group_icon directory contains no entries");
+		return -1;
+	}
+	//if (count > 1)
+	//	WARNING("Ignoring additional entries in group_icon directory");
+
+	buffer_skip(b, sizeof(struct icon_dir));
+	buffer_skip(b, offsetof(struct icon_dir_entry, res_id));
+	return buffer_read_u16(b);
+}
+
 #define CURSOR_MAX_FRAMES 4
 static SDL_Cursor *system_cursor = NULL;
 static SDL_Cursor **cursors = NULL;
@@ -565,18 +671,25 @@ static atomic_uint cursor_nr_frames = 2;
 static atomic_uint cursor_frame = 0;
 static atomic_uint cursor_frame_time[CURSOR_MAX_FRAMES] = { 500, 500 };
 
+static int nr_icons = 0;
+static SDL_Surface **icons = NULL;
+static struct cg **icon_cgs = NULL;
+
 void read_cursors(struct buffer *b, struct resource *root)
 {
 	struct resource *cursor = NULL;
 	struct resource *group_cursor = NULL;
+	struct resource *icon = NULL;
+	struct resource *group_icon = NULL;
 	for (unsigned i = 0; i < root->nr_children; i++) {
 		if (root->children[i].id == 1) {
 			cursor = &root->children[i];
-			continue;
-		}
-		if (root->children[i].id == 12) {
+		} else if (root->children[i].id == 12) {
 			group_cursor = &root->children[i];
-			break;
+		} else if (root->children[i].id == 3) {
+			icon = &root->children[i];
+		} else if (root->children[i].id == 14) {
+			group_icon = &root->children[i];
 		}
 	}
 	if (!cursor || !group_cursor) {
@@ -614,6 +727,43 @@ void read_cursors(struct buffer *b, struct resource *root)
 		}
 		cursors[i] = read_cursor(b, cur_res);
 	}
+
+	nr_icons = group_icon->nr_children;
+	icons = xcalloc(nr_icons, sizeof(struct SDL_Surface*));
+	icon_cgs = xcalloc(nr_icons, sizeof(struct cg*));
+	for (unsigned i = 0; i < group_icon->nr_children; i++) {
+		struct resource *child = &group_icon->children[i];
+		if (child->nr_children != 1 || child->children[0].nr_children != 0) {
+			WARNING("Unexpected resource layout (icon %d)", i);
+			continue;
+		}
+		int res_id = read_group_icon(b, &child->children[0]);
+		if (res_id < 0)
+			continue;
+
+		// get the corresponding icon resource
+		struct resource *icon_res = NULL;
+		for (unsigned j = 0; j < icon->nr_children; j++) {
+			struct resource *child = &icon->children[j];
+			if (child->id == res_id) {
+				if (child->nr_children != 1 || child->children[0].nr_children != 0) {
+					WARNING("Unexpected resource layout (icon %d)", i);
+					continue;
+				}
+				icon_res = &child->children[0];
+			}
+		}
+		if (!icon_res) {
+			WARNING("Couldn't find icon for group_icon %d", i);
+			continue;
+		}
+		icons[i] = read_icon(b, icon_res, &icon_cgs[i]);
+	}
+}
+
+SDL_Surface *icon_get(unsigned no)
+{
+	return no < nr_icons ? icons[no] : NULL;
 }
 
 static void cursor_fini(void)

@@ -51,6 +51,7 @@ sources = [
   'src/main.c',
   'src/map.c',
   'src/menu.c',
+  'src/popup_menu.c',
   'src/savedata.c',
   'src/shangrlia.c',
   'src/sys.c',

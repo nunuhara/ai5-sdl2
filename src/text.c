@@ -59,7 +59,8 @@ enum font_type {
 	FONT_SMALL,
 	FONT_LARGE,
 	FONT_ENG,
-#define NR_FONT_TYPES (FONT_ENG+1)
+	FONT_UI,
+#define NR_FONT_TYPES (FONT_UI+1)
 };
 
 struct font_spec {
@@ -112,6 +113,15 @@ static struct font *font_insert(int size, TTF_Font *id, TTF_Font *id_outline)
 	.rwops_outline = SDL_RWFromConstMem(font_##name, font_##name##_len), \
 }
 
+static void init_ui_font(void)
+{
+#ifdef EMBED_NOTO
+	font_spec[FONT_UI] = EMBEDDED_FONT(noto);
+#else
+	font_spec[FONT_UI].path = xstrdup(AI5_DATA_DIR "/fonts/wine_tahoma.ttf");
+#endif
+}
+
 static void init_fonts_standard(void)
 {
 #ifdef EMBED_DOTGOTHIC
@@ -136,6 +146,7 @@ void gfx_text_init(const char *font_path, int face)
 	if (TTF_Init() == -1)
 		ERROR("TTF_Init: %s", TTF_GetError());
 
+	init_ui_font();
 	if (font_path) {
 		// XXX: we override the default face for msgothic on yuno-eng
 		int face_eng = face;
@@ -309,6 +320,54 @@ unsigned gfx_text_draw_glyph(int x, int y, unsigned i, uint32_t ch)
 	else
 		r = gfx_text_draw_glyph_direct(i, x, y, ch);
 	return r;
+}
+
+#define UI_FONT_SIZE 12
+static TTF_Font *ui_font = NULL;
+int ui_ascent = 0;
+
+static bool ui_font_init(void)
+{
+	if (ui_font)
+		return true;
+	struct font_spec *spec = &font_spec[FONT_UI];
+	if (spec->embedded)
+		ui_font = TTF_OpenFontIndexRW(spec->rwops, false, UI_FONT_SIZE, spec->face);
+	else {
+		ui_font = TTF_OpenFontIndex(spec->path, UI_FONT_SIZE, spec->face);
+	}
+	if (!ui_font) {
+		WARNING("TTF_OpenFont: %s", TTF_GetError());
+		return false;
+	}
+	// calculate ASCII ascent based on height of 'A' character.
+	int min_x, max_x, min_y, max_y, adv;
+	TTF_GlyphMetrics32(ui_font, 'A', &min_x, &max_x, &min_y, &max_y, &adv);
+	ui_ascent = max_y;
+	return true;
+}
+
+void ui_draw_text(SDL_Surface *s, int x, int y, const char *text, SDL_Color color)
+{
+	if (!ui_font && !ui_font_init()) {
+		return;
+	}
+	SDL_Surface *text_s = TTF_RenderUTF8_Solid(ui_font, text, color);
+	SDL_Rect text_r = { x, y - (TTF_FontAscent(ui_font) - ui_ascent) - ui_ascent / 2, text_s->w, text_s->h };
+	SDL_CALL(SDL_BlitSurface, text_s, NULL, s, &text_r);
+}
+
+int ui_measure_text(const char *text)
+{
+	if (!ui_font && !ui_font_init())
+		return 0;
+
+	int extent, count;
+	if (TTF_MeasureUTF8(ui_font, text, 10000, &extent, &count)) {
+		WARNING("TTF_MeasureUTF8: %s", TTF_GetError());
+		return 0;
+	}
+	return extent;
 }
 
 static void open_font(struct font_spec *spec, int size, TTF_Font **out, TTF_Font **outline_out)

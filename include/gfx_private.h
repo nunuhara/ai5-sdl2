@@ -78,6 +78,9 @@ SDL_Surface *gfx_get_overlay(void);
 void gfx_update_palette(int n);
 bool gfx_fill_clip(SDL_Surface *s, SDL_Rect *r);
 bool gfx_copy_clip(SDL_Surface *src, SDL_Rect *src_r, SDL_Surface *dst, SDL_Point *dst_p);
+void ui_draw_text(SDL_Surface *s, int x, int y, const char *text, SDL_Color color);
+int ui_measure_text(const char *text);
+SDL_Surface *icon_get(unsigned no);
 
 void gfx_dump_surface(unsigned i, const char *filename);
 

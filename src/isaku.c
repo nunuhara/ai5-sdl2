@@ -31,6 +31,7 @@
 #include "game.h"
 #include "gfx_private.h"
 #include "input.h"
+#include "popup_menu.h"
 #include "savedata.h"
 #include "sys.h"
 #include "vm_private.h"
@@ -437,6 +438,40 @@ static void item_window_toggle(void)
 		item_window.opened = true;
 		item_window_update();
 		gfx_dump_surface(7, "item_window.png");
+	}
+}
+
+static void item_window_event(SDL_Event *e)
+{
+	switch (e->type) {
+	case SDL_WINDOWEVENT:
+		if (e->window.windowID != item_window.window_id)
+			break;
+		switch (e->window.event) {
+		case SDL_WINDOWEVENT_SHOWN:
+		case SDL_WINDOWEVENT_EXPOSED:
+		case SDL_WINDOWEVENT_RESIZED:
+		case SDL_WINDOWEVENT_SIZE_CHANGED:
+		case SDL_WINDOWEVENT_MAXIMIZED:
+		case SDL_WINDOWEVENT_RESTORED:
+			item_window_update();
+			break;
+		case SDL_WINDOWEVENT_CLOSE:
+			assert(item_window.opened);
+			item_window_toggle();
+			break;
+		}
+		break;
+	case SDL_MOUSEBUTTONDOWN:
+	case SDL_MOUSEBUTTONUP:
+		if (e->button.windowID != item_window.window_id)
+			break;
+		if (e->button.button == SDL_BUTTON_LEFT) {
+			item_window.lmb_down = e->button.state == SDL_PRESSED;
+		} else if (e->button.button == SDL_BUTTON_RIGHT) {
+			item_window.rmb_down = e->button.state == SDL_PRESSED;
+		}
+		break;
 	}
 }
 
@@ -851,26 +886,76 @@ static void util_credits_scroll(struct param_list *params)
 	SDL_CALL(SDL_SetColorKey, src, SDL_FALSE, 0);
 }
 
-static void isaku_handle_event(SDL_Event *e)
+static void item_window_clicked(void *_)
 {
+	item_window_toggle();
+}
+
+static void save_data_clicked(void *_)
+{
+	menu_open(&save_menu);
+}
+
+static void load_data_clicked(void *_)
+{
+	menu_open(&load_menu);
+}
+
+static void hide_message_clicked(void *_)
+{
+	if (message_cleared)
+		message_cleared = false;
+	else
+		message_clear();
+}
+
+static void quit_game_clicked(void *_)
+{
+	if (gfx_confirm_quit())
+		sys_exit(0);
+}
+
+static void open_context_menu(void)
+{
+	struct menu *m = popup_menu_new();
+	int item_id = popup_menu_append_entry(m, 1, "Item Window", "Space", item_window_clicked, NULL);
+	int save_id = popup_menu_append_entry(m, 4, "Save Data", "S", save_data_clicked, NULL);
+	int load_id = popup_menu_append_entry(m, 3, "Load Data", "L", load_data_clicked, NULL);
+	popup_menu_append_separator(m);
+	int msg_id = popup_menu_append_entry(m, -1, "Hide Message", "Tab", hide_message_clicked, NULL);
+	popup_menu_append_separator(m);
+	popup_menu_append_entry(m, -1, "Quit Game", "Alt+F4", quit_game_clicked, NULL);
+	popup_menu_append_separator(m);
+	popup_menu_append_entry(m, -1, "Cancel", NULL, NULL, NULL);
+
+	if (!item_window.enabled) {
+		popup_menu_set_active(m, item_id, false);
+	}
+	if (!save_menu.enabled) {
+		popup_menu_set_active(m, save_id, false);
+	}
+	if (!load_menu.enabled) {
+		popup_menu_set_active(m, load_id, false);
+	}
+	if (!message_clear_enabled) {
+		popup_menu_set_active(m, msg_id, false);
+	}
+
+	// run menu at cursor
+	int win_x, win_y, mouse_x, mouse_y;
+	SDL_GetWindowPosition(gfx.window, &win_x, &win_y);
+	SDL_GetMouseState(&mouse_x, &mouse_y);
+	popup_menu_run(m, win_x + mouse_x, win_y + mouse_y);
+
+	popup_menu_free(m);
+}
+
+static bool isaku_handle_event(SDL_Event *e)
+{
+	if (item_window.opened)
+		item_window_event(e);
+
 	switch (e->type) {
-	case SDL_WINDOWEVENT:
-		if (e->window.windowID != item_window.window_id)
-			break;
-		switch (e->window.event) {
-		case SDL_WINDOWEVENT_SHOWN:
-		case SDL_WINDOWEVENT_EXPOSED:
-		case SDL_WINDOWEVENT_RESIZED:
-		case SDL_WINDOWEVENT_SIZE_CHANGED:
-		case SDL_WINDOWEVENT_MAXIMIZED:
-		case SDL_WINDOWEVENT_RESTORED:
-			item_window_update();
-			break;
-		case SDL_WINDOWEVENT_CLOSE:
-			assert(item_window.opened);
-			item_window_toggle();
-			break;
-		}
 	case SDL_KEYDOWN:
 		switch (e->key.keysym.sym) {
 		case SDLK_SPACE:
@@ -889,17 +974,19 @@ static void isaku_handle_event(SDL_Event *e)
 				message_clear();
 			break;
 		}
+		break;
 	case SDL_MOUSEBUTTONDOWN:
+		if (e->button.windowID == gfx.window_id && e->button.button == SDL_BUTTON_RIGHT)
+			return true;
+		break;
 	case SDL_MOUSEBUTTONUP:
-		if (e->button.windowID != item_window.window_id)
-			break;
-		if (e->button.button == SDL_BUTTON_LEFT) {
-			item_window.lmb_down = e->button.state == SDL_PRESSED;
-		} else if (e->button.button == SDL_BUTTON_RIGHT) {
-			item_window.rmb_down = e->button.state == SDL_PRESSED;
+		if (e->button.windowID == gfx.window_id && e->button.button == SDL_BUTTON_RIGHT) {
+			open_context_menu();
+			return true;
 		}
 		break;
 	}
+	return false;
 }
 
 static void isaku_draw_text(const char *text)

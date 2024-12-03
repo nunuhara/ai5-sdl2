@@ -43,4 +43,7 @@ void input_wait_until_up(enum input_event_type type);
 
 extern uint32_t cursor_swap_event;
 
+struct SDL_WindowEvent;
+void handle_window_event(struct SDL_WindowEvent *e);
+
 #endif // AI5_INPUT_H

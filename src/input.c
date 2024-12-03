@@ -87,30 +87,35 @@ static void mouse_event(SDL_MouseButtonEvent *ev, bool down)
 		key_down_timestamp[type] = SDL_GetTicks();
 }
 
+void handle_window_event(struct SDL_WindowEvent *e)
+{
+	if (e->windowID != gfx.window_id)
+		return;
+	switch (e->event) {
+	case SDL_WINDOWEVENT_SHOWN:
+	case SDL_WINDOWEVENT_EXPOSED:
+	case SDL_WINDOWEVENT_RESIZED:
+	case SDL_WINDOWEVENT_SIZE_CHANGED:
+	case SDL_WINDOWEVENT_MAXIMIZED:
+	case SDL_WINDOWEVENT_RESTORED:
+		gfx_screen_dirty();
+		break;
+	case SDL_WINDOWEVENT_CLOSE:
+		if (gfx_confirm_quit())
+			sys_exit(0);
+		break;
+	}
+}
+
 void handle_events(void)
 {
 	SDL_Event e;
 	while (SDL_PollEvent(&e)) {
-		if (game->handle_event)
-			game->handle_event(&e);
+		if (game->handle_event && game->handle_event(&e))
+			continue;
 		switch (e.type) {
 		case SDL_WINDOWEVENT:
-			if (e.window.windowID != gfx.window_id)
-				break;
-			switch (e.window.event) {
-			case SDL_WINDOWEVENT_SHOWN:
-			case SDL_WINDOWEVENT_EXPOSED:
-			case SDL_WINDOWEVENT_RESIZED:
-			case SDL_WINDOWEVENT_SIZE_CHANGED:
-			case SDL_WINDOWEVENT_MAXIMIZED:
-			case SDL_WINDOWEVENT_RESTORED:
-				gfx_screen_dirty();
-				break;
-			case SDL_WINDOWEVENT_CLOSE:
-				if (gfx_confirm_quit())
-					sys_exit(0);
-				break;
-			}
+			handle_window_event(&e.window);
 			break;
 		case SDL_KEYDOWN:
 			if (e.key.windowID != gfx.window_id)

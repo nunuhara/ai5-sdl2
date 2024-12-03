@@ -1207,10 +1207,10 @@ static void ai_shimai_init(void)
 	gfx_text_set_colors(0, 0xffffff);
 }
 
-static void ai_shimai_handle_event(SDL_Event *e)
+static bool ai_shimai_handle_event(SDL_Event *e)
 {
 	if (!ime_enabled)
-		return;
+		return false;
 	switch (e->type) {
 	case SDL_TEXTINPUT:
 		IME_LOG("ime_text_input_event(...)");
@@ -1230,6 +1230,7 @@ static void ai_shimai_handle_event(SDL_Event *e)
 		}
 		break;
 	}
+	return false;
 }
 
 struct game game_ai_shimai = {

@@ -17,6 +17,7 @@
 #ifndef AI5_SDL2_GAME_H
 #define AI5_SDL2_GAME_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "ai5/game.h"
@@ -87,7 +88,7 @@ struct game {
 	// called in vm_peek
 	void (*update)(void);
 	// called for all input events, before built-in input handling
-	void (*handle_event)(SDL_Event *e);
+	bool (*handle_event)(SDL_Event *e);
 	// called in early init
 	void (*mem_init)(void);
 	// called whenever a full save file is loaded (savedata_resume_load)
