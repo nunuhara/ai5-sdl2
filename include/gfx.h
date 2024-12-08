@@ -25,6 +25,7 @@ struct gfx_view { unsigned w, h; };
 extern struct gfx_view gfx_view;
 
 void gfx_init(const char *name);
+void gfx_set_icon(void);
 void gfx_update(void);
 void gfx_dirty(unsigned surface, int x, int y, int w, int h);
 void gfx_screen_dirty(void);

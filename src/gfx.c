@@ -308,6 +308,16 @@ static void gfx_init_window(void)
 	gfx.texture = gfx_create_texture(gfx_view.w, gfx_view.h);
 }
 
+void gfx_set_icon(void)
+{
+	SDL_Surface *icon = icon_get(0);
+	if (!icon) {
+		WARNING("Failed to load window icon");
+		return;
+	}
+	SDL_SetWindowIcon(gfx.window, icon);
+}
+
 static void gfx_fini(void)
 {
 	if (gfx.display) {

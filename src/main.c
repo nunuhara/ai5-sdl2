@@ -433,6 +433,7 @@ int main(int argc, char *argv[])
 	gfx_text_init(config.font_path, config.font_face);
 	input_init();
 	cursor_init(config.exe_path);
+	gfx_set_icon();
 	audio_init();
 	vm_init();
 
