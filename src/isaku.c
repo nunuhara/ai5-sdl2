@@ -1024,10 +1024,10 @@ static bool isaku_handle_event(SDL_Event *e)
 		case SDLK_SPACE:
 			item_window_toggle();
 			break;
-		case SDLK_F5:
+		case SDLK_s:
 			menu_open(&save_menu);
 			break;
-		case SDLK_F9:
+		case SDLK_l:
 			menu_open(&load_menu);
 			break;
 		case SDLK_TAB:

@@ -41,8 +41,8 @@ The following keybindings can be used in-game.
 | --- | --------------------------------------------------------- |
 | =   | Increase window size to the next highest integer multiple |
 | -   | Decrease window size to the next lowest integer multiple  |
-| F5  | Open the save menu (Isaku only)                           |
-| F9  | Open the load menu (Isaku only)                           |
+| s   | Open the save menu (Isaku only)                           |
+| l   | Open the load menu (Isaku only)                           |
 | F10 | Take a screenshot                                         |
 | F11 | Toggle fullscreen mode (borderless)                       |
 | F12 | Open debugger REPL (debug builds only)                    |
