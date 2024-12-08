@@ -42,6 +42,10 @@ extern unsigned int  font_kosugi_len;
 extern unsigned char font_noto[];
 extern unsigned int  font_noto_len;
 #endif
+#ifdef EMBED_TAHOMA
+extern unsigned char font_tahoma[];
+extern unsigned int  font_tahoma_len;
+#endif
 
 struct font {
 	int size;
@@ -115,8 +119,8 @@ static struct font *font_insert(int size, TTF_Font *id, TTF_Font *id_outline)
 
 static void init_ui_font(void)
 {
-#ifdef EMBED_NOTO
-	font_spec[FONT_UI] = EMBEDDED_FONT(noto);
+#ifdef EMBED_TAHOMA
+	font_spec[FONT_UI] = EMBEDDED_FONT(tahoma);
 #else
 	font_spec[FONT_UI].path = xstrdup(AI5_DATA_DIR "/fonts/wine_tahoma.ttf");
 #endif

@@ -69,10 +69,13 @@ if embed_fonts
     arguments : ['-i', '@EXTRA_ARGS@', '@INPUT@'])
   sources += packfont.process('fonts/DotGothic16-Regular.ttf', extra_args : ['-n', 'font_dotgothic'])
   sources += packfont.process('fonts/Kosugi-Regular.ttf', extra_args : ['-n', 'font_kosugi'])
+  sources += packfont.process('fonts/wine_tahoma.ttf', extra_args : ['-n', 'font_tahoma'])
   add_project_arguments('-DEMBED_DOTGOTHIC', language : 'c')
   add_project_arguments('-DEMBED_KOSUGI', language : 'c')
+  add_project_arguments('-DEMBED_TAHOMA', language : 'c')
   message('Embedding fonts/DotGothic16-Regular.ttf')
   message('Embedding fonts/Kosugi-Regular.ttf')
+  message('Embedding fonts/wine_tahoma.ttf')
   if not no_embed_noto
     sources += packfont.process('fonts/NotoSansJP-Thin.ttf', extra_args : ['-n', 'font_noto'])
     add_project_arguments('-DEMBED_NOTO', language : 'c')
