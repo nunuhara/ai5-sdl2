@@ -722,7 +722,9 @@ static void popup_window_init(struct menu_window *w, struct menu *m, int x, int 
 	w->selected = NULL;
 	calc_size(m, &w->width, &w->height, &w->text_x, &w->hotkey_x);
 	SDL_CTOR(SDL_CreateWindow, w->window, "", x, y, w->width, w->height,
-			SDL_WINDOW_BORDERLESS | SDL_WINDOW_POPUP_MENU);
+			SDL_WINDOW_BORDERLESS
+			| SDL_WINDOW_POPUP_MENU
+			| SDL_WINDOW_SKIP_TASKBAR);
 	w->window_id = SDL_GetWindowID(w->window);
 	SDL_CTOR(SDL_CreateRenderer, w->renderer, w->window, -1, 0);
 	SDL_CALL(SDL_SetRenderDrawColor, w->renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
