@@ -595,7 +595,6 @@ static void popup_window_handle_event(struct menu_window *m, SDL_Event *e)
 		case SDL_WINDOWEVENT_LEAVE:
 			popup_window_update(m);
 			break;
-		case SDL_WINDOWEVENT_FOCUS_LOST:
 		case SDL_WINDOWEVENT_CLOSE:
 			popup_window_close(m);
 			break;
