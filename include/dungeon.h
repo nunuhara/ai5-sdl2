@@ -33,11 +33,19 @@ enum dungeon_move_command {
 	DUNGEON_ROTATE_RIGHT  = 3,
 };
 
+enum dungeon_speed {
+	DUNGEON_FAST = 0,
+	DUNGEON_NORMAL = 1,
+	DUNGEON_SLOW = 2
+};
+
 void dungeon_load(uint8_t *mp3, uint8_t *kabe1, uint8_t *kabe2, uint8_t *kabe3,
 		uint8_t *kabe_pal, uint8_t *dun_a6);
 void dungeon_set_pos(unsigned x, unsigned y, enum dungeon_direction dir);
 void dungeon_get_pos(uint16_t *x, uint16_t *y, uint16_t *dir);
 uint16_t dungeon_move(enum dungeon_move_command cmd);
 void dungeon_draw(void);
+void dungeon_set_move_speed(enum dungeon_speed speed);
+enum dungeon_speed dungeon_get_move_speed(void);
 
 #endif // AI5_SDL2_DUNGEON_H

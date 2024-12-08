@@ -794,6 +794,23 @@ static void dungeon_draw_view_cg(SDL_Surface *dst, struct dungeon_view_cg *cg,
 	}
 }
 
+static enum dungeon_speed dungeon_speed = DUNGEON_NORMAL;
+static int move_frame_time[] = {
+	[DUNGEON_FAST] = 5,
+	[DUNGEON_NORMAL] = 25,
+	[DUNGEON_SLOW] = 50
+};
+
+void dungeon_set_move_speed(enum dungeon_speed speed)
+{
+	dungeon_speed = speed;
+}
+
+enum dungeon_speed dungeon_get_move_speed(void)
+{
+	return dungeon_speed;
+}
+
 static void dungeon_draw_view(enum dungeon_view_mode mode)
 {
 	//DUNGEON_LOG("dungeon_draw_view(%d)", mode);
@@ -830,7 +847,7 @@ static void dungeon_draw_view(enum dungeon_view_mode mode)
 		SDL_UnlockSurface(dst);
 
 	gfx_whole_surface_dirty(dst_i);
-	vm_timer_tick(&timer, 25);
+	vm_timer_tick(&timer, move_frame_time[dungeon_speed]);
 	gfx_update();
 }
 

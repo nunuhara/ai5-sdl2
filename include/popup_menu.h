@@ -23,7 +23,11 @@ struct menu *popup_menu_new(void);
 void popup_menu_free(struct menu *menu);
 int popup_menu_append_entry(struct menu *m, int icon_no, const char *label,
 		const char *hotkey, void(*on_click)(void*), void *data);
+int popup_menu_append_radio_group(struct menu *m, const char **labels, int nr_labels,
+		int dflt, void(*on_click)(int,void*), void *data);
 int popup_menu_append_separator(struct menu *m);
+int popup_menu_append_submenu(struct menu *m, int icon_no, const char *label,
+		struct menu *submenu);
 void popup_menu_set_active(struct menu *m, int entry_id, bool active);
 void popup_menu_run(struct menu *m, int x, int y);
 

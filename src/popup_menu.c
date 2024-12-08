@@ -21,29 +21,50 @@
 #include "input.h"
 #include "gfx_private.h"
 #include "popup_menu.h"
+#include "vm.h"
 
 enum menu_entry_type {
 	MENU_ENTRY_LABEL,
+	MENU_ENTRY_RADIO,
+	MENU_ENTRY_SUBMENU,
 	MENU_ENTRY_SEPARATOR,
-	// TODO: sub-menu
+};
+
+struct menu_entry;
+
+struct menu {
+	int next_id;
+	vector_t(struct menu_entry) entries;
+};
+
+struct menu_label {
+	char *hotkey;
+	void(*on_click)(void*);
+	void *data;
+};
+
+struct menu_radio {
+	int head_id;
+	int count;
+	bool on;
+	void(*on_click)(int,void*);
+	int index;
+	void *data;
 };
 
 struct menu_entry {
 	int id;
 	enum menu_entry_type type;
-	char *label;
-	char *hotkey;
+	union {
+		struct menu_label label;
+		struct menu_radio radio;
+		struct menu *submenu;
+	};
 	bool active;
 	int icon_no;
-	void(*on_click)(void*);
-	void *data;
+	char *text;
 
 	int y;
-};
-
-struct menu {
-	int next_id;
-	vector_t(struct menu_entry) entries;
 };
 
 struct menu *popup_menu_new(void)
@@ -57,9 +78,16 @@ void popup_menu_free(struct menu *menu)
 	vector_foreach_p(e, menu->entries) {
 		switch (e->type) {
 		case MENU_ENTRY_LABEL:
-			free(e->label);
-			if (e->hotkey)
-				free(e->hotkey);
+			free(e->text);
+			if (e->label.hotkey)
+				free(e->label.hotkey);
+			break;
+		case MENU_ENTRY_RADIO:
+			free(e->text);
+			break;
+		case MENU_ENTRY_SUBMENU:
+			free(e->text);
+			popup_menu_free(e->submenu);
 			break;
 		case MENU_ENTRY_SEPARATOR:
 			break;
@@ -75,13 +103,48 @@ int popup_menu_append_entry(struct menu *m, int icon_no, const char *label,
 	struct menu_entry *e = vector_pushp(struct menu_entry, m->entries);
 	e->id = m->next_id++;
 	e->type = MENU_ENTRY_LABEL;
-	e->label = xstrdup(label);
-	e->hotkey = hotkey ? xstrdup(hotkey) : NULL;
+	e->text = xstrdup(label);
+	e->label.hotkey = hotkey ? xstrdup(hotkey) : NULL;
+	e->label.on_click = on_click;
+	e->label.data = data;
 	e->active = true;
 	e->icon_no = icon_no;
-	e->on_click = on_click;
-	e->data = data;
 	return e->id;
+}
+
+int popup_menu_append_submenu(struct menu *m, int icon_no, const char *label,
+		struct menu *submenu)
+{
+	struct menu_entry *e = vector_pushp(struct menu_entry, m->entries);
+	e->id = m->next_id++;
+	e->type = MENU_ENTRY_SUBMENU;
+	e->submenu = submenu;
+	e->text = xstrdup(label);
+	e->active = true;
+	e->icon_no = icon_no;
+	return e->id;
+}
+
+int popup_menu_append_radio_group(struct menu *m, const char **labels, int nr_labels,
+		int dflt, void(*on_click)(int,void*), void *data)
+{
+	int id = m->next_id;
+	for (int i = 0; i < nr_labels; i++) {
+		struct menu_entry *e = vector_pushp(struct menu_entry, m->entries);
+		e->id = m->next_id++;
+		e->type = MENU_ENTRY_RADIO;
+		e->text = xstrdup(labels[i]);
+		e->radio.head_id = id;
+		e->radio.count = nr_labels;
+		e->radio.on = i == dflt;
+		e->radio.on_click = on_click;
+		e->radio.index = i;
+		e->radio.data = data;
+		e->active = true;
+		e->icon_no = -1;
+	}
+
+	return id;
 }
 
 int popup_menu_append_separator(struct menu *m)
@@ -152,10 +215,79 @@ struct menu_window {
 	SDL_Surface *surface;
 	uint32_t window_id;
 	bool opened;
+	int x, y;
 	int width;
 	int height;
+	int text_x;
 	int hotkey_x;
+
+	struct menu_window *parent;
+	struct menu_window *child;
 };
+
+struct popup_delayed_open {
+	uint32_t t;
+	struct menu *menu;
+	struct menu_entry *entry;
+	struct menu_window *parent;
+};
+
+struct popup_delayed_close {
+	uint32_t t;
+	struct menu_window *window;
+};
+
+#define POPUP_MAX_DELAYED 16
+struct popup_delayed_open delayed_opens[POPUP_MAX_DELAYED];
+struct popup_delayed_close delayed_closes[POPUP_MAX_DELAYED];
+
+static void delayed_open(struct menu_window *parent, struct menu_entry *entry,
+		struct menu *child, int ms)
+{
+	for (int i = 0; i < POPUP_MAX_DELAYED; i++) {
+		struct popup_delayed_open *d = &delayed_opens[i];
+		if (!d->t) {
+			d->t = SDL_GetTicks() + ms;
+			d->menu = child;
+			d->entry = entry;
+			d->parent = parent;
+			return;
+		}
+		if (d->menu == child && d->parent == parent) {
+			d->t = SDL_GetTicks() + ms;
+			return;
+		}
+	}
+	WARNING("too many delayed popup opens");
+}
+
+static void delayed_close(struct menu_window *w, int ms)
+{
+	for (int i = 0; i < POPUP_MAX_DELAYED; i++) {
+		struct popup_delayed_close *d = &delayed_closes[i];
+		if (!d->t) {
+			d->t = SDL_GetTicks() + ms;
+			d->window = w;
+			return;
+		}
+		if (d->window == w) {
+			d->t = SDL_GetTicks() + ms;
+			return;
+		}
+	}
+	WARNING("too many delayed popup closes");
+}
+
+static void cancel_delayed_close(struct menu_window *w)
+{
+	for (int i = 0; i < POPUP_MAX_DELAYED; i++) {
+		struct popup_delayed_close *d = &delayed_closes[i];
+		if (d->t && d->window == w) {
+			d->t = 0;
+			return;
+		}
+	}
+}
 
 static void fill_rect(SDL_Surface *s, int x, int y, int w, int h, uint32_t c)
 {
@@ -200,10 +332,76 @@ static void draw_frame(struct menu_window *m)
 	}
 }
 
+static void draw_arrow(SDL_Surface *s, int x, int y, bool selected)
+{
+	static SDL_Surface *arrow = NULL;
+	static SDL_Surface *arrow_sel = NULL;
+	static uint8_t arrow_pixels[] = {
+		1, 0, 0, 0,
+		1, 1, 0, 0,
+		1, 1, 1, 0,
+		1, 1, 1, 1,
+		1, 1, 1, 0,
+		1, 1, 0, 0,
+		1, 0, 0, 0
+	};
+
+	if (!arrow) {
+		SDL_CTOR(SDL_CreateRGBSurfaceWithFormatFrom, arrow,
+				arrow_pixels, 4, 7, 8, 4, SDL_PIXELFORMAT_INDEX8);
+		SDL_CTOR(SDL_CreateRGBSurfaceWithFormatFrom, arrow_sel,
+				arrow_pixels, 4, 7, 8, 4, SDL_PIXELFORMAT_INDEX8);
+		SDL_Color pal[2] = { popup_menu_bg_color, popup_menu_fg_color };
+		SDL_Color sel_pal[2] = { popup_menu_sel_bg_color, popup_menu_sel_fg_color };
+		SDL_CALL(SDL_SetPaletteColors, arrow->format->palette, pal, 0, 2);
+		SDL_CALL(SDL_SetPaletteColors, arrow_sel->format->palette, sel_pal, 0, 2);
+	}
+
+	SDL_Surface *src = selected ? arrow_sel : arrow;
+	SDL_Rect r = { x, y - 4, 4, 7 };
+	SDL_CALL(SDL_BlitSurface, src, NULL, s, &r);
+}
+
+static void draw_checkmark(SDL_Surface *s, int x, int y, bool selected)
+{
+	static SDL_Surface *check = NULL;
+	static SDL_Surface *check_sel = NULL;
+	static uint8_t check_pixels[] = {
+		0, 0, 0, 0, 0, 0, 1,
+		0, 0, 0, 0, 0, 1, 1,
+		1, 0, 0, 0, 1, 1, 1,
+		1, 1, 0, 1, 1, 1, 0,
+		1, 1, 1, 1, 1, 0, 0,
+		0, 1, 1, 1, 0, 0, 0,
+		0, 0, 1, 0, 0, 0, 0
+	};
+
+	if (!check) {
+		SDL_CTOR(SDL_CreateRGBSurfaceWithFormatFrom, check,
+				check_pixels, 7, 7, 8, 7, SDL_PIXELFORMAT_INDEX8);
+		SDL_CTOR(SDL_CreateRGBSurfaceWithFormatFrom, check_sel,
+				check_pixels, 7, 7, 8, 7, SDL_PIXELFORMAT_INDEX8);
+		SDL_Color pal[2] = { popup_menu_bg_color, popup_menu_fg_color };
+		SDL_Color sel_pal[2] = { popup_menu_sel_bg_color, popup_menu_sel_fg_color };
+		SDL_CALL(SDL_SetPaletteColors, check->format->palette, pal, 0, 2);
+		SDL_CALL(SDL_SetPaletteColors, check_sel->format->palette, sel_pal, 0, 2);
+	}
+
+	SDL_Surface *src = selected ? check_sel : check;
+	SDL_Rect r = { x, y - 4, 7, 7 };
+	SDL_CALL(SDL_BlitSurface, src, NULL, s, &r);
+}
+
 static void draw_entry(struct menu_window *m, struct menu_entry *e, bool selected)
 {
-	if (e->type != MENU_ENTRY_LABEL)
+	switch (e->type) {
+	case MENU_ENTRY_LABEL:
+	case MENU_ENTRY_RADIO:
+	case MENU_ENTRY_SUBMENU:
+		break;
+	case MENU_ENTRY_SEPARATOR:
 		return;
+	}
 
 	// background
 	if (selected && e->active) {
@@ -235,23 +433,34 @@ static void draw_entry(struct menu_window *m, struct menu_entry *e, bool selecte
 	} else {
 		fg_color = &popup_menu_fg_color;
 	}
-	int text_x = ENTRY_ICON_PAD + ENTRY_ICON_SIZE + ENTRY_TEXT_PAD;
 	int text_y = e->y  + ENTRY_H/2;
 	if (!e->active && !selected) {
-		ui_draw_text(m->surface, text_x+1, text_y+1, e->label,
+		ui_draw_text(m->surface, m->text_x+1, text_y+1, e->text,
 				popup_menu_inactive_bg_color);
-		if (e->hotkey)
-			ui_draw_text(m->surface, m->hotkey_x+1, text_y+1, e->hotkey,
+		if (e->type == MENU_ENTRY_LABEL && e->label.hotkey)
+			ui_draw_text(m->surface, m->hotkey_x+1, text_y+1, e->label.hotkey,
 					popup_menu_inactive_bg_color);
 	}
-	ui_draw_text(m->surface, text_x, text_y, e->label, *fg_color);
-	if (e->hotkey)
-		ui_draw_text(m->surface, m->hotkey_x, text_y, e->hotkey, *fg_color);
+	ui_draw_text(m->surface, m->text_x, text_y, e->text, *fg_color);
+	if (e->type == MENU_ENTRY_LABEL && e->label.hotkey)
+		ui_draw_text(m->surface, m->hotkey_x, text_y, e->label.hotkey, *fg_color);
+
+	if (e->type == MENU_ENTRY_RADIO && e->radio.on) {
+		draw_checkmark(m->surface, BORDER_SIZE + 3, text_y, selected);
+	}
+
+	if (e->type == MENU_ENTRY_SUBMENU) {
+		draw_arrow(m->surface, m->width - BORDER_SIZE - 8, text_y, selected);
+	}
 
 }
 
-static struct menu_entry *popup_menu_selected(struct menu_window *m)
+static struct menu_entry *popup_window_selected(struct menu_window *m)
 {
+	SDL_Window *focus_window = SDL_GetMouseFocus();
+	if (!focus_window || m->window != focus_window)
+		return NULL;
+
 	int mouse_x, mouse_y;
 	SDL_GetMouseState(&mouse_x, &mouse_y);
 	if (mouse_x < BORDER_SIZE || mouse_x >= m->width - BORDER_SIZE
@@ -264,6 +473,8 @@ static struct menu_entry *popup_menu_selected(struct menu_window *m)
 		int h = 0;
 		switch (e->type) {
 		case MENU_ENTRY_LABEL:
+		case MENU_ENTRY_RADIO:
+		case MENU_ENTRY_SUBMENU:
 			h = ENTRY_H;
 			break;
 		case MENU_ENTRY_SEPARATOR:
@@ -277,30 +488,12 @@ static struct menu_entry *popup_menu_selected(struct menu_window *m)
 	return NULL;
 }
 
-static void popup_menu_update(struct menu_window *m)
+static void popup_window_close(struct menu_window *m)
 {
 	if (!m->opened)
 		return;
-
-	struct menu_entry *sel = popup_menu_selected(m);
-	if (sel != m->selected) {
-		if (m->selected)
-			draw_entry(m, m->selected, false);
-		if (sel)
-			draw_entry(m, sel, true);
-		m->selected = sel;
-	}
-
-	SDL_CALL(SDL_UpdateTexture, m->texture, NULL, m->surface->pixels, m->surface->pitch);
-	SDL_CALL(SDL_RenderClear, m->renderer);
-	SDL_CALL(SDL_RenderCopy, m->renderer, m->texture, NULL, NULL);
-	SDL_RenderPresent(m->renderer);
-}
-
-static void popup_menu_close(struct menu_window *m)
-{
-	if (!m->opened)
-		return;
+	if (m->child)
+		popup_window_close(m->child);
 	SDL_FreeSurface(m->surface);
 	SDL_DestroyTexture(m->texture);
 	SDL_DestroyRenderer(m->renderer);
@@ -311,9 +504,76 @@ static void popup_menu_close(struct menu_window *m)
 	m->surface = NULL;
 	m->window_id = 0;
 	m->opened = false;
+	if (m->parent && m->parent->child == m)
+		m->parent->child = NULL;
+	cancel_delayed_close(m);
 }
 
-static void popup_menu_handle_event(struct menu_window *m, SDL_Event *e)
+static void popup_window_close_all(struct menu_window *m)
+{
+	while (m->parent) {
+		m = m->parent;
+	}
+	popup_window_close(m);
+}
+
+static void popup_window_update(struct menu_window *m)
+{
+	if (!m->opened)
+		return;
+
+	// update selection
+	struct menu_entry *sel = popup_window_selected(m);
+	if (!sel && m->selected && m->selected->type == MENU_ENTRY_SUBMENU) {
+		// XXX: keep selected when mousing to submenu
+	} else if (sel != m->selected) {
+		if (m->selected) {
+			draw_entry(m, m->selected, false);
+			if (m->child) {
+				delayed_close(m->child, 200);
+			}
+		}
+		if (sel) {
+			draw_entry(m, sel, true);
+			if (sel->type == MENU_ENTRY_SUBMENU) {
+				delayed_open(m, sel, sel->submenu, 200);
+			}
+		}
+		m->selected = sel;
+	}
+
+	// update screen
+	SDL_CALL(SDL_UpdateTexture, m->texture, NULL, m->surface->pixels, m->surface->pitch);
+	SDL_CALL(SDL_RenderClear, m->renderer);
+	SDL_CALL(SDL_RenderCopy, m->renderer, m->texture, NULL, NULL);
+	SDL_RenderPresent(m->renderer);
+}
+
+static bool window_is_child(struct menu_window *m, int window_id)
+{
+	if (!m->child)
+		return false;
+	if (m->child->window_id == window_id)
+		return true;
+	return window_is_child(m->child, window_id);
+}
+
+static bool window_is_parent(struct menu_window *m, int window_id)
+{
+	if (!m->parent)
+		return false;
+	if (m->parent->window_id == window_id)
+		return true;
+	return window_is_parent(m->parent, window_id);
+}
+
+static bool window_is_related(struct menu_window *m, int window_id)
+{
+	return m->window_id == window_id || window_is_child(m, window_id)
+		|| window_is_parent(m, window_id);
+}
+
+static void popup_window_handle_event(struct menu_window *m, SDL_Event *e)
 {
 	switch (e->type) {
 	case SDL_WINDOWEVENT:
@@ -326,68 +586,93 @@ static void popup_menu_handle_event(struct menu_window *m, SDL_Event *e)
 		case SDL_WINDOWEVENT_SIZE_CHANGED:
 		case SDL_WINDOWEVENT_MAXIMIZED:
 		case SDL_WINDOWEVENT_RESTORED:
-			popup_menu_update(m);
+			popup_window_update(m);
 			break;
 		case SDL_WINDOWEVENT_ENTER:
-			cursor_unload();
-			popup_menu_update(m);
+			cancel_delayed_close(m);
+			popup_window_update(m);
 			break;
 		case SDL_WINDOWEVENT_LEAVE:
-			cursor_reload();
-			popup_menu_update(m);
+			popup_window_update(m);
 			break;
 		case SDL_WINDOWEVENT_FOCUS_LOST:
 		case SDL_WINDOWEVENT_CLOSE:
-			popup_menu_close(m);
+			popup_window_close(m);
 			break;
 		}
 		break;
 	case SDL_MOUSEBUTTONDOWN:
-		if (e->button.windowID != m->window_id)
-			popup_menu_close(m);
+		if (!window_is_related(m, e->button.windowID))
+			popup_window_close(m);
 		break;
 	case SDL_MOUSEBUTTONUP:
-		if (e->button.windowID == m->window_id) {
-			if (m->selected && m->selected->type == MENU_ENTRY_LABEL
-					&& m->selected->active) {
-				popup_menu_close(m);
-				if (m->selected->on_click)
-					m->selected->on_click(m->selected->data);
-			}
+		if (e->button.windowID != m->window_id)
+			break;
+		if (!m->selected || !m->selected->active)
+			break;
+		if (m->selected->type == MENU_ENTRY_LABEL) {
+			struct menu_label *label = &m->selected->label;
+			popup_window_close_all(m);
+			if (label->on_click)
+				label->on_click(label->data);
+		} else if (m->selected->type == MENU_ENTRY_RADIO) {
+			struct menu_radio *radio = &m->selected->radio;
+			popup_window_close_all(m);
+			if (radio->on_click)
+				radio->on_click(radio->index, radio->data);
 		}
 		break;
 	case SDL_MOUSEMOTION:
 		if (e->window.windowID == m->window_id)
-			popup_menu_update(m);
+			popup_window_update(m);
 		break;
 	}
+
+	if (m->child)
+		popup_window_handle_event(m->child, e);
 }
 
-// calculate size of frame and hotkey text position
-static void calc_size(struct menu *m, int *w, int *h, int *hotkey_x)
+// calculate size of frame and text positions
+static void calc_size(struct menu *m, int *w, int *h, int *text_x, int *hotkey_x)
 {
 	int max_label = 0;
 	int max_hotkey = 0;
 	struct menu_entry *e;
 	int height = BORDER_SIZE * 2;
+	bool have_icon = false;
 	vector_foreach_p(e, m->entries) {
 		switch (e->type) {
 		case MENU_ENTRY_SEPARATOR:
 			height += SEPARATOR_H;
 			break;
 		case MENU_ENTRY_LABEL:
-			max_label = max(max_label, ui_measure_text(e->label));
-			if (e->hotkey)
-				max_hotkey = max(max_hotkey, ui_measure_text(e->hotkey));
+			max_label = max(max_label, ui_measure_text(e->text));
+			if (e->icon_no >= 0)
+				have_icon = true;
+			if (e->label.hotkey)
+				max_hotkey = max(max_hotkey, ui_measure_text(e->label.hotkey));
+			height += ENTRY_H;
+			break;
+		case MENU_ENTRY_RADIO:
+			max_label = max(max_label, ui_measure_text(e->text));
+			have_icon = true;
+			height += ENTRY_H;
+			break;
+		case MENU_ENTRY_SUBMENU:
+			max_label = max(max_label, ui_measure_text(e->text));
+			max_hotkey = max(max_hotkey, 4); // triangle
 			height += ENTRY_H;
 			break;
 		}
 	}
 
-	*w = ENTRY_ICON_PAD + ENTRY_ICON_SIZE + ENTRY_TEXT_PAD + max_label
-		+ (max_hotkey ? max_hotkey + ENTRY_HOTKEY_PAD : 0) + ENTRY_PAD_RIGHT;
+	int text_pad = ENTRY_TEXT_PAD;
+	if (have_icon)
+		text_pad += ENTRY_ICON_PAD + ENTRY_ICON_SIZE;
+	*w = text_pad + max_label + (max_hotkey ? max_hotkey + ENTRY_HOTKEY_PAD : 0) + ENTRY_PAD_RIGHT;
 	*h = height;
-	*hotkey_x = ENTRY_ICON_PAD + ENTRY_ICON_SIZE + ENTRY_TEXT_PAD + max_label + ENTRY_HOTKEY_PAD;
+	*text_x = text_pad;
+	*hotkey_x = text_pad + max_label + ENTRY_HOTKEY_PAD;
 }
 
 // calculate vertical position of each entry
@@ -399,6 +684,8 @@ static void calc_layout(struct menu_window *m)
 		e->y = y;
 		switch (e->type) {
 		case MENU_ENTRY_LABEL:
+		case MENU_ENTRY_RADIO:
+		case MENU_ENTRY_SUBMENU:
 			y += ENTRY_H;
 			break;
 		case MENU_ENTRY_SEPARATOR:
@@ -428,47 +715,102 @@ static void map_colors(SDL_PixelFormat *format)
 	border_dark_color = map_color(format, popup_menu_border_dark_color);
 }
 
+static void popup_window_init(struct menu_window *w, struct menu *m, int x, int y)
+{
+	w->menu = m;
+	w->x = x;
+	w->y = y;
+	w->selected = NULL;
+	calc_size(m, &w->width, &w->height, &w->text_x, &w->hotkey_x);
+	SDL_CTOR(SDL_CreateWindow, w->window, "", x, y, w->width, w->height,
+			SDL_WINDOW_BORDERLESS | SDL_WINDOW_POPUP_MENU);
+	w->window_id = SDL_GetWindowID(w->window);
+	SDL_CTOR(SDL_CreateRenderer, w->renderer, w->window, -1, 0);
+	SDL_CALL(SDL_SetRenderDrawColor, w->renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
+	SDL_CALL(SDL_RenderSetLogicalSize, w->renderer, w->width, w->height);
+	SDL_CTOR(SDL_CreateRGBSurfaceWithFormat, w->surface, 0, w->width, w->height,
+			GFX_DIRECT_BPP, GFX_DIRECT_FORMAT);
+	SDL_CTOR(SDL_CreateTexture, w->texture, w->renderer, w->surface->format->format,
+			SDL_TEXTUREACCESS_STATIC, w->width, w->height);
+	w->parent = NULL;
+	w->child = NULL;
+
+	// draw initial state (no selection)
+	map_colors(w->surface->format);
+	calc_layout(w);
+	draw_frame(w);
+	struct menu_entry *e;
+	vector_foreach_p(e, m->entries) {
+		draw_entry(w, e, false);
+	}
+}
+
+static struct menu_window *popup_window_new(struct menu *menu, int x, int y)
+{
+	struct menu_window *w = xmalloc(sizeof(struct menu_window));
+	popup_window_init(w, menu, x, y);
+	return w;
+}
+
+static void run_delayed_open(struct popup_delayed_open *d)
+{
+	if (d->parent->selected != d->entry)
+		return;
+	int child_x = d->parent->x + d->parent->width - BORDER_SIZE;
+	int child_y = d->parent->y + d->entry->y - BORDER_SIZE;
+	struct menu_window *child = popup_window_new(d->menu, child_x, child_y);
+	child->opened = true;
+	child->parent = d->parent;
+	if (d->parent->child) {
+		popup_window_close(d->parent->child);
+	}
+	d->parent->child = child;
+}
+
+static void run_delayed_close(struct popup_delayed_close *d)
+{
+	popup_window_close(d->window);
+	free(d->window);
+}
+
 void popup_menu_run(struct menu *m, int x, int y)
 {
 	struct menu_window w;
-	w.menu = m;
-	w.selected = NULL;
-	calc_size(m, &w.width, &w.height, &w.hotkey_x);
-	SDL_CTOR(SDL_CreateWindow, w.window, "", x, y, w.width, w.height,
-			SDL_WINDOW_BORDERLESS | SDL_WINDOW_POPUP_MENU);
-	w.window_id = SDL_GetWindowID(w.window);
-	SDL_CTOR(SDL_CreateRenderer, w.renderer, w.window, -1, 0);
-	SDL_CALL(SDL_SetRenderDrawColor, w.renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
-	SDL_CALL(SDL_RenderSetLogicalSize, w.renderer, w.width, w.height);
-	SDL_CTOR(SDL_CreateRGBSurfaceWithFormat, w.surface, 0, w.width, w.height,
-			GFX_DIRECT_BPP, GFX_DIRECT_FORMAT);
-	SDL_CTOR(SDL_CreateTexture, w.texture, w.renderer, w.surface->format->format,
-			SDL_TEXTUREACCESS_STATIC, w.width, w.height);
+	popup_window_init(&w, m, x, y);
 
-	// draw initial state (no selection)
-	map_colors(w.surface->format);
-	calc_layout(&w);
-	draw_frame(&w);
-	struct menu_entry *e;
-	vector_foreach_p(e, m->entries) {
-		draw_entry(&w, e, false);
-	}
-
+	// cursor may be disabled
 	int cursor_state = SDL_ShowCursor(SDL_QUERY);
 	SDL_ShowCursor(SDL_ENABLE);
+	cursor_unload();
 
 	w.opened = true;
+	vm_timer_t timer = vm_timer_create();
 	while (w.opened) {
+		uint32_t ticks = SDL_GetTicks();
+		for (int i = 0; i < POPUP_MAX_DELAYED; i++) {
+			struct popup_delayed_open *open = &delayed_opens[i];
+			if (open->t && open->t <= ticks) {
+				run_delayed_open(open);
+				open->t = 0;
+			}
+			struct popup_delayed_close *close = &delayed_closes[i];
+			if (close->t && close->t <= ticks) {
+				run_delayed_close(close);
+				close->t = 0;
+			}
+		}
 		SDL_Event e;
 		while (SDL_PollEvent(&e)) {
 			if (e.type == SDL_WINDOWEVENT && e.window.windowID == gfx.window_id) {
 				handle_window_event(&e.window);
 			} else {
-				popup_menu_handle_event(&w, &e);
+				popup_window_handle_event(&w, &e);
 			}
 		}
 		gfx_update();
+		vm_timer_tick(&timer, 16);
 	}
 
+	cursor_reload();
 	SDL_ShowCursor(cursor_state);
 }

@@ -202,8 +202,20 @@ static void isaku_se_wait(void)
 	}
 }
 
+static char bgm_name[32] = {0};
+
 static void isaku_audio(struct param_list *params)
 {
+	switch (vm_expr_param(params, 0)) {
+	case 0:
+		strncpy(bgm_name, vm_string_param(params, 1), 31);
+		break;
+	case 1:
+	case 2:
+	case 7:
+		bgm_name[0] = '\0';
+		break;
+	}
 	if (!vm_flag_is_on(FLAG_AUDIO_ENABLE))
 		return;
 	switch (vm_expr_param(params, 0)) {
@@ -909,6 +921,33 @@ static void hide_message_clicked(void *_)
 		message_clear();
 }
 
+static void music_enabled_clicked(int index, void *_)
+{
+	if (index == 0) {
+		vm_flag_on(FLAG_AUDIO_ENABLE);
+		audio_bgm_play(bgm_name, true);
+	} else {
+		audio_stop(AUDIO_CH_BGM);
+		audio_stop(AUDIO_CH_SE(0));
+		vm_flag_off(FLAG_AUDIO_ENABLE);
+	}
+}
+
+static void voice_enabled_clicked(int index, void *_)
+{
+	if (index == 0) {
+		vm_flag_on(FLAG_VOICE_ENABLE);
+	} else {
+		audio_stop(AUDIO_CH_VOICE(0));
+		vm_flag_off(FLAG_VOICE_ENABLE);
+	}
+}
+
+static void move_speed_clicked(int index, void *_)
+{
+	dungeon_set_move_speed(index);
+}
+
 static void quit_game_clicked(void *_)
 {
 	if (gfx_confirm_quit())
@@ -923,6 +962,30 @@ static void open_context_menu(void)
 	int load_id = popup_menu_append_entry(m, 3, "Load Data", "L", load_data_clicked, NULL);
 	popup_menu_append_separator(m);
 	int msg_id = popup_menu_append_entry(m, -1, "Hide Message", "Tab", hide_message_clicked, NULL);
+	popup_menu_append_separator(m);
+
+	const char *on_off[] = { "On", "Off" };
+	const char *fast_normal_slow[] = { "Fast", "Normal", "Slow" };
+
+	bool audio_enabled = vm_flag_is_on(FLAG_AUDIO_ENABLE);
+	struct menu *music = popup_menu_new();
+	popup_menu_append_radio_group(music, on_off, 2, audio_enabled ? 0 : 1,
+			music_enabled_clicked, NULL);
+	bool voice_enabled = vm_flag_is_on(FLAG_VOICE_ENABLE);
+	struct menu *voice = popup_menu_new();
+	popup_menu_append_radio_group(voice, on_off, 2, voice_enabled ? 0 : 1,
+			voice_enabled_clicked, NULL);
+	struct menu *move_speed = popup_menu_new();
+	popup_menu_append_radio_group(move_speed, fast_normal_slow, 3, dungeon_get_move_speed(),
+			move_speed_clicked, NULL);
+
+	struct menu *options = popup_menu_new();
+	popup_menu_append_submenu(options, -1, "Music", music);
+	popup_menu_append_submenu(options, -1, "Voice", voice);
+	//popup_menu_append_entry(options, -1, "Volume Control", NULL, NULL, NULL);
+	popup_menu_append_submenu(options, -1, "Move Speed", move_speed);
+	popup_menu_append_submenu(m, -1, "Options", options);
+
 	popup_menu_append_separator(m);
 	popup_menu_append_entry(m, -1, "Quit Game", "Alt+F4", quit_game_clicked, NULL);
 	popup_menu_append_separator(m);
