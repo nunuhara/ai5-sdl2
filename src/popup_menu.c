@@ -210,7 +210,6 @@ struct menu_window {
 	struct menu_entry *selected;
 	SDL_Window *window;
 	SDL_Renderer *renderer;
-	SDL_Texture *bg;
 	SDL_Texture *texture;
 	SDL_Surface *surface;
 	uint32_t window_id;
@@ -488,12 +487,14 @@ static struct menu_entry *popup_window_selected(struct menu_window *m)
 	return NULL;
 }
 
+static void popup_window_free(struct menu_window *m);
+
 static void popup_window_close(struct menu_window *m)
 {
 	if (!m->opened)
 		return;
 	if (m->child)
-		popup_window_close(m->child);
+		popup_window_free(m->child);
 	SDL_FreeSurface(m->surface);
 	SDL_DestroyTexture(m->texture);
 	SDL_DestroyRenderer(m->renderer);
@@ -596,13 +597,13 @@ static void popup_window_handle_event(struct menu_window *m, SDL_Event *e)
 			popup_window_update(m);
 			break;
 		case SDL_WINDOWEVENT_CLOSE:
-			popup_window_close(m);
+			popup_window_close_all(m);
 			break;
 		}
 		break;
 	case SDL_MOUSEBUTTONDOWN:
 		if (!window_is_related(m, e->button.windowID))
-			popup_window_close(m);
+			popup_window_close_all(m);
 		break;
 	case SDL_MOUSEBUTTONUP:
 		if (e->button.windowID != m->window_id)
@@ -753,6 +754,12 @@ static struct menu_window *popup_window_new(struct menu *menu, int x, int y)
 	return w;
 }
 
+static void popup_window_free(struct menu_window *m)
+{
+	popup_window_close(m);
+	free(m);
+}
+
 static void run_delayed_open(struct popup_delayed_open *d)
 {
 	if (d->parent->selected != d->entry)
@@ -763,15 +770,14 @@ static void run_delayed_open(struct popup_delayed_open *d)
 	child->opened = true;
 	child->parent = d->parent;
 	if (d->parent->child) {
-		popup_window_close(d->parent->child);
+		popup_window_free(d->parent->child);
 	}
 	d->parent->child = child;
 }
 
 static void run_delayed_close(struct popup_delayed_close *d)
 {
-	popup_window_close(d->window);
-	free(d->window);
+	popup_window_free(d->window);
 }
 
 void popup_menu_run(struct menu *m, int x, int y)

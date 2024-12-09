@@ -359,6 +359,7 @@ void ui_draw_text(SDL_Surface *s, int x, int y, const char *text, SDL_Color colo
 	SDL_Surface *text_s = TTF_RenderUTF8_Solid(ui_font, text, color);
 	SDL_Rect text_r = { x, y - (TTF_FontAscent(ui_font) - ui_ascent) - ui_ascent / 2, text_s->w, text_s->h };
 	SDL_CALL(SDL_BlitSurface, text_s, NULL, s, &text_r);
+	SDL_FreeSurface(text_s);
 }
 
 int ui_measure_text(const char *text)
