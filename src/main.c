@@ -220,6 +220,9 @@ static void set_game(const char *name)
 	case GAME_SHANGRLIA:
 		game = &game_shangrlia;
 		break;
+	case GAME_BEYOND:
+		game = &game_beyond;
+		break;
 #endif
 	case GAME_DOUKYUUSEI:
 		game = &game_doukyuusei;
@@ -251,6 +254,8 @@ static bool set_game_from_config(void)
 		name = "aishimai";
 	} else if (!strcmp(config.title, "DOUKYUSEI")) {
 		name = "doukyuusei";
+	} else if (!strcmp(config.title, "Be-Yond")) {
+		name = "beyond";
 	}
 	if (!name)
 		return false;

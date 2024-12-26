@@ -37,6 +37,7 @@ sources = [
   'src/anim.c',
   'src/asset.c',
   'src/backlog.c',
+  'src/beyond.c',
   'src/classics.c',
   'src/cmdline.c',
   'src/cursor.c',

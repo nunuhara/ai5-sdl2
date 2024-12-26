@@ -525,8 +525,8 @@ static SDL_Cursor *load_monochrome_cursor(struct cursor_data *cur, uint8_t *xor_
 	stride = (stride + 3) & ~3;
 
 	// convert masks to format expected by SDL
-	uint8_t *data = xcalloc(1, cur->bm_info.size_image / 2);
-	uint8_t *mask = xcalloc(1, cur->bm_info.size_image / 2);
+	uint8_t *data = xcalloc(cur->bm_info.height / 2, cur->bm_info.width / 8);
+	uint8_t *mask = xcalloc(cur->bm_info.height / 2, cur->bm_info.width / 8);
 	for (int row = 0; row < cur->bm_info.height / 2; row++) {
 		int dst_byte = (cur->bm_info.height / 2 - (row + 1)) * stride;
 		int src_byte = row * stride;

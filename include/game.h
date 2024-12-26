@@ -75,7 +75,7 @@ enum flags_type {
 
 struct game {
 	enum ai5_game_id id;
-	struct { uint16_t w, h; } surface_sizes[13];
+	struct { uint16_t w, h; } surface_sizes[16];
 	// bits per pixel
 	//   8  = 8-bit indexed
 	//   16 = BGR555
@@ -109,6 +109,7 @@ struct game {
 };
 
 extern struct game game_ai_shimai;
+extern struct game game_beyond;
 extern struct game game_doukyuusei;
 extern struct game game_isaku;
 extern struct game game_shangrlia;

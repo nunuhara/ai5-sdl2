@@ -92,11 +92,11 @@ static uint32_t get_mask_color(void)
 	return mem_get_sysvar16(mes_sysvar16_mask_color);
 }
 
-static void _anim_init_stream(unsigned slot, unsigned stream)
+static void _anim_init_stream(unsigned slot, unsigned stream, uint32_t off)
 {
 	struct anim_stream *anim = &streams[slot];
 	memset(anim, 0, sizeof(struct anim_stream));
-	anim->file_data = memory.file_data + mem_get_sysvar32(mes_sysvar32_data_offset);
+	anim->file_data = memory.file_data + off;
 	if (anim_type == ANIM_S4) {
 		anim->bytecode = anim->file_data + le_get16(anim->file_data, 1 + stream * 2);
 	} else {
@@ -112,7 +112,16 @@ void anim_init_stream(unsigned slot, unsigned stream)
 	check_slot(slot);
 	if (stream >= ANIM_MAX_STREAMS)
 		VM_ERROR("Invalid animation stream index: %u", stream);
-	_anim_init_stream(slot, stream);
+	_anim_init_stream(slot, stream, mem_get_sysvar32(mes_sysvar32_data_offset));
+}
+
+void anim_init_stream_from(unsigned slot, unsigned stream, uint32_t off)
+{
+	ANIM_LOG("anim_init_stream_from(%u,%u) @ 0x%08x", slot, stream, off);
+	check_slot(slot);
+	if (stream >= ANIM_MAX_STREAMS)
+		VM_ERROR("Invalid animation stream index: %u", stream);
+	_anim_init_stream(slot, stream, off);
 }
 
 void anim_start(unsigned slot)
@@ -174,7 +183,7 @@ void anim_reset_all(void)
 	for (int i = 0; i < ANIM_MAX_STREAMS; i++) {
 		if (streams[i].state == ANIM_STATE_HALTED)
 			continue;
-		_anim_init_stream(i, streams[i].stream);
+		_anim_init_stream(i, streams[i].stream, mem_get_sysvar32(mes_sysvar32_data_offset));
 	}
 }
 
@@ -301,6 +310,16 @@ static bool anim_stream_draw(struct anim_stream *anim, uint8_t i)
 	case ANIM_DRAW_OP_SET_COLOR:
 		break;
 	case ANIM_DRAW_OP_SET_PALETTE:
+		break;
+	case ANIM_DRAW_OP_COMPOSE_WITH_OFFSET:
+	case ANIM_DRAW_OP_0x60_COPY_MASKED:
+	case ANIM_DRAW_OP_0x61_COMPOSE:
+	case ANIM_DRAW_OP_0x62:
+	case ANIM_DRAW_OP_0x63_COPY_MASKED_WITH_XOFFSET:
+	case ANIM_DRAW_OP_0x64_COMPOSE_MASKED:
+	case ANIM_DRAW_OP_0x65_COMPOSE:
+	case ANIM_DRAW_OP_0x66:
+		// TODO: BE-YOND
 		break;
 	}
 	if (game->after_anim_draw)

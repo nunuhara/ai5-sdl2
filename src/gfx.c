@@ -1028,13 +1028,18 @@ void gfx_blend(int src_x, int src_y, int w, int h, unsigned src_i, int dst_x, in
 }
 
 _Static_assert(GFX_DIRECT_FORMAT == SDL_PIXELFORMAT_RGB24);
-static void alpha_blend(uint8_t *bg, uint8_t *fg, uint8_t alpha)
+static void alpha_blend_to(uint8_t *bg, uint8_t *fg, uint8_t *dst, uint8_t alpha)
 {
 	uint32_t a = (uint32_t)alpha + 1;
 	uint32_t inv_a = 256 - (uint32_t)alpha;
-	bg[0] = (uint8_t)((a * fg[0] + inv_a * bg[0]) >> 8);
-	bg[1] = (uint8_t)((a * fg[1] + inv_a * bg[1]) >> 8);
-	bg[2] = (uint8_t)((a * fg[2] + inv_a * bg[2]) >> 8);
+	dst[0] = (uint8_t)((a * fg[0] + inv_a * bg[0]) >> 8);
+	dst[1] = (uint8_t)((a * fg[1] + inv_a * bg[1]) >> 8);
+	dst[2] = (uint8_t)((a * fg[2] + inv_a * bg[2]) >> 8);
+}
+
+static void alpha_blend(uint8_t *bg, uint8_t *fg, uint8_t alpha)
+{
+	alpha_blend_to(bg, fg, bg, alpha);
 }
 
 void gfx_blend_masked(int src_x, int src_y, int w, int h, unsigned src_i, int dst_x,
@@ -1053,6 +1058,7 @@ void gfx_blend_masked(int src_x, int src_y, int w, int h, unsigned src_i, int ds
 		return;
 
 	direct_foreach_px2(src_px, dst_px, src, &src_r, dst, &dst_p,
+		// FIXME: handle all mask types
 		if (*mask == 0) {
 			// nothing
 		} else if (*mask > 15) {
@@ -1064,6 +1070,54 @@ void gfx_blend_masked(int src_x, int src_y, int w, int h, unsigned src_i, int ds
 	);
 
 	gfx_dirty(dst_i, dst_x, dst_y, w, h);
+}
+
+void gfx_blend_with_mask_color_to(int a_x, int a_y, int w, int h, unsigned a_i, int b_x,
+		int b_y, unsigned b_i, int dst_x, int dst_y, unsigned dst_i, int mask_w,
+		int mask_h, uint8_t *mask)
+{
+	GFX_LOG("gfx_blend_with_mask_color_to %u(%d,%d) + %u(%d,%d) -> %u(%d,%d) @ (%d,%d)",
+			src_i, src_x, src_y, new_i, new_x, new_y, dst_i, dst_x, dst_y, w, h);
+	SDL_Surface *a = gfx_get_surface(a_i);
+	SDL_Surface *b = gfx_get_surface(b_i);
+	SDL_Surface *dst = gfx_get_surface(dst_i);
+	if (unlikely(a_x < 0 || a_y < 0 || a_x + w > a->w || a_y + h > a->h))
+		return;
+	if (unlikely(b_x < 0 || b_y < 0 || b_x + w > b->w || b_y + h > b->h))
+		return;
+	if (unlikely(dst_x < 0 || dst_y < 0 || dst_x + w > dst->w || dst_y + h > dst->h))
+		return;
+
+	if (SDL_MUSTLOCK(a))
+		SDL_CALL(SDL_LockSurface, a);
+	if (SDL_MUSTLOCK(b))
+		SDL_CALL(SDL_LockSurface, b);
+	if (SDL_MUSTLOCK(dst))
+		SDL_CALL(SDL_LockSurface, dst);
+
+	for (int row = 0; row < h; row++) {
+		uint8_t *src_px = DIRECT_PIXEL_P(a, a_x, a_y + row);
+		uint8_t *new_px = DIRECT_PIXEL_P(b, b_x, b_y + row);
+		uint8_t *dst_px = DIRECT_PIXEL_P(dst, dst_x, dst_y + row);
+		uint8_t *mask_px = mask + a_y * mask_w + a_x;
+		for (int col = 0; col < w; col++, src_px += 3, new_px += 3, dst_px += 3, mask_px++) {
+			// FIXME: handle all mask types
+			if (*mask_px == 0) {
+				memcpy(dst_px, src_px, GFX_DIRECT_BPP / 8);
+			} else if (*mask_px > 7) {
+				memcpy(dst_px, new_px, GFX_DIRECT_BPP / 8);
+			} else {
+				alpha_blend_to(dst_px, src_px, new_px, *mask_px * 32 - 16);
+			}
+		}
+	}
+
+	if (SDL_MUSTLOCK(a))
+		SDL_UnlockSurface(a);
+	if (SDL_MUSTLOCK(b))
+		SDL_UnlockSurface(b);
+	if (SDL_MUSTLOCK(dst))
+		SDL_UnlockSurface(dst);
 }
 
 void gfx_invert_colors(int x, int y, int w, int h, unsigned i)

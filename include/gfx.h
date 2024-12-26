@@ -19,7 +19,7 @@
 
 struct cg;
 
-#define GFX_NR_SURFACES 12
+#define GFX_NR_SURFACES 15
 
 struct gfx_view { unsigned w, h; };
 extern struct gfx_view gfx_view;
@@ -76,6 +76,9 @@ void gfx_blend(int src_x, int src_y, int w, int h, unsigned src_i, int dst_x, in
 		unsigned dst_i, uint8_t alpha);
 void gfx_blend_masked(int src_x, int src_y, int w, int h, unsigned src_i, int dst_x,
 		int dst_y, unsigned dst_i, uint8_t *mask);
+void gfx_blend_with_mask_color_to(int a_x, int a_y, int w, int h, unsigned a_i, int b_x,
+		int b_y, unsigned b_i, int dst_x, int dst_y, unsigned dst_i, int mask_w,
+		int mask_h, uint8_t *mask);
 void gfx_invert_colors(int x, int y, int w, int h, unsigned i);
 void gfx_fill(int x, int y, int w, int h, unsigned i, uint32_t c);
 void gfx_swap_colors(int x, int y, int w, int h, unsigned i, uint32_t c1, uint32_t c2);

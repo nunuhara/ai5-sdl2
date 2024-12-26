@@ -21,6 +21,7 @@ void anim_execute(void);
 bool anim_running(void);
 bool anim_stream_running(unsigned slot);
 void anim_init_stream(unsigned slot, unsigned stream);
+void anim_init_stream_from(unsigned slot, unsigned stream, uint32_t off);
 void anim_start(unsigned slot);
 void anim_stop(unsigned slot);
 void anim_halt(unsigned slot);
