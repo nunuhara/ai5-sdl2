@@ -43,6 +43,11 @@
 
 #define DEFAULT_MSG_SKIP_DELAY 16
 struct config config = {
+	// XXX: Different games have different defaults for bMESTYPE/bDATATYPE.
+	//      We follow Kakyuusei here because that's the only game (so far) that relies
+	//      on the default rather than an explicit value in AI5WIN.ini
+	.mes = { .mes_type = 1 },
+	.data = { .data_type = 0 },
 	.font_face = -1,
 	.transition_speed = 1.0,
 	.msg_skip_delay = DEFAULT_MSG_SKIP_DELAY,

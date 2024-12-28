@@ -59,20 +59,28 @@ static struct archive *open_arc(const char *name, unsigned flags)
 
 void asset_init(void)
 {
+	unsigned typ_flags = ARCHIVE_RAW;
+	unsigned mes_flags = ARCHIVE_CACHE;
+	unsigned data_flags = ARCHIVE_CACHE;
+	if (!config.mes.mes_type)
+		mes_flags |= ARCHIVE_RAW;
+	if (!config.data.data_type)
+		mes_flags |= ARCHIVE_RAW;
+
 #define ARC_OPEN(t, flags, warn) \
 	if (config.file.t.arc) { \
 		assert(config.file.t.name); \
 		if (!(arc.t = open_arc(config.file.t.name, flags))) \
 			warn("Failed to open archive \"%s\"", config.file.t.name); \
 	}
-	ARC_OPEN(bg,       0,             WARNING);
-	ARC_OPEN(mes,      ARCHIVE_CACHE, ERROR);
-	ARC_OPEN(bgm,      0,             WARNING);
-	ARC_OPEN(voice,    0,             WARNING);
-	ARC_OPEN(voicesub, 0,             WARNING);
-	ARC_OPEN(effect,   0,             WARNING);
-	ARC_OPEN(data,     ARCHIVE_CACHE, WARNING);
-	ARC_OPEN(priv,     0,             WARNING);
+	ARC_OPEN(bg,       typ_flags,  WARNING);
+	ARC_OPEN(mes,      mes_flags,  ERROR);
+	ARC_OPEN(bgm,      typ_flags,  WARNING);
+	ARC_OPEN(voice,    typ_flags,  WARNING);
+	ARC_OPEN(voicesub, typ_flags,  WARNING);
+	ARC_OPEN(effect,   typ_flags,  WARNING);
+	ARC_OPEN(data,     data_flags, WARNING);
+	ARC_OPEN(priv,     typ_flags,  WARNING);
 #undef ARC_OPEN
 	cg_cache_init();
 }
