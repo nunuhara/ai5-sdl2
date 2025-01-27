@@ -98,8 +98,14 @@ void vm_expr_ptr32_get8(void);
 void vm_expr_ptr32_get16(void);
 void vm_expr_ptr32_get32(void);
 
-void vm_stmt_txt(void);
-void vm_stmt_str(void);
+void vm_stmt_txt_no_log(void);
+void vm_stmt_txt_new_log(void);
+void vm_stmt_txt_old_log(void);
+void vm_stmt_str_no_log(void);
+void vm_stmt_str_new_log(void);
+void vm_unprefixed_txt_new_log(void);
+void vm_unprefixed_str_new_log(void);
+
 void vm_stmt_set_cflag(void);
 void vm_stmt_set_cflag_4bit_wrap(void);
 void vm_stmt_set_cflag_4bit_saturate(void);
@@ -116,6 +122,7 @@ void vm_stmt_ptr32_set8(void);
 void vm_stmt_jz(void);
 void vm_stmt_jmp(void);
 void vm_stmt_sys(void);
+void vm_stmt_sys_old_log(void);
 void vm_stmt_mesjmp(void);
 void vm_stmt_mescall(void);
 void vm_stmt_mescall_save_procedures(void);
@@ -123,6 +130,7 @@ void vm_stmt_defmenu(void);
 void vm_stmt_menuexec(void);
 void vm_stmt_defproc(void);
 void vm_stmt_call(void);
+void vm_stmt_call_old_log(void);
 void vm_stmt_util(void);
 void vm_stmt_line(void);
 
@@ -155,8 +163,8 @@ void vm_stmt_line(void);
 	[0xf6] = vm_expr_var32
 
 #define DEFAULT_STMT_OP \
-	[0x01] = vm_stmt_txt, \
-	[0x02] = vm_stmt_str, \
+	[0x01] = vm_stmt_txt_new_log, \
+	[0x02] = vm_stmt_str_new_log, \
 	[0x03] = vm_stmt_set_cflag, \
 	[0x04] = vm_stmt_set_var16, \
 	[0x05] = vm_stmt_set_eflag, \
@@ -184,19 +192,19 @@ attr_warn_unused_result static inline bool vm_flag_is_on(enum game_flag flag)
 {
 	if (game->flags[flag] == FLAG_ALWAYS_ON)
 		return true;
-	return (mem_get_sysvar16(MES_SYS_VAR_FLAGS) & game->flags[flag]);
+	return (mem_get_sysvar16(mes_sysvar16_flags) & game->flags[flag]);
 }
 
 static inline void vm_flag_on(enum game_flag flag)
 {
 	if (game->flags[flag] == FLAG_ALWAYS_ON)
 		return;
-	mem_set_sysvar16(MES_SYS_VAR_FLAGS, mem_get_sysvar16(MES_SYS_VAR_FLAGS) | game->flags[flag]);
+	mem_set_sysvar16(mes_sysvar16_flags, mem_get_sysvar16(mes_sysvar16_flags) | game->flags[flag]);
 }
 
 static inline void vm_flag_off(enum game_flag flag)
 {
-	mem_set_sysvar16(MES_SYS_VAR_FLAGS, mem_get_sysvar16(MES_SYS_VAR_FLAGS) & ~(game->flags[flag]));
+	mem_set_sysvar16(mes_sysvar16_flags, mem_get_sysvar16(mes_sysvar16_flags) & ~(game->flags[flag]));
 }
 
 typedef uint32_t vm_timer_t;

@@ -21,16 +21,6 @@
 
 struct archive_data;
 
-enum asset_type {
-	ASSET_BG,
-	ASSET_MES,
-	ASSET_BGM,
-	ASSET_VOICE,
-	ASSET_EFFECT,
-	ASSET_DATA,
-	ASSET_PRIV,
-};
-
 void asset_init(void);
 void asset_fini(void);
 

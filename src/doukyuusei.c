@@ -174,21 +174,6 @@ static void doukyuusei_savedata_save_extra_var32(const char *save_name)
 	savedata_write(save_name, memory_raw, SYSVAR32_OFF + (11 * 4), 200 * 4);
 }
 
-static void doukyuusei_load_variables(const char *save_name, const char *vars)
-{
-	uint8_t save[SYSVAR16_OFF];
-	savedata_read(save_name, save, VAR16_OFF, SYSVAR16_OFF - VAR16_OFF);
-
-	for (const char *str = vars; *str; str++) {
-		if (*str < 'A' || *str > 'Z') {
-			WARNING("Invalid variable name: %c", *str);
-			return;
-		}
-		unsigned varno = *str - 'A';
-		mem_set_var16(varno, le_get16(save, VAR16_OFF + varno * 2));
-	}
-}
-
 static void doukyuusei_savedata_load_special_flags(void)
 {
 	uint8_t save[MEMORY_MES_NAME_SIZE + VAR4_SIZE];
@@ -226,7 +211,7 @@ static void doukyuusei_savedata(struct param_list *params)
 	case 4: doukyuusei_savedata_load_extra_var32(sys_save_name(params)); break;
 	case 5: doukyuusei_savedata_save_extra_var32(sys_save_name(params)); break;
 	case 6: memset(memory_raw + MEMORY_VAR4_OFFSET, 0, VAR4_SIZE); break;
-	case 7: doukyuusei_load_variables(sys_save_name(params), vm_string_param(params, 2)); break;
+	case 7: savedata_load_variables(sys_save_name(params), vm_string_param(params, 2), VAR4_SIZE); break;
 	case 8: doukyuusei_savedata_load_special_flags(); break;
 	case 9: doukyuusei_savedata_save_special_flags(); break;
 	case 10: savedata_save_var4(sys_save_name(params), VAR4_SIZE); break;
@@ -399,6 +384,26 @@ static void doukyuusei_wait(struct param_list *params)
 	sys_wait(params);
 }
 
+static void draw_statusbar(void)
+{
+	// copy area hidden by status bar to surface 7
+	gfx_copy(0, 448, 640, 32, 0, 0, 1248, 7);
+	// draw status bar
+	gfx_copy(0, 106, 640, 32, 7, 0, 448, 0);
+}
+
+static void doukyuusei_map_exec_sprites_and_redraw(void)
+{
+	map_exec_sprites_and_redraw();
+	draw_statusbar();
+}
+
+static void doukyuusei_map_draw_tiles(void)
+{
+	map_draw_tiles();
+	draw_statusbar();
+}
+
 static void doukyuusei_map(struct param_list *params)
 {
 	switch (vm_expr_param(params, 0)) {
@@ -410,10 +415,10 @@ static void doukyuusei_map(struct param_list *params)
 	case 5: map_set_sprite_script(vm_expr_param(params, 1), vm_expr_param(params, 2)); break;
 	case 6: map_place_sprites(); break;
 	case 7: map_set_sprite_state(vm_expr_param(params, 1), vm_expr_param(params, 2)); break;
-	case 8: map_exec_sprites_and_redraw(); break;
+	case 8: doukyuusei_map_exec_sprites_and_redraw(); break;
 	case 9: map_exec_sprites(); break;
 	case 10:
-	case 11: map_draw_tiles(); break;
+	case 11: doukyuusei_map_draw_tiles(); break;
 	case 12: map_set_location_mode(vm_expr_param(params, 1)); break;
 	case 13: map_get_location(); break;
 	case 14: map_move_sprite(vm_expr_param(params, 1), vm_expr_param(params, 2)); break;
@@ -444,29 +449,6 @@ static void doukyuusei_backlog(struct param_list *params)
 	}
 }
 
-static void decompose_draw_call(struct anim_draw_call *call,
-		int *dst_x, int *dst_y, int *w, int *h)
-{
-	switch (call->op) {
-	case ANIM_DRAW_OP_COPY:
-	case ANIM_DRAW_OP_COPY_MASKED:
-	case ANIM_DRAW_OP_SWAP:
-		*dst_x = call->copy.dst.x;
-		*dst_y = call->copy.dst.y;
-		*w = call->copy.dim.w;
-		*h = call->copy.dim.h;
-		break;
-	case ANIM_DRAW_OP_COMPOSE:
-		*dst_x = call->compose.dst.x;
-		*dst_y = call->compose.dst.y;
-		*w = call->compose.dim.w;
-		*h = call->compose.dim.h;
-		break;
-	default:
-		VM_ERROR("Unexpected animation draw operation: %u", (unsigned)call->op);
-	}
-}
-
 /*
  * Redraw the message box when it's clobbered by an animation.
  */
@@ -485,7 +467,7 @@ static void doukyuusei_after_anim_draw(struct anim_draw_call *call)
 	}
 
 	int dst_x, dst_y, w, h;
-	decompose_draw_call(call, &dst_x, &dst_y, &w, &h);
+	anim_decompose_draw_call(call, &dst_x, &dst_y, &w, &h);
 	if (dst_y + h <= dst_top_y)
 		return;
 

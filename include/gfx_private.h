@@ -75,7 +75,8 @@ extern struct gfx gfx;
 
 SDL_Surface *gfx_get_surface(unsigned i);
 SDL_Surface *gfx_get_overlay(void);
-void gfx_update_palette(int n);
+void _gfx_update_palette(int start, int n);
+void gfx_update_palette(int start, int n);
 bool gfx_fill_clip(SDL_Surface *s, SDL_Rect *r);
 bool gfx_copy_clip(SDL_Surface *src, SDL_Rect *src_r, SDL_Surface *dst, SDL_Point *dst_p);
 void ui_draw_text(SDL_Surface *s, int x, int y, const char *text, SDL_Color color);
@@ -83,6 +84,20 @@ int ui_measure_text(const char *text);
 SDL_Surface *icon_get(unsigned no);
 
 void gfx_dump_surface(unsigned i, const char *filename);
+
+static inline SDL_Surface *gfx_lock_surface(unsigned i)
+{
+	SDL_Surface *s = gfx_get_surface(i);
+	if (SDL_MUSTLOCK(s))
+		SDL_CALL(SDL_LockSurface, s);
+	return s;
+}
+
+static inline void gfx_unlock_surface(SDL_Surface *s)
+{
+	if (SDL_MUSTLOCK(s))
+		SDL_UnlockSurface(s);
+}
 
 static inline SDL_Color gfx_decode_bgr555(uint16_t c)
 {

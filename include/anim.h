@@ -17,6 +17,10 @@
 #ifndef AI5_ANIM_H
 #define AI5_ANIM_H
 
+struct anim_draw_call;
+
+extern unsigned anim_frame_t;
+
 void anim_execute(void);
 bool anim_running(void);
 bool anim_stream_running(unsigned slot);
@@ -29,9 +33,12 @@ void anim_wait(unsigned slot);
 void anim_stop_all(void);
 void anim_halt_all(void);
 void anim_reset_all(void);
+void anim_wait_all(void);
 void anim_pause_all_sync(void);
 void anim_unpause_all(void);
 void anim_set_offset(unsigned slot, unsigned x, unsigned y);
 void anim_exec_copy_call(unsigned stream);
+void anim_decompose_draw_call(struct anim_draw_call *call, int *dst_x, int *dst_y, int *w,
+		int *h);
 
 #endif // AI5_ANIM_H

@@ -87,13 +87,11 @@ static uint8_t *write_digit(uint8_t *buf, int n, bool halfwidth)
 }
 
 #define MAX_DIGITS 10
-void sys_display_number(struct param_list *params)
+const char *sys_number_to_string(uint32_t n)
 {
 	uint16_t flags = mem_get_sysvar16(mes_sysvar16_display_number_flags);
 	unsigned display_digits = min(flags & 0xff, MAX_DIGITS);
 	bool halfwidth = flags & 0x100;
-
-	uint32_t n = vm_expr_param(params, 0);
 
 	// write digits to array
 	uint8_t nr_digits = 0;
@@ -109,7 +107,7 @@ void sys_display_number(struct param_list *params)
 		display_digits = nr_digits;
 
 	// write digits to string
-	uint8_t buf[MAX_DIGITS * 2 + 1];
+	static uint8_t buf[MAX_DIGITS * 2 + 1];
 	if (!display_digits) {
 		uint8_t *end = write_digit(buf, 0, halfwidth);
 		*end = 0;
@@ -122,16 +120,24 @@ void sys_display_number(struct param_list *params)
 		*buf_p = 0;
 	}
 
+	return (char*)buf;
+}
+
+void sys_display_number(struct param_list *params)
+{
+	uint16_t flags = mem_get_sysvar16(mes_sysvar16_display_number_flags);
+	const char *str = sys_number_to_string(vm_expr_param(params, 0));
+
 	if (flags & 0x400) {
-		mem_set_var32(18, strlen((char*)buf));
+		mem_set_var32(18, strlen(str));
 		return;
 	}
 
 	// draw number
 	if (game->draw_text_zen)
-		game->draw_text_zen((char*)buf);
+		game->draw_text_zen(str);
 	else
-		vm_draw_text((char*)buf);
+		vm_draw_text(str);
 }
 
 void sys_cursor_save_pos(struct param_list *params)
@@ -411,7 +417,7 @@ void sys_wait(struct param_list *params)
 		vm_timer_t target_t = timer + (params->params[0].val / 4) * 15;
 		while (timer < target_t && !input_down(INPUT_SHIFT)) {
 			vm_peek();
-			vm_timer_tick(&timer, min(target_t - timer, 15));
+			vm_timer_tick(&timer, min(target_t - timer, 8));
 		}
 	}
 }

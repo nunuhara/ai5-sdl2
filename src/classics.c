@@ -155,9 +155,9 @@ static void palette_set(struct param_list *params)
 			pal[i+2] = r;
 			pal[i+3] = 0;
 		}
-		gfx_palette_set(pal);
+		gfx_palette_set(pal, 0, 256);
 	} else {
-		gfx_palette_set(memory.palette);
+		gfx_palette_set(memory.palette, 0, 256);
 	}
 }
 
@@ -166,9 +166,9 @@ static void palette_crossfade1(struct param_list *params)
 	if (params->nr_params > 1) {
 		uint8_t r, g, b;
 		check_rgb_param(params, 1, &r, &g, &b);
-		gfx_palette_crossfade_to(r, g, b, 240);
+		gfx_palette_crossfade_to(r, g, b, 0, 256, 240);
 	} else {
-		gfx_palette_crossfade(memory.palette, 240);
+		gfx_palette_crossfade(memory.palette, 0, 256, 240);
 	}
 }
 
@@ -180,9 +180,9 @@ static void palette_crossfade2(struct param_list *params)
 	if (params->nr_params > 2) {
 		uint8_t r, g, b;
 		check_rgb_param(params, 2, &r, &g, &b);
-		gfx_palette_crossfade_to(r, g, b, (t & 0xf) * 240);
+		gfx_palette_crossfade_to(r, g, b, 0, 256, (t & 0xf) * 240);
 	} else {
-		gfx_palette_crossfade(memory.palette, (t & 0xf) * 240);
+		gfx_palette_crossfade(memory.palette, 0, 256, (t & 0xf) * 240);
 	}
 }
 

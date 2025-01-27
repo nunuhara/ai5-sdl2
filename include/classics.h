@@ -35,8 +35,8 @@ void classics_get_text_colors(struct param_list *params);
 	[0xf8] = vm_expr_var32
 
 #define CLASSICS_STMT_OP \
-	[0x01] = vm_stmt_txt, \
-	[0x02] = vm_stmt_str, \
+	[0x01] = vm_stmt_txt_new_log, \
+	[0x02] = vm_stmt_str_new_log, \
 	[0x03] = vm_stmt_set_cflag, \
 	[0x04] = vm_stmt_set_var16, \
 	[0x05] = vm_stmt_set_eflag, \

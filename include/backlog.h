@@ -20,7 +20,9 @@
 #include <stdint.h>
 
 void backlog_clear(void);
+void backlog_prepare_old(void);
 void backlog_prepare(void);
+void backlog_commit_old(void);
 void backlog_commit(void);
 unsigned backlog_count(void);
 uint32_t backlog_get_pointer(unsigned no);

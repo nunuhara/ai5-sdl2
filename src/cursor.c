@@ -502,6 +502,50 @@ static struct cg *load_bmp_8bpp(struct bitmap_info *bm_info, struct color_map *c
 	return cg;
 }
 
+static struct cg *load_bmp_4bpp(struct bitmap_info *bm_info, struct color_map *colors,
+		uint8_t *pixels, uint8_t *bitmask)
+{
+	unsigned w = bm_info->width;
+	unsigned h = bm_info->height / 2;
+
+	// expand mask
+	uint8_t *mask = xmalloc(w * h);
+	for (int row = 0; row < h; row++) {
+		uint8_t *dst = mask + row * w;
+		uint8_t *src = bitmask + row * (w/8);
+		for (int bit = 0x80, col = 0; col < w; bit >>= 1, col++, dst++) {
+			if (bit == 0) {
+				bit = 0x80;
+				src++;
+			}
+			*dst = (*src & bit) ? 0 : 255;
+		}
+	}
+
+	// convert pixels/mask to RGBA CG
+	struct cg *cg = cg_alloc_direct(w, h);
+	for (unsigned row = 0; row < h; row++) {
+		uint8_t *dst = cg->pixels + row * w * 4;
+		uint8_t *p_src = pixels + (h - (row + 1)) * w / 2;
+		uint8_t *m_src = mask + (h - (row + 1)) * w;
+		for (unsigned col = 0; col < w; col += 2, p_src++, m_src += 2, dst += 8) {
+			uint8_t c = *p_src & 0xf;
+			dst[0] = colors->colors[c].r;
+			dst[1] = colors->colors[c].g;
+			dst[2] = colors->colors[c].b;
+			dst[3] = m_src[0];
+			c = *p_src >> 4;
+			dst[4] = colors->colors[c].r;
+			dst[5] = colors->colors[c].g;
+			dst[6] = colors->colors[c].b;
+			dst[7] = m_src[1];
+		}
+	}
+
+	free(mask);
+	return cg;
+}
+
 static SDL_Cursor *load_color_cursor(struct cursor_data *data, uint8_t *pixels,
 		uint8_t *bitmask)
 {
@@ -601,18 +645,24 @@ bool read_icon_data(struct buffer *b, struct icon_data *icon, uint8_t **image, u
 	read_bitmap_info(b, &icon->bm_info);
 	if (icon->bm_info.planes != 1)
 		return false;
-	if (icon->bm_info.bpp != 8)
+	if (icon->bm_info.bpp != 8 && icon->bm_info.bpp != 4)
 		return false;
 	if (icon->bm_info.compression != 0)
 		return false;
-	for (unsigned i = 0; i < 256; i++) {
+	int nr_colors = 256;
+	int image_size = icon->bm_info.width * (icon->bm_info.height / 2);
+	if (icon->bm_info.bpp == 4) {
+		nr_colors = 16;
+		image_size /= 2;
+	}
+	for (unsigned i = 0; i < nr_colors; i++) {
 		icon->colors.colors[i].b = buffer_read_u8(b);
 		icon->colors.colors[i].g = buffer_read_u8(b);
 		icon->colors.colors[i].r = buffer_read_u8(b);
 		icon->colors.colors[i].u = buffer_read_u8(b);
 	}
 	*image = (uint8_t*)buffer_strdata(b);
-	buffer_skip(b, icon->bm_info.width * (icon->bm_info.height / 2));
+	buffer_skip(b, image_size);
 	*bitmask = (uint8_t*)buffer_strdata(b);
 	return true;
 }
@@ -628,12 +678,15 @@ SDL_Surface *read_icon(struct buffer *b, struct resource *res, struct cg **cg_ou
 		return NULL;
 	}
 
-	if (icon.bm_info.bpp != 8) {
-		WARNING("icon bpp is not 8: %d", icon.bm_info.bpp);
+	struct cg *cg;
+	if (icon.bm_info.bpp == 8) {
+		cg = load_bmp_8bpp(&icon.bm_info, &icon.colors, image, bitmask);
+	} else if (icon.bm_info.bpp == 4) {
+		cg = load_bmp_4bpp(&icon.bm_info, &icon.colors, image, bitmask);
+	} else {
+		WARNING("invalid bpp: %d", icon.bm_info.bpp);
 		return NULL;
 	}
-
-	struct cg *cg = load_bmp_8bpp(&icon.bm_info, &icon.colors, image, bitmask);
 	SDL_Surface *s;
 	SDL_CTOR(SDL_CreateRGBSurfaceWithFormatFrom, s, cg->pixels, cg->metrics.w,
 		cg->metrics.h, 32, cg->metrics.w * 4, SDL_PIXELFORMAT_RGBA32);

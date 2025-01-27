@@ -188,3 +188,19 @@ void savedata_set_mes_name(const char *save_name, const char *mes_name)
 {
 	savedata_write(save_name, (const uint8_t*)mes_name, 0, strlen(mes_name) + 1);
 }
+
+void savedata_load_variables(const char *save_name, const char *vars, unsigned var4_size)
+{
+	unsigned var16_off = MEMORY_VAR4_OFFSET + var4_size + 4;
+	uint8_t save[MEMORY_MEM16_MAX_SIZE];
+	savedata_read(save_name, save, var16_off, 26 * 2);
+
+	for (const char *str = vars; *str; str++) {
+		if (*str < 'A' || *str > 'Z') {
+			WARNING("Invalid variable name: %c", *str);
+			return;
+		}
+		unsigned varno = *str - 'A';
+		mem_set_var16(varno, le_get16(save, var16_off + varno * 2));
+	}
+}

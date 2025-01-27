@@ -465,6 +465,104 @@ void gfx_pixel_crossfade(int src_x, int src_y, int w, int h, unsigned src_i, int
 	}
 }
 
+void gfx_pixel_crossfade_masked_indexed(int src_x, int src_y, int w, int h, unsigned src_i,
+		int dst_x, int dst_y, unsigned dst_i, uint8_t mask_color)
+{
+	assert(game->bpp == 8);
+	const SDL_Point offsets[] = {
+		{ 0, 0 }, { 1, 2 }, { 2, 1 }, { 3, 3 },
+		{ 0, 3 }, { 1, 0 }, { 2, 3 }, { 3, 0 },
+		{ 0, 1 }, { 1, 3 }, { 2, 0 }, { 3, 2 },
+		{ 0, 2 }, { 1, 1 }, { 2, 2 }, { 3, 1 },
+	};
+
+	SDL_Surface *src = gfx_get_surface(src_i);
+	SDL_Surface *dst = gfx_get_surface(dst_i);
+	SDL_Rect src_r = { src_x, src_y, w, h };
+	SDL_Point dst_p = { dst_x, dst_y };
+
+	if (!gfx_copy_clip(src, &src_r, dst, &dst_p)) {
+		WARNING("Invalid copy");
+		return;
+	}
+
+	vm_timer_t timer = vm_timer_create();
+	uint8_t *src_base = src->pixels + src_r.y * src->pitch + src_r.x;
+	uint8_t *dst_base = dst->pixels + dst_p.y * dst->pitch + dst_p.x;
+	for (unsigned off_i = 0; off_i < ARRAY_SIZE(offsets); off_i++) {
+		const SDL_Point *off = &offsets[off_i];
+		for (int chunk_y = 0; chunk_y < src_r.h; chunk_y += 4) {
+			unsigned row = chunk_y + off->y;
+			if (row >= src_r.h)
+				break;
+			for (int chunk_x = 0; chunk_x < src_r.w; chunk_x += 4) {
+				unsigned col = chunk_x + off->x;
+				if (col >= src_r.w)
+					break;
+				uint8_t *src_p = src_base + row * src->pitch + col;
+				uint8_t *dst_p = dst_base + row * dst->pitch + col;
+				if (*src_p != mask_color)
+					*dst_p = *src_p;
+			}
+		}
+		transition_update(&timer, dst_i, 30);
+	}
+}
+
+void gfx_pixel_crossfade_masked_indexed_8x8(int src_x, int src_y, int w, int h, unsigned src_i,
+		int dst_x, int dst_y, unsigned dst_i, uint8_t mask_color)
+{
+	assert(game->bpp == 8);
+	const SDL_Point offsets[] = {
+		{ 0, 0 }, { 1, 2 }, { 2, 1 }, { 3, 3 },
+		{ 0, 3 }, { 1, 0 }, { 2, 3 }, { 3, 0 },
+		{ 0, 1 }, { 1, 3 }, { 2, 0 }, { 3, 2 },
+		{ 0, 2 }, { 1, 1 }, { 2, 2 }, { 3, 1 },
+	};
+
+	SDL_Surface *src = gfx_get_surface(src_i);
+	SDL_Surface *dst = gfx_get_surface(dst_i);
+	SDL_Rect src_r = { src_x, src_y, w, h };
+	SDL_Point dst_p = { dst_x, dst_y };
+
+	if (!gfx_copy_clip(src, &src_r, dst, &dst_p)) {
+		WARNING("Invalid copy");
+		return;
+	}
+
+	vm_timer_t timer = vm_timer_create();
+	uint8_t *src_base = src->pixels + src_r.y * src->pitch + src_r.x;
+	uint8_t *dst_base = dst->pixels + dst_p.y * dst->pitch + dst_p.x;
+	for (unsigned off_i = 0; off_i < ARRAY_SIZE(offsets); off_i++) {
+		for (int i = 0; i < 4; i++) {
+			SDL_Point off = offsets[off_i];
+			if (i == 1) {
+				off.x += 4;
+				off.y += 4;
+			} else if (i == 2) {
+				off.x += 4;
+			} else if (i == 3) {
+				off.y += 4;
+			}
+			for (int chunk_y = 0; chunk_y < src_r.h; chunk_y += 8) {
+				unsigned row = chunk_y + off.y;
+				if (row >= src_r.h)
+					break;
+				for (int chunk_x = 0; chunk_x < src_r.w; chunk_x += 8) {
+					unsigned col = chunk_x + off.x;
+					if (col >= src_r.w)
+						break;
+					uint8_t *src_p = src_base + row * src->pitch + col;
+					uint8_t *dst_p = dst_base + row * dst->pitch + col;
+					if (*src_p != mask_color)
+						*dst_p = *src_p;
+				}
+			}
+			transition_update(&timer, dst_i, 30);
+		}
+	}
+}
+
 void gfx_pixel_crossfade_masked(int src_x, int src_y, int w, int h, unsigned src_i, int dst_x,
 		int dst_y, unsigned dst_i, uint32_t mask_color)
 {
@@ -513,7 +611,6 @@ void gfx_pixel_crossfade_masked(int src_x, int src_y, int w, int h, unsigned src
 		}
 		transition_update(&timer, dst_i, 30);
 	}
-
 }
 
 void gfx_scale_h(unsigned i, int mag)

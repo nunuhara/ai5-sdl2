@@ -41,6 +41,12 @@
 #define MAP_LOG(...)
 #endif
 
+#if 0
+#define SPRITE_LOG(...) NOTICE(__VA_ARGS__)
+#else
+#define SPRITE_LOG(...)
+#endif
+
 #define MAP_MAX_TILES 11655
 
 #define MAP_FRAME_TIME 54
@@ -232,6 +238,25 @@ void map_load_tilemap(void)
 	if (map.rows * map.cols > MAP_MAX_TILES)
 		VM_ERROR("too many tiles in mpx: %ux%u", map.cols, map.rows);
 
+	if (game->id == GAME_KAKYUUSEI) {
+		uint8_t *mpc = memory.file_data + mpx_off;
+		for (unsigned row = 0; row < map.rows; row++) {
+			for (unsigned col = 0; col < map.cols; col++) {
+				uint8_t *tdata = mpc + 4 + (map.cols * row + col) * 3;
+				// XXX: bg/fg are 10-bit values packed into 24 bits.
+				uint16_t v = le_get16(tdata, 0);
+				uint16_t bg = v & 0x3ff;
+				uint16_t fg = (v >> 10) | ((tdata[2] & 0xf) << 6);
+				map.tile_data[row * map.cols + col] = (struct map_tile) {
+					.bg = bg == 0x3ff ? 0xffff : bg,
+					.fg = fg == 0x3ff ? 0xffff : fg,
+					.collides = tdata[2] & 0x80
+				};
+			}
+		}
+		return;
+	}
+
 	// XXX: AI5WIN.EXE reads tiles directly from System.mpx_offset in Map.load_tiles,
 	//      but once again the game doesn't seem to access this data ever so we just
 	//      load it into a private array.
@@ -337,18 +362,81 @@ static void draw_tile(struct tile *tile, int x, int y)
 		SDL_UnlockSurface(dst);
 }
 
+static int surf_offset(unsigned tile_no, SDL_Surface *s)
+{
+	unsigned ty = tile_no / (s->w / 16);
+	unsigned tx = tile_no % (s->w / 16);
+	unsigned x = tx * 16;
+	unsigned y = ty * 16;
+	return y * s->pitch + x;
+}
+
+static void blit_tile_indexed(SDL_Surface *dst, int x, int y, SDL_Surface *src,
+		unsigned tile_no)
+{
+	uint8_t *dst_row = dst->pixels + (y * dst->pitch + x);
+	uint8_t *src_row = src->pixels + surf_offset(tile_no, src);
+
+	for (int row = 0; row < 16; row++, dst_row += dst->pitch, src_row += src->pitch) {
+		memcpy(dst_row, src_row, 16);
+	}
+}
+
+static void blit_tile_masked_indexed(SDL_Surface *dst, int x, int y, SDL_Surface *src,
+		unsigned tile_no)
+{
+	uint8_t mask = mem_get_sysvar16(mes_sysvar16_mask_color);
+	uint8_t *dst_row = dst->pixels + (y * dst->pitch + x);
+	uint8_t *src_row = src->pixels + surf_offset(tile_no, src);
+
+	for (int row = 0; row < 16; row++, dst_row += dst->pitch, src_row += src->pitch) {
+		uint8_t *dst_p = dst_row;
+		uint8_t *src_p = src_row;
+		for (int col = 0; col < 16; col++, dst_p++, src_p++) {
+			if (*src_p != mask)
+				*dst_p = *src_p;
+		}
+	}
+}
+
+static void draw_tile_kakyuusei(struct tile *tile, int x, int y)
+{
+	SDL_Surface *dst = gfx_lock_surface(0);
+	SDL_Surface *map_s = gfx_lock_surface(2);
+	SDL_Surface *sprite_s = gfx_lock_surface(3);
+
+	if (tile->bg != NO_TILE) {
+		blit_tile_indexed(dst, x, y, map_s, tile->bg);
+	}
+	if (tile->sp != NO_TILE) {
+		blit_tile_masked_indexed(dst, x, y, sprite_s, tile->sp);
+		if (tile->sp2 != NO_TILE)
+			blit_tile_masked_indexed(dst, x, y, sprite_s, tile->sp2);
+	}
+	if (tile->fg != NO_TILE) {
+		if (tile->fg_cha) {
+			blit_tile_masked_indexed(dst, x, y, sprite_s, tile->fg);
+		} else {
+			blit_tile_masked_indexed(dst, x, y, map_s, tile->fg);
+		}
+	}
+
+	gfx_unlock_surface(dst);
+	gfx_unlock_surface(map_s);
+	gfx_unlock_surface(sprite_s);
+}
+
 void map_draw_tiles(void)
 {
 	for (unsigned row = 0; row < map.screen.th; row++) {
 		for (unsigned col = 0; col < map.screen.tw; col++) {
-			draw_tile(&map.tiles[row][col], col * 16, row * 16);
+			if (game->id == GAME_KAKYUUSEI)
+				draw_tile_kakyuusei(&map.tiles[row][col], col * 16, row * 16);
+			else
+				draw_tile(&map.tiles[row][col], col * 16, row * 16);
 		}
 	}
 
-	// copy area hidden by status bar to surface 7
-	gfx_copy(0, 448, 640, 32, 0, 0, 1248, 7);
-	// draw status bar
-	gfx_copy(0, 106, 640, 32, 7, 0, 448, 0);
 	gfx_whole_surface_dirty(0);
 
 	// XXX: If shift is held down, we double the frame rate.
@@ -361,6 +449,9 @@ void map_draw_tiles(void)
 // Tiles }}}
 // Sprites {{{
 
+#define FRAME_BITS (game->id == GAME_KAKYUUSEI ? 2 : 4)
+#define FRAME_MASK (game->id == GAME_KAKYUUSEI ? 0x3 : 0xf)
+
 static uint8_t *get_ccd(void)
 {
 	return memory.file_data + mem_get_sysvar32(mes_sysvar32_ccd_offset);
@@ -369,7 +460,7 @@ static uint8_t *get_ccd(void)
 static bool check_sprite_no(unsigned no)
 {
 	if (no >= vector_length(map.sprites)) {
-		WARNING("Invalid sprite index: %u", no);
+		//WARNING("Invalid sprite index: %u", no);
 		return false;
 	}
 	return true;
@@ -427,7 +518,7 @@ void map_set_sprite_anim(unsigned sp_no, uint8_t anim_no)
 	MAP_LOG("map_set_sprite_anim(%u,%u)", sp_no, (unsigned)anim_no);
 	if (!check_sprite_no(sp_no))
 		return;
-	vector_A(map.sprites, sp_no).frame = anim_no << 4;
+	vector_A(map.sprites, sp_no).frame = anim_no << FRAME_BITS;
 }
 
 void map_spawn_sprite(unsigned spawn_no, unsigned sp_no, uint8_t anim_no)
@@ -452,7 +543,7 @@ void map_spawn_sprite(unsigned spawn_no, unsigned sp_no, uint8_t anim_no)
 	map.screen.ty = screen_ty;
 	sp->x = spawn.sprite_x;
 	sp->y = spawn.sprite_y;
-	sp->frame = anim_no << 4;
+	sp->frame = anim_no << FRAME_BITS;
 
 	for (int i = 0; i < ARRAY_SIZE(map.pos_history); i++) {
 		map.pos_history[i].tx = sp->x;
@@ -470,31 +561,38 @@ void map_set_sprite_state(unsigned no, uint8_t state)
 	vector_A(map.sprites, no).state = state;
 }
 
-#define TILES_PER_FRAME 9
-#define FRAMES_PER_ANIM 12
+#define TILES_PER_FRAME (game->id == GAME_KAKYUUSEI ? 4 : 9)
+#define FRAMES_PER_ANIM (game->id == GAME_KAKYUUSEI ? 4 : 12)
 #define ANIMS_PER_SHEET 4
 
 #define BYTES_PER_FRAME (TILES_PER_FRAME * 2)
 #define BYTES_PER_ANIM  (BYTES_PER_FRAME * FRAMES_PER_ANIM)
 #define BYTES_PER_SHEET (BYTES_PER_ANIM * ANIMS_PER_SHEET)
 
+static unsigned sprite_tile_offset(struct ccd_sprite *sp)
+{
+	return sp->no * BYTES_PER_SHEET
+		+ (sp->frame >> FRAME_BITS) * BYTES_PER_ANIM
+		+ (sp->frame & FRAME_MASK) * BYTES_PER_FRAME;
+}
+
 static void place_sprite(struct ccd_sprite *sp)
 {
 	uint8_t *ccd = get_ccd();
-	unsigned sp_tile_off = sp->no * BYTES_PER_SHEET
-		+ (sp->frame >> 4) * BYTES_PER_ANIM
-		+ (sp->frame & 0xf) * BYTES_PER_FRAME;
+	unsigned sp_tile_off = sprite_tile_offset(sp);
 	uint8_t *sp_tiles = ccd + le_get16(ccd, 6) + sp_tile_off;
 
-	unsigned off_tx = sp->x - map.screen.tx;
-	unsigned off_ty = sp->y - map.screen.ty;
-	unsigned screen_tw = map.screen.tw;
-	unsigned screen_th = map.screen.th;
-	for (unsigned row = 0, sp_t = 0; row < sp->h && off_ty + row < screen_th; row++) {
-		for (unsigned col = 0; col < sp->w && off_tx + col < screen_tw; col++, sp_t++) {
+	int off_tx = (int)sp->x - map.screen.tx;
+	int off_ty = (int)sp->y - map.screen.ty;
+	int screen_tw = map.screen.tw;
+	int screen_th = map.screen.th;
+	for (int row = 0, sp_t = 0; row < sp->h && off_ty + row < screen_th; row++) {
+		for (int col = 0; col < sp->w && off_tx + col < screen_tw; col++, sp_t++) {
+			if (off_tx + col < 0 || off_ty + row < 0)
+				continue;
 			uint16_t tile_no = le_get16(sp_tiles, sp_t * 2);
-			unsigned char_tx = off_tx + col;
-			unsigned char_ty = off_ty + row;
+			int char_tx = off_tx + col;
+			int char_ty = off_ty + row;
 			if (sp->state & MAP_SP_NONCHARA) {
 				map.tiles[char_ty][char_tx].fg = tile_no;
 				map.tiles[char_ty][char_tx].fg_cha = true;
@@ -517,6 +615,7 @@ static void place_sprite(struct ccd_sprite *sp)
 
 void map_place_sprites(void)
 {
+	MAP_LOG("map_place_sprites()");
 	struct ccd_sprite *sp;
 	vector_foreach_p(sp, map.sprites) {
 		if (sp->state & MAP_SP_ENABLED)
@@ -584,18 +683,18 @@ static bool sprite_can_move_up(struct ccd_sprite *sp, bool *r)
 		r[2] = true;
 		return false;
 	}
-	return !map_tiles_collide(sp->x, sp->y, 3, 1, r);
+	return !map_tiles_collide(sp->x, sp->y, sp->w, 1, r);
 }
 
 static bool sprite_can_move_down(struct ccd_sprite *sp, bool *r)
 {
-	if (sp->y + 3 >= map.rows) {
+	if (sp->y + sp->h >= map.rows) {
 		r[0] = true;
 		r[1] = true;
 		r[2] = true;
 		return false;
 	}
-	return !map_tiles_collide(sp->x, sp->y + 3, 3, 1, r);
+	return !map_tiles_collide(sp->x, sp->y + sp->h, sp->w, 1, r);
 }
 
 static bool sprite_can_move_left(struct ccd_sprite *sp, bool *r)
@@ -605,25 +704,29 @@ static bool sprite_can_move_left(struct ccd_sprite *sp, bool *r)
 		r[1] = true;
 		return false;
 	}
-	return !map_tiles_collide(sp->x - 1, sp->y + 1, 1, 2, r);
+	return !map_tiles_collide(sp->x - 1, sp->y + 1, 1, sp->h - 1, r);
 }
 
 static bool sprite_can_move_right(struct ccd_sprite *sp, bool *r)
 {
-	if (sp->x + 3 >= map.cols) {
+	if (sp->x + sp->w >= map.cols) {
 		r[0] = true;
 		r[1] = true;
 		return false;
 	}
-	return !map_tiles_collide(sp->x + 3, sp->y + 1, 1, 2, r);
+	return !map_tiles_collide(sp->x + sp->w, sp->y + 1, 1, sp->h - 1, r);
 }
 
 static void sprite_advance_frame(struct ccd_sprite *sp, enum map_direction dir)
 {
-	sp->frame = (sp->frame & 0xf) + 1;
-	if (sp->frame >= 12)
-		sp->frame = 1;
-	sp->frame |= (dir << 4);
+	if (game->id == GAME_KAKYUUSEI) {
+		sp->frame = (sp->frame + 1) & FRAME_MASK;
+	} else {
+		sp->frame = (sp->frame & FRAME_MASK) + 1;
+		if (sp->frame >= FRAMES_PER_ANIM)
+			sp->frame = 1;
+	}
+	sp->frame |= (dir << FRAME_BITS);
 }
 
 static uint16_t sprite_move_left(struct ccd_sprite *sp, bool advance, bool slide_ok);
@@ -650,13 +753,13 @@ static uint16_t sprite_move_up(struct ccd_sprite *sp, bool advance, bool slide_o
 	if (sp->state & MAP_SP_COLLIDES && !sprite_can_move_up(sp, result)) {
 		if (!result[0])
 			return sprite_move_left(sp, false, false);
-		if (!result[2] || (slide_ok && !config.map_no_wallslide))
+		if (!result[sp->w - 1] || (slide_ok && !config.map_no_wallslide))
 			return sprite_move_right(sp, false, false);
 		return 0xffff;
 	}
 
 	if (!advance)
-		sp->frame = (sp->frame & 0xf) | (MAP_UP << 4);
+		sp->frame = (sp->frame & FRAME_MASK) | (MAP_UP << FRAME_BITS);
 
 	// move sprite
 	_sprite_move_up(sp);
@@ -685,13 +788,13 @@ static uint16_t sprite_move_down(struct ccd_sprite *sp, bool advance, bool slide
 	if (sp->state & MAP_SP_COLLIDES && !sprite_can_move_down(sp, result)) {
 		if (!result[0])
 			return sprite_move_left(sp, false, false);
-		if (!result[2] || (slide_ok && !config.map_no_wallslide))
+		if (!result[sp->w - 1] || (slide_ok && !config.map_no_wallslide))
 			return sprite_move_right(sp, false, false);
 		return 0xffff;
 	}
 
 	if (!advance)
-		sp->frame = (sp->frame & 0xf) | (MAP_DOWN << 4);
+		sp->frame = (sp->frame & FRAME_MASK) | (MAP_DOWN << FRAME_BITS);
 
 	// move sprite
 	_sprite_move_down(sp);
@@ -725,7 +828,7 @@ static uint16_t sprite_move_left(struct ccd_sprite *sp, bool advance, bool slide
 	}
 
 	if (!advance)
-		sp->frame = (sp->frame & 0xf) | (MAP_LEFT << 4);
+		sp->frame = (sp->frame & FRAME_MASK) | (MAP_LEFT << FRAME_BITS);
 
 	// move sprite
 	_sprite_move_left(sp);
@@ -760,7 +863,7 @@ static uint16_t sprite_move_right(struct ccd_sprite *sp, bool advance, bool slid
 	}
 
 	if (!advance)
-		sp->frame = (sp->frame & 0xf) | (MAP_RIGHT << 4);
+		sp->frame = (sp->frame & FRAME_MASK) | (MAP_RIGHT << FRAME_BITS);
 
 	// move sprite
 	_sprite_move_right(sp);
@@ -874,7 +977,7 @@ static void sprite_move_path(struct ccd_sprite *sp)
 		return;
 	}
 
-	if (input_down(INPUT_CANCEL) && mem_get_var4(4067)) {
+	if (game->id == GAME_DOUKYUUSEI && input_down(INPUT_CANCEL) && mem_get_var4(4067)) {
 		mem_set_var32(18, 1);
 		map_stop_pathing();
 		return;
@@ -906,8 +1009,16 @@ static void sprite_move_path(struct ccd_sprite *sp)
 		sp->x = next.x;
 		sp->y = next.y;
 	}
-	mem_set_var16(3, sp->frame >> 4);
+	mem_set_var16(3, sp->frame >> FRAME_BITS);
 	sprite_pos_history_push(sp);
+}
+
+static void sprite_skip_path(struct ccd_sprite *sp)
+{
+	if (!map.path.active)
+		return;
+	while (map.path.path_ptr > 20)
+		sprite_move_path(sp);
 }
 
 enum {
@@ -1004,6 +1115,8 @@ static uint16_t exec_sprite(struct ccd_sprite *sp)
 		sp->script_ptr++;
 		sp->script_cmd = *script >> 4;
 		sp->script_repetitions = *script & 0xf;
+		if (game->id == GAME_KAKYUUSEI)
+			sp->script_repetitions++;
 	}
 
 	//NOTICE("EXEC %x:%d", sp->script_cmd, sp->script_repetitions);
@@ -1012,27 +1125,52 @@ static uint16_t exec_sprite(struct ccd_sprite *sp)
 	uint16_t r = 0;
 	switch (sp->script_cmd) {
 	case 0:
+		SPRITE_LOG("sprite_exec_0(%u)", sp->no);
 		return 0; // ???
 	case 2:
+		SPRITE_LOG("sprite_move_up(%u)", sp->no);
 		sprite_move_up(sp, true, false);
 		break;
 	case 3:
+		SPRITE_LOG("sprite_move_down(%u)", sp->no);
 		sprite_move_down(sp, true, false);
 		break;
 	case 4:
+		SPRITE_LOG("sprite_move_left(%u)", sp->no);
 		sprite_move_left(sp, true, false);
 		break;
 	case 5:
+		SPRITE_LOG("sprite_move_right(%u)", sp->no);
 		sprite_move_right(sp, true, false);
 		break;
 	case 6:
+		SPRITE_LOG("sprite_rewind_pos(%u, %u)", sp->no, sp->script_repetitions);
 		r = sprite_rewind_pos(sp, sp->script_repetitions);
 		break;
+	case 8:
+		SPRITE_LOG("sprite_set_frame(%u, %d)", sp->no, sp->script_repetitions - 1);
+		sp->frame = sp->script_repetitions - 1;
+		sp->script_repetitions = 1;
+		r = 0;
+		break;
+	case 9:
+		sp->script_repetitions = (sp->script_repetitions / 2) + 1;
+		SPRITE_LOG("sprite_halve_reps(%u) -> %u", sp->no, sp->script_repetitions);
+		r = 0;
+		break;
 	case 13:
+		SPRITE_LOG("sprite_move_path(%u)", sp->no);
 		sprite_move_path(sp);
 		break;
 	case 14:
+		SPRITE_LOG("sprite_handle_input(%u)", sp->no);
 		r = sprite_handle_input(sp);
+		break;
+	case 15:
+		SPRITE_LOG("sprite_skip_path(%u)", sp->no);
+		sprite_skip_path(sp);
+		sp->script_cmd = 13;
+		sprite_move_path(sp);
 		break;
 	default:
 		VM_ERROR("Unimplemented sprite command: %u\n"
@@ -1090,7 +1228,7 @@ void map_exec_sprites_and_redraw(void)
 		map_load_tiles();
 		map_place_sprites();
 		map_draw_tiles();
-		mem_set_var16(3, vector_A(map.sprites, 0).frame >> 4);
+		mem_set_var16(3, vector_A(map.sprites, 0).frame >> FRAME_BITS);
 	}
 	mem_set_var16(18, r);
 }
@@ -1147,7 +1285,7 @@ static uint16_t get_sprite_location(struct ccd_sprite *sp)
 			continue;
 		if (sp->y + sp->h <= y_top || sp->y >= y_bot)
 			continue;
-		if (!(dir_mask & (1 << (sp->frame >> 4))))
+		if (!(dir_mask & (1 << (sp->frame >> FRAME_BITS))))
 			continue;
 		return le_get16(eve, 0);
 	}
@@ -1276,8 +1414,22 @@ static bool map_tile_collides(unsigned x, unsigned y)
 	return map.tile_data[y * map.cols + x].collides;
 }
 
+/* Character sprite collision differs between games:
+ *
+ * Doukyuusei  Kakyuusei
+ * o--+--+--+  o--+--+
+ * |  |  |  |  |  |  |
+ * +--+--+--+  +--+--+
+ * |//|//|//|  |//|//|
+ * +--+--+--+  +--+--+
+ * |//|//|//|
+ * +--+--+--+
+ */
 static bool sprite_pos_valid(unsigned x, unsigned y)
 {
+	if (game->id == GAME_KAKYUUSEI) {
+		return !map_tile_collides(x, y + 1) && !map_tile_collides(x + 1, y + 1);
+	}
 	return !map_tile_collides(x, y + 1) && !map_tile_collides(x, y + 2)
 		&& !map_tile_collides(x + 1, y + 1) && !map_tile_collides(x + 1, y + 2)
 		&& !map_tile_collides(x + 2, y + 1) && !map_tile_collides(x + 2, y + 2);
@@ -1416,6 +1568,15 @@ void map_path_sprite(unsigned sp_no, unsigned tx, unsigned ty)
 	} while (!map_pos_equal(cur, start));
 	map.path.path_ptr = vector_length(map.path.path);
 
+#if MAP_LOG
+	NOTICE("--- PATH ---");
+	struct map_pos *p;
+	vector_foreach_p(p, map.path.path) {
+		printf("(%d,%d) -> ", p->x, p->y);
+	}
+	puts("GOAL");
+#endif
+
 	// put sprite into pathing state
 	map.path.active = true;
 	map.path.saved.sp = sp;
@@ -1444,6 +1605,14 @@ void map_get_pathing(void)
 {
 	//MAP_LOG("map_get_pathing()");
 	mem_set_var16(18, map.path.active ? 0xffff : 0);
+}
+
+void map_skip_pathing(unsigned sp_no)
+{
+	struct ccd_sprite *sp = get_sprite(sp_no);
+	if (!sp)
+		return;
+	sp->script_cmd = 15;
 }
 
 // Pathing }}}

@@ -58,10 +58,13 @@ void _gfx_display_fade_in(unsigned ms, bool(*cb)(void));
 void gfx_display_fade_in(unsigned ms);
 
 // palette operations
-void gfx_palette_set(const uint8_t *data);
+void _gfx_palette_set(const uint8_t *data, unsigned start, unsigned n);
+void gfx_palette_set(const uint8_t *data, unsigned start, unsigned n);
 void gfx_palette_set_color(uint8_t c, uint8_t r, uint8_t g, uint8_t b);
-void gfx_palette_crossfade(const uint8_t *data, unsigned ms);
-void gfx_palette_crossfade_to(uint8_t r, uint8_t g, uint8_t b, unsigned ms);
+void gfx_palette_copy(uint8_t *dst, unsigned start, unsigned n);
+void gfx_palette_crossfade(const uint8_t *data, unsigned start, unsigned n, unsigned ms);
+void gfx_palette_crossfade_to(uint8_t r, uint8_t g, uint8_t b, unsigned start, unsigned n,
+		unsigned ms);
 
 // draw operations
 void gfx_copy(int src_x, int src_y, int src_w, int src_h, unsigned src_i, int dst_x,
@@ -97,6 +100,10 @@ void gfx_pixel_crossfade(int src_x, int src_y, int w, int h, unsigned src_i, int
 		int dst_y, unsigned dst_i);
 void gfx_pixel_crossfade_masked(int src_x, int src_y, int w, int h, unsigned src_i, int dst_x,
 		int dst_y, unsigned dst_i, uint32_t mask_color);
+void gfx_pixel_crossfade_masked_indexed(int src_x, int src_y, int w, int h, unsigned src_i,
+		int dst_x, int dst_y, unsigned dst_i, uint8_t mask_color);
+void gfx_pixel_crossfade_masked_indexed_8x8(int src_x, int src_y, int w, int h, unsigned src_i,
+		int dst_x, int dst_y, unsigned dst_i, uint8_t mask_color);
 void gfx_scale_h(unsigned i, int mag);
 void gfx_zoom(int src_x, int src_y, int w, int h, unsigned src_i, unsigned dst_i,
 		unsigned ms);
@@ -114,5 +121,6 @@ unsigned gfx_text_size_char(uint32_t ch);
 
 // default: false
 extern bool text_antialias;
+extern bool text_shadow;
 
 #endif // AI5_GFX_H

@@ -63,8 +63,10 @@ enum game_flag {
 	FLAG_SKIP_KEYUP,
 	// if set, only palette is loaded in System.load_image
 	FLAG_PALETTE_ONLY,
+	// if set, palette is saved to bank before palette operations
+	FLAG_SAVE_PALETTE,
 };
-#define GAME_NR_FLAGS (FLAG_PALETTE_ONLY+1)
+#define GAME_NR_FLAGS (FLAG_SAVE_PALETTE+1)
 #define FLAG_ALWAYS_ON 0xffff
 
 enum flags_type {
@@ -93,7 +95,10 @@ struct game {
 	void (*mem_init)(void);
 	// called whenever a full save file is loaded (savedata_resume_load)
 	void (*mem_restore)(void);
-	// called whenever text is encountered in the mes file
+	// called whenever unprefixed text is encountered in the mes file
+	void (*unprefixed_zen)(void);
+	void (*unprefixed_han)(void);
+	// called to draw text encountered in the mes file
 	void (*draw_text_zen)(const char *text);
 	void (*draw_text_han)(const char *text);
 	// called after animation draw ops
@@ -112,6 +117,7 @@ extern struct game game_ai_shimai;
 extern struct game game_beyond;
 extern struct game game_doukyuusei;
 extern struct game game_isaku;
+extern struct game game_kakyuusei;
 extern struct game game_shangrlia;
 extern struct game game_yuno;
 

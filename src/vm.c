@@ -69,10 +69,12 @@ void vm_init(void)
 	vm.ip.code = memory.file_data;
 }
 
+#define LOGGING (vm_flag_is_on(FLAG_LOG) && vm_flag_is_on(FLAG_LOG_ENABLE))
+
 static uint8_t vm_read_byte(void)
 {
 	uint8_t c = vm.ip.code[vm.ip.ptr++];
-	if (vm_flag_is_on(FLAG_LOG))
+	if (LOGGING)
 		backlog_push_byte(c);
 	return c;
 }
@@ -82,14 +84,13 @@ static uint8_t vm_peek_byte(void)
 	return vm.ip.code[vm.ip.ptr];
 }
 
-static void vm_rewind_byte(void)
-{
-	vm.ip.ptr--;
-}
-
 static uint16_t vm_read_word(void)
 {
 	uint16_t v = le_get16(vm.ip.code, vm.ip.ptr);
+	if (LOGGING) {
+		backlog_push_byte(vm.ip.code[vm.ip.ptr]);
+		backlog_push_byte(vm.ip.code[vm.ip.ptr+1]);
+	}
 	vm.ip.ptr += 2;
 	return v;
 }
@@ -97,6 +98,12 @@ static uint16_t vm_read_word(void)
 static uint32_t vm_read_dword(void)
 {
 	uint32_t v = le_get32(vm.ip.code, vm.ip.ptr);
+	if (LOGGING) {
+		backlog_push_byte(vm.ip.code[vm.ip.ptr]);
+		backlog_push_byte(vm.ip.code[vm.ip.ptr+1]);
+		backlog_push_byte(vm.ip.code[vm.ip.ptr+2]);
+		backlog_push_byte(vm.ip.code[vm.ip.ptr+3]);
+	}
 	vm.ip.ptr += 4;
 	return v;
 }
@@ -434,26 +441,6 @@ void vm_draw_text(const char *text)
 
 #define TXT_BUF_SIZE 4096
 
-void handle_text(void(*read_text)(char*), void(*draw_text)(const char*), bool with_op)
-{
-	if (vm_flag_is_on(FLAG_LOG_ENABLE) && vm_flag_is_on(FLAG_LOG_TEXT)) {
-		backlog_prepare();
-		vm_flag_on(FLAG_LOG);
-		if (with_op)
-			backlog_push_byte(mes_code_tables.stmt_op_to_int[MES_STMT_HANKAKU]);
-	}
-
-	char str[TXT_BUF_SIZE];
-	read_text(str);
-	texthook_push(str);
-
-	gfx_text_set_weight(mem_get_sysvar16(mes_sysvar16_font_weight));
-	draw_text(str);
-
-	if (vm_flag_is_on(FLAG_LOG_ENABLE) && vm_flag_is_on(FLAG_LOG_TEXT))
-		vm_flag_off(FLAG_LOG);
-}
-
 static void read_zenkaku(char *str)
 {
 	uint8_t c;
@@ -484,26 +471,120 @@ unterminated:
 	str[str_i] = 0;
 }
 
-static void _vm_stmt_txt(bool with_op)
+/*
+ * Zenkaku text without logging.
+ */
+void vm_stmt_txt_no_log(void)
 {
-	handle_text(read_zenkaku, game->draw_text_zen ? game->draw_text_zen : vm_draw_text,
-			with_op);
+	char str[TXT_BUF_SIZE];
+	read_zenkaku(str);
+	texthook_push(str);
+
+	gfx_text_set_weight(mem_get_sysvar16(mes_sysvar16_font_weight));
+	if (game->draw_text_zen)
+		game->draw_text_zen(str);
+	else
+		vm_draw_text(str);
 }
 
-void vm_stmt_txt(void)
+/*
+ * Hankaku text without logging.
+ */
+void vm_stmt_str_no_log(void)
 {
-	_vm_stmt_txt(true);
+	char str[TXT_BUF_SIZE];
+	read_hankaku(str);
+	texthook_push(str);
+
+	gfx_text_set_weight(mem_get_sysvar16(mes_sysvar16_font_weight));
+	if (game->draw_text_han)
+		game->draw_text_han(str);
+	else
+		vm_draw_text(str);
 }
 
-static void _vm_stmt_str(bool with_op)
+/*
+ * Zenkaku text with newer logging logic.
+ */
+void vm_stmt_txt_new_log(void)
 {
-	handle_text(read_hankaku, game->draw_text_han ? game->draw_text_han : vm_draw_text,
-			with_op);
+	if (vm_flag_is_on(FLAG_LOG_ENABLE) && vm_flag_is_on(FLAG_LOG_TEXT)) {
+		backlog_prepare();
+		vm_flag_on(FLAG_LOG);
+		backlog_push_byte(mes_code_tables.stmt_op_to_int[MES_STMT_ZENKAKU]);
+	}
+
+	vm_stmt_txt_no_log();
+
+	if (vm_flag_is_on(FLAG_LOG_ENABLE) && vm_flag_is_on(FLAG_LOG_TEXT))
+		vm_flag_off(FLAG_LOG);
 }
 
-void vm_stmt_str(void)
+/*
+ * Zenkaku text with older logging logic (Kakyuusei).
+ */
+void vm_stmt_txt_old_log(void)
 {
-	_vm_stmt_str(true);
+	if (!vm_flag_is_on(FLAG_LOG_TEXT) && !vm_flag_is_on(FLAG_LOG))
+		backlog_prepare_old();
+	if (vm_flag_is_on(FLAG_LOG_TEXT))
+		vm_flag_on(FLAG_LOG);
+	if (vm_flag_is_on(FLAG_LOG_ENABLE) && vm_flag_is_on(FLAG_LOG))
+		backlog_push_byte(mes_code_tables.stmt_op_to_int[MES_STMT_ZENKAKU]);
+
+	vm_stmt_txt_no_log();
+
+	if (vm_flag_is_on(FLAG_LOG))
+		vm_flag_off(FLAG_LOG);
+}
+
+/*
+ * Hankaku text with newer logging logic.
+ */
+void vm_stmt_str_new_log(void)
+{
+	if (vm_flag_is_on(FLAG_LOG_ENABLE) && vm_flag_is_on(FLAG_LOG_TEXT)) {
+		backlog_prepare();
+		vm_flag_on(FLAG_LOG);
+		backlog_push_byte(mes_code_tables.stmt_op_to_int[MES_STMT_HANKAKU]);
+	}
+
+	vm_stmt_str_no_log();
+
+	if (vm_flag_is_on(FLAG_LOG_ENABLE) && vm_flag_is_on(FLAG_LOG_TEXT))
+		vm_flag_off(FLAG_LOG);
+}
+
+/*
+ * Unprefixed zenkaku text with newer logging logic.
+ */
+void vm_unprefixed_txt_new_log(void)
+{
+	if (vm_flag_is_on(FLAG_LOG_ENABLE) && vm_flag_is_on(FLAG_LOG_TEXT)) {
+		backlog_prepare();
+		vm_flag_on(FLAG_LOG);
+	}
+
+	vm_stmt_txt_no_log();
+
+	if (vm_flag_is_on(FLAG_LOG_ENABLE) && vm_flag_is_on(FLAG_LOG_TEXT))
+		vm_flag_off(FLAG_LOG);
+}
+
+/*
+ * Unprefixed hankaku text with newer logging logic.
+ */
+void vm_unprefixed_str_new_log(void)
+{
+	if (vm_flag_is_on(FLAG_LOG_ENABLE) && vm_flag_is_on(FLAG_LOG_TEXT)) {
+		backlog_prepare();
+		vm_flag_on(FLAG_LOG);
+	}
+
+	vm_stmt_str_no_log();
+
+	if (vm_flag_is_on(FLAG_LOG_ENABLE) && vm_flag_is_on(FLAG_LOG_TEXT))
+		vm_flag_off(FLAG_LOG);
 }
 
 void vm_stmt_set_cflag(void)
@@ -673,13 +754,8 @@ void vm_stmt_jmp(void)
 	vm.ip.ptr = le_get32(vm.ip.code, vm.ip.ptr);
 }
 
-void vm_stmt_sys(void)
+static void _vm_stmt_sys(void)
 {
-	if (vm_flag_is_on(FLAG_LOG_ENABLE) && vm_flag_is_on(FLAG_LOG_SYS)) {
-		vm_flag_on(FLAG_LOG);
-		backlog_push_byte(mes_code_tables.stmt_op_to_int[MES_STMT_SYS]);
-	}
-
 	uint32_t no = vm_eval();
 	struct param_list params = {0};
 	read_params(&params);
@@ -690,8 +766,28 @@ void vm_stmt_sys(void)
 		VM_ERROR("System.function[%u] not implemented", no);
 
 	game->sys[no](&params);
+}
 
+void vm_stmt_sys(void)
+{
+	if (vm_flag_is_on(FLAG_LOG_ENABLE) && vm_flag_is_on(FLAG_LOG_SYS)) {
+		vm_flag_on(FLAG_LOG);
+		backlog_push_byte(mes_code_tables.stmt_op_to_int[MES_STMT_SYS]);
+	}
+	_vm_stmt_sys();
 	if (vm_flag_is_on(FLAG_LOG_ENABLE) && vm_flag_is_on(FLAG_LOG_SYS))
+		vm_flag_off(FLAG_LOG);
+}
+
+void vm_stmt_sys_old_log(void)
+{
+	if (vm_flag_is_on(FLAG_LOG_TEXT)) {
+		vm_flag_on(FLAG_LOG);
+		if (vm_flag_is_on(FLAG_LOG_ENABLE))
+			backlog_push_byte(mes_code_tables.stmt_op_to_int[MES_STMT_SYS]);
+	}
+	_vm_stmt_sys();
+	if (vm_flag_is_on(FLAG_LOG))
 		vm_flag_off(FLAG_LOG);
 }
 
@@ -783,6 +879,20 @@ void vm_stmt_call(void)
 		vm_flag_on(FLAG_PROC_CLEAR);
 }
 
+void vm_stmt_call_old_log(void)
+{
+	if (vm_flag_is_on(FLAG_LOG_TEXT)) {
+		vm_flag_on(FLAG_LOG);
+		if (vm_flag_is_on(FLAG_LOG_ENABLE))
+			backlog_push_byte(mes_code_tables.stmt_op_to_int[MES_STMT_CALL_PROC]);
+	}
+	struct param_list params = {0};
+	read_params(&params);
+	if (vm_flag_is_on(FLAG_LOG))
+		vm_flag_off(FLAG_LOG);
+	vm_call_procedure(vm_expr_param(&params, 0));
+}
+
 void vm_stmt_util(void)
 {
 	struct param_list params = {0};
@@ -834,7 +944,7 @@ bool vm_exec_statement(void)
 	mes_statement_free(stmt);
 #endif
 
-	uint8_t op = vm_read_byte();
+	uint8_t op = vm_peek_byte();
 retry:
 	if (unlikely(!game->stmt_op[op])) {
 		if (!op)
@@ -843,12 +953,19 @@ retry:
 			op = dbg_handle_breakpoint((vm.ip.code + vm.ip.ptr - 1) - memory_raw);
 			goto retry;
 		}
-		vm_rewind_byte();
-		if (mes_char_is_hankaku(op))
-			_vm_stmt_str(false);
-		else
-			_vm_stmt_txt(false);
+		if (mes_char_is_hankaku(op)) {
+			if (game->unprefixed_han)
+				game->unprefixed_han();
+			else
+				vm_unprefixed_str_new_log();
+		} else {
+			if (game->unprefixed_zen)
+				game->unprefixed_zen();
+			else
+				vm_unprefixed_txt_new_log();
+		}
 	} else {
+		vm_read_byte();
 		game->stmt_op[op]();
 	}
 	return true;

@@ -97,7 +97,7 @@ static void _anim_init_stream(unsigned slot, unsigned stream, uint32_t off)
 	struct anim_stream *anim = &streams[slot];
 	memset(anim, 0, sizeof(struct anim_stream));
 	anim->file_data = memory.file_data + off;
-	if (anim_type == ANIM_S4) {
+	if (anim_type == ANIM_S4 || anim_type == ANIM_A8) {
 		anim->bytecode = anim->file_data + le_get16(anim->file_data, 1 + stream * 2);
 	} else {
 		anim->bytecode = anim->file_data + le_get32(anim->file_data, 2 + stream * 4);
@@ -187,6 +187,14 @@ void anim_reset_all(void)
 	}
 }
 
+void anim_wait_all(void)
+{
+	ANIM_LOG("anim_wait_all()");
+	while (anim_running()) {
+		vm_peek();
+	}
+}
+
 bool anim_any_running(void)
 {
 	for (int i = 0; i < ANIM_MAX_STREAMS; i++) {
@@ -228,7 +236,7 @@ void anim_set_offset(unsigned slot, unsigned x, unsigned y)
 
 static uint16_t read_value(struct anim_stream *anim)
 {
-	if (anim_type == ANIM_S4)
+	if (anim_type == ANIM_S4 || anim_type == ANIM_A8)
 		return anim->bytecode[anim->ip++];
 	uint16_t code = le_get16(anim->bytecode, anim->ip);
 	anim->ip += 2;
@@ -246,6 +254,8 @@ static bool anim_stream_draw(struct anim_stream *anim, uint8_t i)
 	unsigned off;
 	if (anim_type == ANIM_S4) {
 		off = 1 + anim->file_data[0] * 2 + (i - 20) * anim_draw_call_size;
+	} else if (anim_type == ANIM_A8) {
+		off = 1 + 10 * 2 + (i - 20) * anim_draw_call_size;
 	} else {
 		off = 2 + 100 * 4 + (i - 20) * anim_draw_call_size;
 	}
@@ -387,12 +397,16 @@ bool anim_stream_execute(struct anim_stream *anim)
 	return false;
 }
 
+unsigned anim_frame_t = 16;
 
 void anim_execute(void)
 {
+	if (!vm_flag_is_on(FLAG_ANIM_ENABLE))
+		return;
+
 	static uint32_t anim_prev_frame_t = 0;
 	uint32_t t = vm_get_ticks();
-	if (t - anim_prev_frame_t < 16)
+	if (t - anim_prev_frame_t < anim_frame_t)
 		return;
 
 	anim_prev_frame_t = t;
@@ -440,4 +454,27 @@ void anim_exec_copy_call(unsigned stream)
 	gfx_copy_masked(le_get16(call, 2), le_get16(call, 4), le_get16(call, 6),
 			le_get16(call, 8), 1, le_get16(call, 10), le_get16(call, 12),
 			mem_get_sysvar16(mes_sysvar16_dst_surface), get_mask_color());
+}
+
+void anim_decompose_draw_call(struct anim_draw_call *call, int *dst_x, int *dst_y, int *w,
+		int *h)
+{
+	switch (call->op) {
+	case ANIM_DRAW_OP_COPY:
+	case ANIM_DRAW_OP_COPY_MASKED:
+	case ANIM_DRAW_OP_SWAP:
+		*dst_x = call->copy.dst.x;
+		*dst_y = call->copy.dst.y;
+		*w = call->copy.dim.w;
+		*h = call->copy.dim.h;
+		break;
+	case ANIM_DRAW_OP_COMPOSE:
+		*dst_x = call->compose.dst.x;
+		*dst_y = call->compose.dst.y;
+		*w = call->compose.dim.w;
+		*h = call->compose.dim.h;
+		break;
+	default:
+		VM_ERROR("Unexpected animation draw operation: %u", (unsigned)call->op);
+	}
 }

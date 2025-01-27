@@ -29,6 +29,7 @@ static struct {
 	struct archive *mes;
 	struct archive *bgm;
 	struct archive *voice;
+	struct archive *voice2;
 	struct archive *voicesub;
 	struct archive *effect;
 	struct archive *data;
@@ -40,6 +41,7 @@ char *asset_cg_name = NULL;
 char *asset_bgm_name = NULL;
 char *asset_effect_name = NULL;
 char *asset_voice_name = NULL;
+char *asset_voice2_name = NULL;
 char *asset_voicesub_name = NULL;
 char *asset_data_name = NULL;
 
@@ -65,7 +67,7 @@ void asset_init(void)
 	if (!config.mes.mes_type)
 		mes_flags |= ARCHIVE_RAW;
 	if (!config.data.data_type)
-		mes_flags |= ARCHIVE_RAW;
+		data_flags |= ARCHIVE_RAW;
 
 #define ARC_OPEN(t, flags, warn) \
 	if (config.file.t.arc) { \
@@ -77,6 +79,7 @@ void asset_init(void)
 	ARC_OPEN(mes,      mes_flags,  ERROR);
 	ARC_OPEN(bgm,      typ_flags,  WARNING);
 	ARC_OPEN(voice,    typ_flags,  WARNING);
+	ARC_OPEN(voice2,   typ_flags,  WARNING);
 	ARC_OPEN(voicesub, typ_flags,  WARNING);
 	ARC_OPEN(effect,   typ_flags,  WARNING);
 	ARC_OPEN(data,     data_flags, WARNING);
@@ -104,9 +107,11 @@ bool asset_set_voice_archive(const char *name)
 	if (config.file.voice.arc && !strcasecmp(config.file.voice.name, name))
 		return true;
 
-	struct archive *ar = open_arc(name, 0);
-	if (!ar)
+	struct archive *ar = open_arc(name, ARCHIVE_RAW);
+	if (!ar) {
+		NOTICE("failed to open %s", name);
 		return false;
+	}
 	if (arc.voice)
 		archive_close(arc.voice);
 	arc.voice = ar;
@@ -303,6 +308,8 @@ struct archive_data *asset_voice_load(const char *name)
 		return asset_fs_load(name);
 	struct archive_data *file = archive_get(arc.voice, name);
 	if (!file)
+		file = archive_get(arc.voice2, name);
+	if (!file && (!arc.voice2 || !(file = archive_get(arc.voice2, name))))
 		return NULL;
 	free(asset_voice_name);
 	asset_voice_name = xstrdup(name);

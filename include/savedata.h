@@ -40,5 +40,6 @@ void savedata_load_var4_slice(const char *save_name, unsigned from, unsigned to)
 void savedata_save_var4_slice(const char *save_name, unsigned from, unsigned to);
 void savedata_copy(const char *src_save, const char *dst_save);
 void savedata_set_mes_name(const char *save_name, const char *mes_name);
+void savedata_load_variables(const char *save_name, const char *vars, unsigned var4_size);
 
 #endif // AI5_SAVEDATA_H

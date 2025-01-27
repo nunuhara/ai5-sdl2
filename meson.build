@@ -49,6 +49,7 @@ sources = [
   'src/ini.c',
   'src/input.c',
   'src/isaku.c',
+  'src/kakyuusei.c',
   'src/main.c',
   'src/map.c',
   'src/menu.c',

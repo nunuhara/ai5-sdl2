@@ -80,6 +80,7 @@ struct font_spec {
 } font_spec[NR_FONT_TYPES] = {0};
 
 bool text_antialias = false;
+bool text_shadow = false;
 
 static struct font *font_lookup(int size)
 {
@@ -256,8 +257,14 @@ static void glyph_blit_indexed(SDL_Surface *glyph, int dst_x, int dst_y, SDL_Sur
 		uint8_t *src_p = src_base + row * glyph->pitch;
 		uint8_t *dst_p = dst_base + row * s->pitch;
 		for (int col = 0; col < glyph_w; col++, dst_p++, src_p++) {
-			if (*src_p != 0)
+			if (*src_p != 0) {
 				*dst_p = gfx.text.fg;
+				if (text_shadow) {
+					dst_p[1] = gfx.text.bg;
+					dst_p[2] = gfx.text.bg;
+					*(dst_p + s->pitch + 1) = gfx.text.bg;
+				}
+			}
 		}
 	}
 

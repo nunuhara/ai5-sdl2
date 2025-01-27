@@ -17,6 +17,9 @@
 #ifndef AI5_SDL2_SYS_H
 #define AI5_SDL2_SYS_H
 
+#include <stdbool.h>
+#include <stdint.h>
+
 struct param_list;
 
 void util_warn_unimplemented(struct param_list *params);
@@ -26,6 +29,7 @@ const char *_sys_save_name(unsigned save_no);
 const char *sys_save_name(struct param_list *params);
 
 void sys_set_font_size(struct param_list *params);
+const char *sys_number_to_string(uint32_t n);
 void sys_display_number(struct param_list *params);
 void sys_cursor_save_pos(struct param_list *params);
 void sys_file(struct param_list *params);

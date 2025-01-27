@@ -70,6 +70,7 @@ void map_move_sprite(unsigned sp_no, enum map_direction dir);
 void map_path_sprite(unsigned sp_no, unsigned tx, unsigned ty);
 void map_stop_pathing(void);
 void map_get_pathing(void);
+void map_skip_pathing(unsigned sp_no);
 void map_set_location_mode(enum map_location_mode mode);
 void map_get_location(void);
 

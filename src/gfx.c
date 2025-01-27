@@ -371,6 +371,7 @@ void gfx_update(void)
 	if (screen->scaled) {
 		SDL_Rect src = screen->src;
 		SDL_Rect dst = screen->dst;
+		SDL_CALL(SDL_FillRect, gfx.scaled_display, NULL, 0);
 		SDL_CALL(SDL_BlitScaled, gfx.display, &src, gfx.scaled_display, &dst);
 		SDL_CALL(SDL_UpdateTexture, gfx.texture, NULL, gfx.scaled_display->pixels,
 				gfx.scaled_display->pitch);
@@ -398,7 +399,7 @@ void gfx_display_unfreeze(void)
 	gfx_screen_dirty();
 }
 
-#define FADE_FRAME_TIME 16
+#define FADE_FRAME_TIME (16 * config.transition_speed)
 
 void _gfx_display_fade_out(uint32_t vm_color, unsigned ms, bool(*cb)(void))
 {
@@ -510,9 +511,9 @@ void gfx_display_unhide(void)
 	}
 }
 
-static void read_palette(SDL_Color *dst, const uint8_t *src)
+static void read_palette(SDL_Color *dst, const uint8_t *src, unsigned n)
 {
-	for (int i = 0; i < 256; i++) {
+	for (int i = 0; i < n; i++) {
 		dst[i].b = src[i*4+0];
 		dst[i].g = src[i*4+1];
 		dst[i].r = src[i*4+2];
@@ -520,19 +521,41 @@ static void read_palette(SDL_Color *dst, const uint8_t *src)
 	}
 }
 
-void gfx_update_palette(int n)
+void gfx_palette_copy(uint8_t *dst, unsigned start, unsigned n)
+{
+	for (int i = start; i < n; i++, dst += 4) {
+		dst[0] = gfx.palette[i].b;
+		dst[1] = gfx.palette[i].g;
+		dst[2] = gfx.palette[i].r;
+		dst[3] = 255;
+	}
+}
+
+void _gfx_update_palette(int start, int n)
 {
 	if (game->bpp != 8)
 		return;
-	SDL_CALL(SDL_SetPaletteColors, gfx_screen()->format->palette, gfx.palette, 0, n);
+	GFX_LOG("gfx_update_palette(%d, %d)", start, n);
+	SDL_CALL(SDL_SetPaletteColors, gfx_screen()->format->palette, gfx.palette+start, start, n);
+}
+
+void gfx_update_palette(int start, int n)
+{
+	_gfx_update_palette(start, n);
 	gfx_screen_dirty();
 }
 
-void gfx_palette_set(const uint8_t *data)
+void _gfx_palette_set(const uint8_t *data, unsigned start, unsigned n)
 {
-	GFX_LOG("gfx_palette_set (...)");
-	read_palette(gfx.palette, data);
-	gfx_update_palette(256);
+	assert(start + n <= 256);
+	GFX_LOG("gfx_palette_set (%u, %u)", start, n);
+	read_palette(gfx.palette + start, data, n);
+}
+
+void gfx_palette_set(const uint8_t *data, unsigned start, unsigned n)
+{
+	_gfx_palette_set(data, start, n);
+	gfx_update_palette(start, n);
 }
 
 void gfx_palette_set_color(uint8_t c, uint8_t r, uint8_t g, uint8_t b)
@@ -540,7 +563,7 @@ void gfx_palette_set_color(uint8_t c, uint8_t r, uint8_t g, uint8_t b)
 	gfx.palette[c].r = r;
 	gfx.palette[c].g = g;
 	gfx.palette[c].b = b;
-	gfx_update_palette(256);
+	gfx_update_palette(0, 256);
 }
 
 static void pal_set_color(uint8_t *pal, uint8_t i, uint8_t r, uint8_t g, uint8_t b)
@@ -561,8 +584,7 @@ static void gfx_dump_surface_direct(SDL_Surface *s, const char *filename)
 }
 
 /*
- * Write a surface to a PNG file, altering the palette so that every color
- * index is identifiable.
+ * Write a surface to a PNG file.
  */
 void gfx_dump_surface(unsigned i, const char *filename)
 {
@@ -579,26 +601,9 @@ void gfx_dump_surface(unsigned i, const char *filename)
 	cg->ref = 1;
 
 	cg->palette = xcalloc(4, 256);
-	pal_set_color(cg->palette, 0,  0,   0,   0);
-	pal_set_color(cg->palette, 1,  127, 127, 127);
-	pal_set_color(cg->palette, 2,  255, 255, 255);
-
-	pal_set_color(cg->palette, 3,  255, 0,   0);
-	pal_set_color(cg->palette, 4,  255, 255, 0);
-	pal_set_color(cg->palette, 5,  255, 0,   255);
-
-	pal_set_color(cg->palette, 6,  0,   255, 0);
-	pal_set_color(cg->palette, 7,  255, 255, 0);
-	pal_set_color(cg->palette, 8,  0,   255, 255);
-
-	pal_set_color(cg->palette, 9,  0,   0,   255);
-	pal_set_color(cg->palette, 10, 255, 0,   255);
-	pal_set_color(cg->palette, 11, 0,   255, 255);
-
-	pal_set_color(cg->palette, 12, 255, 127, 63);
-	pal_set_color(cg->palette, 13, 127, 255, 63);
-	pal_set_color(cg->palette, 14, 127, 63, 255);
-	pal_set_color(cg->palette, 14, 31,  63, 255);
+	for (int i = 0; i < 256; i++) {
+		pal_set_color(cg->palette, i, gfx.palette[i].r, gfx.palette[i].g, gfx.palette[i].b);
+	}
 
 	cg->pixels = xcalloc(cg->metrics.w, cg->metrics.h);
 	for (int row = 0; row < cg->metrics.h; row++) {
@@ -619,10 +624,12 @@ static uint8_t u8_interp(uint8_t a, uint8_t b, float rate)
 	return a + d * rate;
 }
 
-static void _gfx_palette_crossfade(SDL_Color *new, unsigned ms)
+static void _gfx_palette_crossfade(SDL_Color *new, unsigned start, unsigned n, unsigned ms)
 {
+	assert(start + n <= 256);
 	SDL_Color old[256];
-	memcpy(old, gfx.palette, sizeof(old));
+	memcpy(old, gfx_screen()->format->palette->colors, sizeof(old));
+	memcpy(gfx.palette, old, sizeof(old));
 
 	ms *= config.transition_speed;
 
@@ -630,7 +637,7 @@ static void _gfx_palette_crossfade(SDL_Color *new, unsigned ms)
 	uint8_t fading[256];
 	int nr_fading = 0;
 	int max_fading = 0;
-	for (int i = 0; i < 256; i++) {
+	for (int i = start; i < start+n; i++) {
 		if (old[i].r != new[i].r || old[i].g != new[i].g || old[i].b != new[i].b) {
 			fading[nr_fading++] = i;
 			max_fading = max(max_fading, i);
@@ -650,11 +657,11 @@ static void _gfx_palette_crossfade(SDL_Color *new, unsigned ms)
 			gfx.palette[c].g = u8_interp(old[c].g, new[c].g, rate);
 			gfx.palette[c].b = u8_interp(old[c].b, new[c].b, rate);
 		}
-		gfx_update_palette(max_fading + 1);
+		gfx_update_palette(0, max_fading + 1);
 
 		// update
 		vm_peek();
-		SDL_Delay(16);
+		SDL_Delay(FADE_FRAME_TIME);
 		t = vm_get_ticks() - start_t;
 	}
 
@@ -664,18 +671,19 @@ static void _gfx_palette_crossfade(SDL_Color *new, unsigned ms)
 		gfx.palette[c].g = new[c].g;
 		gfx.palette[c].b = new[c].b;
 	}
-	gfx_update_palette(max_fading);
+	gfx_update_palette(0, max_fading);
 }
 
-void gfx_palette_crossfade(const uint8_t *data, unsigned ms)
+void gfx_palette_crossfade(const uint8_t *data, unsigned start, unsigned n, unsigned ms)
 {
 	GFX_LOG("gfx_palette_crossfade[%u] (...)", ms);
 	SDL_Color new[256];
-	read_palette(new, data);
-	_gfx_palette_crossfade(new, ms);
+	read_palette(new, data, 256);
+	_gfx_palette_crossfade(new, start, n, ms);
 }
 
-void gfx_palette_crossfade_to(uint8_t r, uint8_t g, uint8_t b, unsigned ms)
+void gfx_palette_crossfade_to(uint8_t r, uint8_t g, uint8_t b, unsigned start, unsigned n,
+		unsigned ms)
 {
 	GFX_LOG("gfx_palette_crossfade_to[%u] (%u,%u,%u)", ms, r, g, b);
 	SDL_Color new[256];
@@ -685,7 +693,7 @@ void gfx_palette_crossfade_to(uint8_t r, uint8_t g, uint8_t b, unsigned ms)
 		new[i].b = b;
 		new[i].a = 255;
 	}
-	_gfx_palette_crossfade(new, ms);
+	_gfx_palette_crossfade(new, start, n, ms);
 }
 
 void gfx_set_screen_surface(unsigned i)
@@ -694,7 +702,7 @@ void gfx_set_screen_surface(unsigned i)
 	if (unlikely(i >= GFX_NR_SURFACES || !gfx.surface[i].s))
 		VM_ERROR("Invalid surface number: %u", i);
 	gfx.screen = i;
-	gfx_update_palette(256);
+	gfx_update_palette(0, 256);
 }
 
 /*
@@ -1077,7 +1085,7 @@ void gfx_blend_with_mask_color_to(int a_x, int a_y, int w, int h, unsigned a_i, 
 		int mask_h, uint8_t *mask)
 {
 	GFX_LOG("gfx_blend_with_mask_color_to %u(%d,%d) + %u(%d,%d) -> %u(%d,%d) @ (%d,%d)",
-			src_i, src_x, src_y, new_i, new_x, new_y, dst_i, dst_x, dst_y, w, h);
+			a_i, a_x, a_y, b_i, b_x, b_y, dst_i, dst_x, dst_y, w, h);
 	SDL_Surface *a = gfx_get_surface(a_i);
 	SDL_Surface *b = gfx_get_surface(b_i);
 	SDL_Surface *dst = gfx_get_surface(dst_i);

@@ -19,6 +19,7 @@
 #include "nulib.h"
 #include "ai5/mes.h"
 
+#include "backlog.h"
 #include "game.h"
 #include "memory.h"
 #include "vm.h"
@@ -62,6 +63,27 @@ void backlog_clear(void)
 	backlog_empty = true;
 }
 
+void backlog_prepare_old(void)
+{
+	if (!vm_flag_is_on(FLAG_LOG_ENABLE) || vm_flag_is_on(FLAG_LOG_TEXT) || vm_flag_is_on(FLAG_LOG))
+		return;
+
+	BACKLOG_LOG("backlog_prepare_old()");
+
+	if (backlog[backlog_head].present) {
+		backlog_head = (backlog_head + 1) % MEMORY_BACKLOG_NR_ENTRIES;
+		if (backlog_head == backlog_tail) {
+			backlog_tail = (backlog_tail + 1) % MEMORY_BACKLOG_NR_ENTRIES;
+		}
+	}
+
+	backlog[backlog_head].ptr = 0;
+	backlog[backlog_head].present = true;
+	backlog[backlog_head].has_voice = false;
+	backlog_empty = false;
+	vm_flag_on(FLAG_LOG_TEXT);
+}
+
 void backlog_prepare(void)
 {
 	if (!vm_flag_is_on(FLAG_LOG_ENABLE) || vm_flag_is_on(FLAG_LOG_TEXT))
@@ -77,6 +99,16 @@ void backlog_prepare(void)
 	backlog[backlog_head].present = false;
 	backlog[backlog_head].has_voice = false;
 	vm_flag_on(FLAG_LOG_TEXT);
+}
+
+void backlog_commit_old(void)
+{
+	if (!vm_flag_is_on(FLAG_LOG_ENABLE))
+		return;
+
+	BACKLOG_LOG("backlog_commit_old()");
+	vm_flag_off(FLAG_LOG_TEXT);
+	vm_flag_off(FLAG_LOG);
 }
 
 void backlog_commit(void)

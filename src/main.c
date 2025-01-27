@@ -229,6 +229,19 @@ static void set_game(const char *name)
 		game = &game_beyond;
 		break;
 #endif
+	case GAME_KAKYUUSEI:
+		game = &game_kakyuusei;
+		config.file.bg.arc = true;
+		config.file.mes.arc = true;
+		config.file.bgm.arc = true;
+		config.file.voice.arc = true;
+		config.file.voice2.arc = true;
+		config.file.data.arc = true;
+		if (!config.file.voice.name)
+			config.file.voice.name = string_new("EVENT.ARC");
+		if (!config.file.voice2.name)
+			config.file.voice2.name = string_new("EVERY.ARC");
+		break;
 	case GAME_DOUKYUUSEI:
 		game = &game_doukyuusei;
 		break;
@@ -261,6 +274,8 @@ static bool set_game_from_config(void)
 		name = "doukyuusei";
 	} else if (!strcmp(config.title, "Be-Yond")) {
 		name = "beyond";
+	} else if (!strcmp(config.title, "下級生")) {
+		name = "kakyuusei";
 	}
 	if (!name)
 		return false;
@@ -406,18 +421,6 @@ int main(int argc, char *argv[])
 		free(our_ini_name);
 	}
 
-	if (!config.start_mes)
-		config.start_mes = string_new("MAIN.MES");
-#define DEFAULT_NAME(f, n) if (f.arc && !f.name) { f.name = string_new(n); }
-	DEFAULT_NAME(config.file.bg, "BG.ARC");
-	DEFAULT_NAME(config.file.mes, "MES.ARC");
-	DEFAULT_NAME(config.file.bgm, "BGM.ARC");
-	DEFAULT_NAME(config.file.voice, "VOICE.ARC");
-	DEFAULT_NAME(config.file.effect, "BGM.ARC");
-	DEFAULT_NAME(config.file.data, "DATA.ARC");
-	DEFAULT_NAME(config.file.priv, "PRIV.ARC");
-#undef DEFAULT_NAME
-
 	string exe_name = file_replace_extension(ini_name, "EXE");
 	config.exe_path = path_get_icase(exe_name);
 	string_free(exe_name);
@@ -434,6 +437,18 @@ int main(int argc, char *argv[])
 		puts("");
 		sys_error("Error: No game specified");
 	}
+
+	if (!config.start_mes)
+		config.start_mes = string_new("START.MES");
+#define DEFAULT_NAME(f, n) if (f.arc && !f.name) { f.name = string_new(n); }
+	DEFAULT_NAME(config.file.bg, "BG.ARC");
+	DEFAULT_NAME(config.file.mes, "MES.ARC");
+	DEFAULT_NAME(config.file.bgm, "BGM.ARC");
+	DEFAULT_NAME(config.file.voice, "VOICE.ARC");
+	DEFAULT_NAME(config.file.effect, "BGM.ARC");
+	DEFAULT_NAME(config.file.data, "DATA.ARC");
+	DEFAULT_NAME(config.file.priv, "PRIV.ARC");
+#undef DEFAULT_NAME
 
 	// intitialize subsystems
 	srand(time(NULL));
