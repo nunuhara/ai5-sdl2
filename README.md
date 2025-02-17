@@ -13,6 +13,7 @@ Only the games listed below are supported.
 | この世の果てで恋を唄う少女YU-NO (エルフclassics) | yuno       |
 | YU-NO (English translation patch)                | yuno-eng   |
 | 同級生 Windows版                                 | doukyuusei |
+| 下級生                                           | kakyuusei  |
 | 遺作 リニューアル                                | isaku      |
 | 愛姉妹 ～二人の果実～                            | aishimai   |
 
