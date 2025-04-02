@@ -410,7 +410,7 @@ void vm_draw_text(const char *text)
 		bool zenkaku = SJIS_2BYTE(*text);
 		uint16_t this_char_space = zenkaku ? char_space : char_space / 2;
 		uint16_t this_x = x;
-		if (x + this_char_space > end_x) {
+		if (x + char_space > end_x) {
 			x = start_x;
 			y += line_space;
 		}
