@@ -36,14 +36,24 @@
 #include "sys.h"
 #include "vm_private.h"
 
+#define MES_NAME_SIZE 128
 #define VAR4_SIZE 2048
 #define MEM16_SIZE 4096
+
+#define VAR4_OFF     MES_NAME_SIZE
+#define SV16_PTR_OFF (VAR4_OFF + VAR4_SIZE)
+#define VAR16_OFF    (SV16_PTR_OFF + 4)
+#define SYSVAR16_OFF (VAR16_OFF + 26 * 2)
+#define VAR32_OFF    (SYSVAR16_OFF + 26 * 2)
+#define SYSVAR32_OFF (VAR32_OFF + 26 * 4)
+#define HEAP_OFF     (SYSVAR32_OFF + 61 * 4)
+_Static_assert(HEAP_OFF == 0xa48);
 
 static bool overlay_on = false;
 
 static void isaku_mem_restore(void)
 {
-	mem_set_sysvar16_ptr(MEMORY_MES_NAME_SIZE + VAR4_SIZE + 56);
+	mem_set_sysvar16_ptr(SYSVAR16_OFF);
 	mem_set_sysvar32(mes_sysvar32_memory, offsetof(struct memory, mem16));
 	mem_set_sysvar32(mes_sysvar32_palette, offsetof(struct memory, palette));
 	mem_set_sysvar32(mes_sysvar32_file_data, offsetof(struct memory, file_data));
@@ -54,20 +64,20 @@ static void isaku_mem_restore(void)
 
 	uint16_t flags = mem_get_sysvar16(mes_sysvar16_flags);
 	mem_set_sysvar16(mes_sysvar16_flags, flags | 4);
-	mem_set_sysvar16(0, 2632);
+	mem_set_sysvar16(0, HEAP_OFF);
 	mem_set_var16(22, 20);
 }
 
 static void isaku_mem_init(void)
 {
 	// set up pointer table for memory access
-	// (needed because var4 size changes per game)
-	uint32_t off = MEMORY_MES_NAME_SIZE + VAR4_SIZE;
-	memory_ptr.system_var16_ptr = memory_raw + off;
-	memory_ptr.var16 = memory_raw + off + 4;
-	memory_ptr.system_var16 = memory_raw + off + 56;
-	memory_ptr.var32 = memory_raw + off + 108;
-	memory_ptr.system_var32 = memory_raw + off + 212;
+	memory_ptr.mes_name = memory_raw;
+	memory_ptr.var4 = memory_raw + VAR4_OFF;
+	memory_ptr.system_var16_ptr = memory_raw + SV16_PTR_OFF;
+	memory_ptr.var16 = memory_raw + VAR16_OFF;
+	memory_ptr.system_var16 = memory_raw + SYSVAR16_OFF;
+	memory_ptr.var32 = memory_raw + VAR32_OFF;
+	memory_ptr.system_var32 = memory_raw + SYSVAR32_OFF;
 
 	mem_set_sysvar16(mes_sysvar16_flags, 0xf);
 	mem_set_sysvar16(mes_sysvar16_text_start_x, 0);
@@ -154,7 +164,7 @@ static void isaku_anim(struct param_list *params)
 
 static void isaku_clear_var4(void)
 {
-	memset(memory_raw + MEMORY_MES_NAME_SIZE, 0, VAR4_SIZE);
+	memset(memory_raw + VAR4_OFF, 0, VAR4_SIZE);
 }
 
 static void isaku_savedata(struct param_list *params)
@@ -162,8 +172,8 @@ static void isaku_savedata(struct param_list *params)
 	switch (vm_expr_param(params, 0)) {
 	case 0: savedata_resume_load(sys_save_name(params)); break;
 	case 1: savedata_resume_save(sys_save_name(params)); break;
-	case 2: savedata_load(sys_save_name(params)); break;
-	case 3: savedata_save_union_var4(sys_save_name(params), VAR4_SIZE); break;
+	case 2: savedata_load(sys_save_name(params), VAR4_OFF); break;
+	case 3: savedata_save_union_var4(sys_save_name(params)); break;
 	//case 4: unused
 	//case 5: unused
 	case 6: isaku_clear_var4(); break;
@@ -1101,6 +1111,7 @@ struct game game_isaku = {
 		{  0, 0 }
 	},
 	.bpp = 16,
+	.var4_size = VAR4_SIZE,
 	.mem16_size = MEM16_SIZE,
 	.handle_event = isaku_handle_event,
 	.mem_init = isaku_mem_init,

@@ -147,9 +147,10 @@ end:
 
 void vm_load_mes(char *name)
 {
-	strcpy(mem_mes_name(), name);
-	for (int i = 0; memory_raw[i]; i++) {
-		memory_raw[i] = toupper(memory_raw[i]);
+	char *mem_name = mem_mes_name();
+	strcpy(mem_name, name);
+	for (int i = 0; mem_name[i]; i++) {
+		mem_name[i] = toupper(mem_name[i]);
 	}
 	struct archive_data *file = asset_mes_load(name);
 	if (!file)
@@ -591,7 +592,7 @@ void vm_stmt_set_cflag(void)
 {
 	uint16_t i = vm_read_word();
 	do {
-		if (unlikely(!mem_ptr_valid(memory_raw + MEMORY_MES_NAME_SIZE + i, 1)))
+		if (unlikely(!mem_ptr_valid(memory_ptr.var4 + i, 1)))
 			VM_ERROR("Out of bounds write");
 		mem_set_var4(i++, vm_eval());
 	} while (vm_read_byte());
@@ -601,7 +602,7 @@ void vm_stmt_set_cflag_4bit_wrap(void)
 {
 	uint16_t i = vm_read_word();
 	do {
-		if (unlikely(!mem_ptr_valid(memory_raw + MEMORY_MES_NAME_SIZE + i, 1)))
+		if (unlikely(!mem_ptr_valid(memory_ptr.var4 + i, 1)))
 			VM_ERROR("Out of bounds write");
 		mem_set_var4(i++, vm_eval() & 0xf);
 	} while (vm_read_byte());
@@ -611,7 +612,7 @@ void vm_stmt_set_cflag_4bit_saturate(void)
 {
 	uint16_t i = vm_read_word();
 	do {
-		if (unlikely(!mem_ptr_valid(memory_raw + MEMORY_MES_NAME_SIZE + i, 1)))
+		if (unlikely(!mem_ptr_valid(memory_ptr.var4 + i, 1)))
 			VM_ERROR("Out of bounds write");
 		mem_set_var4(i++, min(vm_eval(), 0xf));
 	} while (vm_read_byte());
@@ -631,7 +632,7 @@ void vm_stmt_set_eflag(void)
 {
 	int32_t i = vm_eval();
 	do {
-		if (unlikely(!mem_ptr_valid(memory_raw + MEMORY_MES_NAME_SIZE + i, 1)))
+		if (unlikely(!mem_ptr_valid(memory_ptr.var4 + i, 1)))
 			VM_ERROR("Out of bounds write");
 		mem_set_var4(i++, vm_eval());
 	} while (vm_read_byte());
@@ -641,7 +642,7 @@ void vm_stmt_set_eflag_4bit_wrap(void)
 {
 	int32_t i = vm_eval();
 	do {
-		if (unlikely(!mem_ptr_valid(memory_raw + MEMORY_MES_NAME_SIZE + i, 1)))
+		if (unlikely(!mem_ptr_valid(memory_ptr.var4 + i, 1)))
 			VM_ERROR("Out of bounds write");
 		mem_set_var4(i++, vm_eval() & 0xf);
 	} while (vm_read_byte());
@@ -651,7 +652,7 @@ void vm_stmt_set_eflag_4bit_saturate(void)
 {
 	int32_t i = vm_eval();
 	do {
-		if (unlikely(!mem_ptr_valid(memory_raw + MEMORY_MES_NAME_SIZE + i, 1)))
+		if (unlikely(!mem_ptr_valid(memory_ptr.var4 + i, 1)))
 			VM_ERROR("Out of bounds write");
 		mem_set_var4(i++, min(vm_eval(), 0xf));
 	} while (vm_read_byte());

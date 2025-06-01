@@ -21,8 +21,6 @@
 
 #include "nulib/little_endian.h"
 
-#define MEMORY_MES_NAME_SIZE 128
-#define MEMORY_VAR4_OFFSET MEMORY_MES_NAME_SIZE
 #define MEMORY_FILE_DATA_SIZE 0x630d40
 
 #define MEMORY_MEM16_MAX_SIZE 0x2000
@@ -33,7 +31,7 @@
 #define MEMORY_BACKLOG_DATA_SIZE 2048
 #define MEMORY_BACKLOG_NR_ENTRIES 64
 
-/* 16-bit address space. We can't use this struct because the size of var4
+/* 16-bit address space. We can't use this struct because the memory layout
  * varies by game. The inline functions below should be used to access values
  * in this area.
 struct mem16 {
@@ -61,6 +59,8 @@ struct memory {
 };
 
 struct memory_ptr {
+	uint8_t *mes_name;
+	uint8_t *var4;
 	uint8_t *system_var16_ptr;
 	uint8_t *var16;
 	uint8_t *system_var16;
@@ -90,17 +90,17 @@ static inline char *mem_mes_name(void)
 
 static inline uint8_t *mem_var4(void)
 {
-	return (uint8_t*)(memory_raw + MEMORY_MES_NAME_SIZE);
+	return memory_ptr.var4;
 }
 
 static inline uint8_t mem_get_var4(unsigned i)
 {
-	return (memory_raw + MEMORY_MES_NAME_SIZE)[i];
+	return memory_ptr.var4[i];
 }
 
 static inline void mem_set_var4(unsigned i, uint8_t v)
 {
-	(memory_raw + MEMORY_MES_NAME_SIZE)[i] = v;
+	memory_ptr.var4[i] = v;
 }
 
 static inline uint16_t mem_get_var16(unsigned i)

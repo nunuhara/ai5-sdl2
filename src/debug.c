@@ -220,7 +220,7 @@ static int dbg_cmd_get_flag(unsigned nr_args, char **args)
 {
 	long flag_no;
 	if (!parse_number(args[0], &flag_no) || flag_no < 0
-			|| flag_no > game->mem16_size - MEMORY_MES_NAME_SIZE) {
+			|| !mem_ptr_valid(memory_ptr.var4 + flag_no, 1)) {
 		printf("Invalid flag number: %s\n", args[0]);
 		return DBG_REPL;
 	}
@@ -232,7 +232,7 @@ static int dbg_cmd_set_flag(unsigned nr_args, char **args)
 {
 	long flag_no, value;
 	if (!parse_number(args[0], &flag_no) || flag_no < 0
-			|| flag_no > game->mem16_size - MEMORY_MES_NAME_SIZE) {
+			|| !mem_ptr_valid(memory_ptr.var4 + flag_no, 1)) {
 		printf("Invalid flag number: %s\n", args[0]);
 		return DBG_REPL;
 	}

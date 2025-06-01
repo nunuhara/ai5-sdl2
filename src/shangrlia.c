@@ -32,8 +32,18 @@
 #include "sys.h"
 #include "vm_private.h"
 
+#define MES_NAME_SIZE 128
 #define VAR4_SIZE 2048
 #define MEM16_SIZE 4096
+
+#define VAR4_OFF     MES_NAME_SIZE
+#define SV16_PTR_OFF (VAR4_OFF + VAR4_SIZE)
+#define VAR16_OFF    (SV16_PTR_OFF + 4)
+#define SYSVAR16_OFF (VAR16_OFF + 26 * 2)
+#define VAR32_OFF    (SYSVAR16_OFF + 25 * 2)
+#define SYSVAR32_OFF (VAR32_OFF + 26 * 4)
+#define HEAP_OFF     (SYSVAR32_OFF + 62 * 4)
+_Static_assert(HEAP_OFF == 0xa4a);
 
 static void shangrlia_mem_restore(void)
 {
@@ -41,7 +51,7 @@ static void shangrlia_mem_restore(void)
 	//      address space. Since we support 64-bit systems, we treat
 	//      32-bit pointers as offsets into the `memory` struct (similar
 	//      to how AI5WIN.EXE treats 16-bit pointers).
-	mem_set_sysvar16_ptr(MEMORY_MES_NAME_SIZE + VAR4_SIZE + 56);
+	mem_set_sysvar16_ptr(SYSVAR16_OFF);
 	mem_set_sysvar32(mes_sysvar32_memory, offsetof(struct memory, mem16));
 	mem_set_sysvar32(mes_sysvar32_file_data, offsetof(struct memory, file_data));
 	mem_set_sysvar32(mes_sysvar32_menu_entry_addresses,
@@ -50,19 +60,19 @@ static void shangrlia_mem_restore(void)
 			offsetof(struct memory, menu_entry_numbers));
 
 	// this value is restored when loading a save via System.SaveData.resume_load...
-	mem_set_sysvar16(0, 2634);
+	mem_set_sysvar16(0, HEAP_OFF);
 }
 
 static void shangrlia_mem_init(void)
 {
 	// set up pointer table for memory access
-	// (needed because var4 size changes per game)
-	uint32_t off = MEMORY_MES_NAME_SIZE + VAR4_SIZE;
-	memory_ptr.system_var16_ptr = memory_raw + off;
-	memory_ptr.var16 = memory_raw + off + 4;
-	memory_ptr.system_var16 = memory_raw + off + 56;
-	memory_ptr.var32 = memory_raw + off + 106;
-	memory_ptr.system_var32 = memory_raw + off + 210;
+	memory_ptr.mes_name = memory_raw;
+	memory_ptr.var4 = memory_raw + VAR4_OFF;
+	memory_ptr.system_var16_ptr = memory_raw + SV16_PTR_OFF;
+	memory_ptr.var16 = memory_raw + VAR16_OFF;
+	memory_ptr.system_var16 = memory_raw + SYSVAR16_OFF;
+	memory_ptr.var32 = memory_raw + VAR32_OFF;
+	memory_ptr.system_var32 = memory_raw + SYSVAR32_OFF;
 
 	mem_set_sysvar16(mes_sysvar16_flags, 0x260f);
 	mem_set_sysvar16(mes_sysvar16_text_start_x, 0);
@@ -84,11 +94,11 @@ static void shangrlia_savedata(struct param_list *params)
 	switch (vm_expr_param(params, 0)) {
 	case 0: savedata_resume_load(sys_save_name(params)); break;
 	case 1: savedata_resume_save(sys_save_name(params)); break;
-	case 2: savedata_load(sys_save_name(params)); break;
-	case 3: savedata_save(sys_save_name(params)); break;
-	case 4: savedata_load_var4(sys_save_name(params), VAR4_SIZE); break;
-	case 5: savedata_save_var4(sys_save_name(params), VAR4_SIZE); break;
-	case 6: savedata_save_union_var4(sys_save_name(params), VAR4_SIZE); break;
+	case 2: savedata_load(sys_save_name(params), VAR4_OFF); break;
+	case 3: savedata_save(sys_save_name(params), VAR4_OFF); break;
+	case 4: savedata_load_var4(sys_save_name(params)); break;
+	case 5: savedata_save_var4(sys_save_name(params)); break;
+	case 6: savedata_save_union_var4(sys_save_name(params)); break;
 	case 7: savedata_load_var4_slice(sys_save_name(params), vm_expr_param(params, 2),
 				vm_expr_param(params, 3)); break;
 	case 8: savedata_save_var4_slice(sys_save_name(params), vm_expr_param(params, 2),
@@ -447,6 +457,7 @@ struct game game_shangrlia = {
 		{ 0, 0 },
 	},
 	.bpp = 8,
+	.var4_size = VAR4_SIZE,
 	.mem16_size = MEM16_SIZE,
 	.mem_init = shangrlia_mem_init,
 	.mem_restore = shangrlia_mem_restore,

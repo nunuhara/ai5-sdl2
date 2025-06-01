@@ -38,14 +38,18 @@
 #include "sys.h"
 #include "vm_private.h"
 
+#define MES_NAME_SIZE 128
 #define VAR4_SIZE 4096
 #define MEM16_SIZE 8192
 
-#define VAR16_OFF    (MEMORY_MES_NAME_SIZE + VAR4_SIZE + 4)
+#define VAR4_OFF     MES_NAME_SIZE
+#define SV16_PTR_OFF (VAR4_OFF + VAR4_SIZE)
+#define VAR16_OFF    (SV16_PTR_OFF + 4)
 #define SYSVAR16_OFF (VAR16_OFF + 26 * 2)
 #define VAR32_OFF    (SYSVAR16_OFF + 26 * 2)
 #define SYSVAR32_OFF (VAR32_OFF + 26 * 4)
 #define HEAP_OFF     (SYSVAR32_OFF + 211 * 4)
+_Static_assert(HEAP_OFF == 0x14a0);
 
 static void doukyuusei_mem_restore(void)
 {
@@ -67,8 +71,9 @@ static void doukyuusei_mem_restore(void)
 static void doukyuusei_mem_init(void)
 {
 	// set up pointer table for memory access
-	// (needed because var4 size changes per game)
-	memory_ptr.system_var16_ptr = memory_raw + MEMORY_MES_NAME_SIZE + VAR4_SIZE;
+	memory_ptr.mes_name = memory_raw;
+	memory_ptr.var4 = memory_raw + VAR4_OFF;
+	memory_ptr.system_var16_ptr = memory_raw + SV16_PTR_OFF;
 	memory_ptr.var16 = memory_raw + VAR16_OFF;
 	memory_ptr.system_var16 = memory_raw + SYSVAR16_OFF;
 	memory_ptr.var32 = memory_raw + VAR32_OFF;
@@ -156,12 +161,6 @@ static void doukyuusei_anim(struct param_list *params)
 	}
 }
 
-static void doukyuusei_savedata_load_var4(const char *save_name)
-{
-	savedata_load_var4(save_name, VAR4_SIZE);
-	doukyuusei_mem_restore();
-}
-
 static void doukyuusei_savedata_load_extra_var32(const char *save_name)
 {
 	// sysvar32[11] -> sysvar32[210]
@@ -176,29 +175,29 @@ static void doukyuusei_savedata_save_extra_var32(const char *save_name)
 
 static void doukyuusei_savedata_load_special_flags(void)
 {
-	uint8_t save[MEMORY_MES_NAME_SIZE + VAR4_SIZE];
-	savedata_read(_sys_save_name(0), save, MEMORY_MES_NAME_SIZE, VAR4_SIZE);
+	uint8_t save[VAR4_OFF + VAR4_SIZE];
+	savedata_read(_sys_save_name(0), save, VAR4_OFF, VAR4_SIZE);
 
-	for (int i = MEMORY_MES_NAME_SIZE + 2001; i < MEMORY_MES_NAME_SIZE + 3500; i++) {
+	for (int i = VAR4_OFF + 2001; i < VAR4_OFF + 3500; i++) {
 		if ((save[i] && !memory_raw[i]) || save[i] > 5)
 			memory_raw[i] = save[i];
 	}
-	mem_set_var4(1896, save[MEMORY_MES_NAME_SIZE + 1896]);
-	mem_set_var4(1897, save[MEMORY_MES_NAME_SIZE + 1897]);
+	mem_set_var4(1896, save[VAR4_OFF + 1896]);
+	mem_set_var4(1897, save[VAR4_OFF + 1897]);
 }
 
 static void doukyuusei_savedata_save_special_flags(void)
 {
-	uint8_t save[MEMORY_MES_NAME_SIZE + VAR4_SIZE];
+	uint8_t save[VAR4_OFF + VAR4_SIZE];
 	const char *save_name = _sys_save_name(0);
-	savedata_read(save_name, save, MEMORY_MES_NAME_SIZE, VAR4_SIZE);
+	savedata_read(save_name, save, VAR4_OFF, VAR4_SIZE);
 
-	for (int i = MEMORY_MES_NAME_SIZE + 2001; i < MEMORY_MES_NAME_SIZE + 3500; i++) {
+	for (int i = VAR4_OFF + 2001; i < VAR4_OFF + 3500; i++) {
 		if (memory_raw[i])
 			save[i] = memory_raw[i];
 	}
 
-	savedata_write(save_name, save, MEMORY_MES_NAME_SIZE, VAR4_SIZE);
+	savedata_write(save_name, save, VAR4_OFF, VAR4_SIZE);
 }
 
 static void doukyuusei_savedata(struct param_list *params)
@@ -206,15 +205,15 @@ static void doukyuusei_savedata(struct param_list *params)
 	switch (vm_expr_param(params, 0)) {
 	case 0: savedata_resume_load(sys_save_name(params)); break;
 	case 1: savedata_resume_save(sys_save_name(params)); break;
-	case 2: doukyuusei_savedata_load_var4(sys_save_name(params)); break;
-	case 3: savedata_save_union_var4(sys_save_name(params), VAR4_SIZE); break;
+	case 2: savedata_load_var4_restore(sys_save_name(params)); break;
+	case 3: savedata_save_union_var4(sys_save_name(params)); break;
 	case 4: doukyuusei_savedata_load_extra_var32(sys_save_name(params)); break;
 	case 5: doukyuusei_savedata_save_extra_var32(sys_save_name(params)); break;
-	case 6: memset(memory_raw + MEMORY_VAR4_OFFSET, 0, VAR4_SIZE); break;
-	case 7: savedata_load_variables(sys_save_name(params), vm_string_param(params, 2), VAR4_SIZE); break;
+	case 6: memset(memory_raw + VAR4_OFF, 0, VAR4_SIZE); break;
+	case 7: savedata_load_variables(sys_save_name(params), vm_string_param(params, 2)); break;
 	case 8: doukyuusei_savedata_load_special_flags(); break;
 	case 9: doukyuusei_savedata_save_special_flags(); break;
-	case 10: savedata_save_var4(sys_save_name(params), VAR4_SIZE); break;
+	case 10: savedata_save_var4(sys_save_name(params)); break;
 	default: VM_ERROR("System.SaveData.function[%u] not implemented",
 				 params->params[0].val);
 	}
@@ -823,27 +822,27 @@ static void util_get_backspace2(struct param_list *params)
 static void util_save_var4(struct param_list *params)
 {
 	const char *save_name = _sys_save_name(0);
-	uint8_t save[MEMORY_MES_NAME_SIZE + VAR4_SIZE];
-	savedata_read(save_name, save, MEMORY_MES_NAME_SIZE, VAR4_SIZE);
+	uint8_t save[VAR4_OFF + VAR4_SIZE];
+	savedata_read(save_name, save, VAR4_OFF, VAR4_SIZE);
 
-	for (int i = MEMORY_MES_NAME_SIZE; i < MEMORY_MES_NAME_SIZE + 1900; i++) {
+	for (int i = VAR4_OFF; i < VAR4_OFF + 1900; i++) {
 		save[i] |= memory_raw[i];
 	}
 	uint8_t flag;
 	if ((flag = mem_get_var4(1834)))
-		save[MEMORY_MES_NAME_SIZE + 1834] = flag;
+		save[VAR4_OFF + 1834] = flag;
 	if ((flag = mem_get_var4(1721)))
-		save[MEMORY_MES_NAME_SIZE + 1721] = flag;
+		save[VAR4_OFF + 1721] = flag;
 	if (mem_get_var4(1859))
-		save[MEMORY_MES_NAME_SIZE + 1859] = flag;
+		save[VAR4_OFF + 1859] = flag;
 	if ((flag = mem_get_var4(1789)))
-		save[MEMORY_MES_NAME_SIZE + 1789] = flag;
+		save[VAR4_OFF + 1789] = flag;
 	if ((flag = mem_get_var4(1860)))
-		save[MEMORY_MES_NAME_SIZE + 1860] = flag;
+		save[VAR4_OFF + 1860] = flag;
 	if ((flag = mem_get_var4(1863)))
-		save[MEMORY_MES_NAME_SIZE + 1863] = flag;
+		save[VAR4_OFF + 1863] = flag;
 
-	savedata_write(save_name, save, MEMORY_MES_NAME_SIZE, VAR4_SIZE);
+	savedata_write(save_name, save, VAR4_OFF, VAR4_SIZE);
 }
 
 /*
@@ -1354,6 +1353,7 @@ struct game game_doukyuusei = {
 		{    0,    0 }
 	},
 	.bpp = 16,
+	.var4_size = VAR4_SIZE,
 	.mem16_size = MEM16_SIZE,
 	.mem_init = doukyuusei_mem_init,
 	.mem_restore = doukyuusei_mem_restore,

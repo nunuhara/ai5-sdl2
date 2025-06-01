@@ -30,19 +30,21 @@
 #include "sys.h"
 #include "vm_private.h"
 
+#define MES_NAME_SIZE 128
 #define VAR4_SIZE 4096
 #define MEM16_SIZE 8192
 
-#define VAR16_OFF    (MEMORY_MES_NAME_SIZE + VAR4_SIZE + 4)
+#define VAR4_OFF     MES_NAME_SIZE
+#define SV16_PTR_OFF (VAR4_OFF + VAR4_SIZE)
+#define VAR16_OFF    (SV16_PTR_OFF + 4)
 #define SYSVAR16_OFF (VAR16_OFF + 26 * 2)
 #define VAR32_OFF    (SYSVAR16_OFF + 24 * 2)
 #define SYSVAR32_OFF (VAR32_OFF + 26 * 4)
 #define HEAP_OFF     (SYSVAR32_OFF + 61 * 4)
+_Static_assert(HEAP_OFF == 0x1244);
 
 #define SCREEN_W 640
 #define SCREEN_H 480
-
-_Static_assert(HEAP_OFF == 0x1244);
 
 static void beyond_mem_restore(void)
 {
@@ -50,7 +52,7 @@ static void beyond_mem_restore(void)
 	//      address space. Since we support 64-bit systems, we treat
 	//      32-bit pointers as offsets into the `memory` struct (similar
 	//      to how AI5WIN.EXE treats 16-bit pointers).
-	mem_set_sysvar16_ptr(MEMORY_MES_NAME_SIZE + VAR4_SIZE);
+	mem_set_sysvar16_ptr(SYSVAR16_OFF);
 	mem_set_sysvar32(mes_sysvar32_memory, offsetof(struct memory, mem16));
 	mem_set_sysvar32(mes_sysvar32_file_data, offsetof(struct memory, file_data));
 	mem_set_sysvar32(mes_sysvar32_menu_entry_addresses,
@@ -67,9 +69,9 @@ static void beyond_mem_restore(void)
 static void beyond_mem_init(void)
 {
 	// set up pointer table for memory access
-	// (needed because var4 size changes per game)
-	uint32_t off = MEMORY_MES_NAME_SIZE + VAR4_SIZE;
-	memory_ptr.system_var16_ptr = memory_raw + off;
+	memory_ptr.mes_name = memory_raw;
+	memory_ptr.var4 = memory_raw + VAR4_OFF;
+	memory_ptr.system_var16_ptr = memory_raw + SV16_PTR_OFF;
 	memory_ptr.var16 = memory_raw + VAR16_OFF;
 	memory_ptr.system_var16 = memory_raw + SYSVAR16_OFF;
 	memory_ptr.var32 = memory_raw + VAR32_OFF;
@@ -144,11 +146,11 @@ static void beyond_anim(struct param_list *params)
 
 static void beyond_resume_load(const char *save_name)
 {
-	uint8_t buf[MEMORY_VAR4_OFFSET + VAR4_SIZE];
-	uint8_t *var4 = buf + MEMORY_VAR4_OFFSET;
-	uint8_t *mem_var4 = memory_raw + MEMORY_VAR4_OFFSET;
+	uint8_t buf[VAR4_OFF + VAR4_SIZE];
+	uint8_t *var4 = buf + VAR4_OFF;
+	uint8_t *mem_var4 = memory_raw + VAR4_OFF;
 	savedata_read(save_name, memory_raw, 0, MEM16_SIZE);
-	savedata_read("FLAG00", buf, MEMORY_VAR4_OFFSET, VAR4_SIZE);
+	savedata_read("FLAG00", buf, VAR4_OFF, VAR4_SIZE);
 
 	memcpy(mem_var4 +  200, var4 +  200, 800);
 	memcpy(mem_var4 + 1200, var4 + 1200, 800);
@@ -159,12 +161,6 @@ static void beyond_resume_load(const char *save_name)
 	beyond_mem_restore();
 	vm_load_mes(mem_mes_name());
 	vm_flag_on(FLAG_RETURN);
-}
-
-static void beyond_load_var4(const char *save_name)
-{
-	savedata_load_var4(save_name, VAR4_SIZE);
-	beyond_mem_restore();
 }
 
 static void beyond_load_extra_var32(const char *save_name)
@@ -200,11 +196,11 @@ static void beyond_savedata(struct param_list *params)
 	switch (vm_expr_param(params, 0)) {
 	case 0: beyond_resume_load(sys_save_name(params)); break;
 	case 1: savedata_resume_save(sys_save_name(params)); break;
-	case 2: beyond_load_var4(sys_save_name(params)); break;
-	case 3: savedata_save_union_var4(sys_save_name(params), VAR4_SIZE); break;
+	case 2: savedata_load_var4_restore(sys_save_name(params)); break;
+	case 3: savedata_save_union_var4(sys_save_name(params)); break;
 	case 4: beyond_load_extra_var32(sys_save_name(params)); break;
 	case 5: beyond_save_extra_var32(sys_save_name(params)); break;
-	case 6: memset(memory_raw + MEMORY_VAR4_OFFSET, 0, VAR4_SIZE); break;
+	case 6: memset(memory_raw + VAR4_OFF, 0, VAR4_SIZE); break;
 	case 7: beyond_load_heap(sys_save_name(params), vm_expr_param(params, 2),
 				vm_expr_param(params, 3)); break;
 	case 8: beyond_save_heap(sys_save_name(params), vm_expr_param(params, 2),
@@ -462,6 +458,7 @@ struct game game_beyond = {
 		{ 0, 0 }
 	},
 	.bpp = 16,
+	.var4_size = VAR4_SIZE,
 	.mem16_size = MEM16_SIZE,
 	.mem_init = beyond_mem_init,
 	.mem_restore = beyond_mem_restore,

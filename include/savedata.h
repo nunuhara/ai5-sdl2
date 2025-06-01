@@ -31,15 +31,16 @@ void savedata_write(const char *save_name, const uint8_t *buf, uint32_t off, siz
 
 void savedata_resume_load(const char *save_name);
 void savedata_resume_save(const char *save_name);
-void savedata_load(const char *save_name);
-void savedata_save(const char *save_name);
-void savedata_load_var4(const char *save_name, unsigned var4_size);
-void savedata_save_var4(const char *save_name, unsigned var4_size);
-void savedata_save_union_var4(const char *save_name, unsigned var4_size);
+void savedata_load(const char *save_name, unsigned start);
+void savedata_save(const char *save_name, unsigned start);
+void savedata_load_var4(const char *save_name);
+void savedata_load_var4_restore(const char *save_name);
+void savedata_save_var4(const char *save_name);
+void savedata_save_union_var4(const char *save_name);
 void savedata_load_var4_slice(const char *save_name, unsigned from, unsigned to);
 void savedata_save_var4_slice(const char *save_name, unsigned from, unsigned to);
 void savedata_copy(const char *src_save, const char *dst_save);
 void savedata_set_mes_name(const char *save_name, const char *mes_name);
-void savedata_load_variables(const char *save_name, const char *vars, unsigned var4_size);
+void savedata_load_variables(const char *save_name, const char *vars);
 
 #endif // AI5_SAVEDATA_H

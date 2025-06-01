@@ -37,14 +37,18 @@
 #define PALETTE_LOG(...)
 #endif
 
+#define MES_NAME_SIZE 128
 #define VAR4_SIZE 4096
 #define MEM16_SIZE 8192
 
-#define VAR16_OFF    (MEMORY_MES_NAME_SIZE + VAR4_SIZE + 4)
+#define VAR4_OFF     MES_NAME_SIZE
+#define SV16_PTR_OFF (VAR4_OFF + VAR4_SIZE)
+#define VAR16_OFF    (SV16_PTR_OFF + 4)
 #define SYSVAR16_OFF (VAR16_OFF + 26 * 2)
 #define VAR32_OFF    (SYSVAR16_OFF + 28 * 2)
 #define SYSVAR32_OFF (VAR32_OFF + 26 * 4)
 #define HEAP_OFF     (SYSVAR32_OFF + 210 * 4)
+_Static_assert(HEAP_OFF == 0x14a0);
 
 static void kakyuusei_mem_restore(void)
 {
@@ -62,8 +66,9 @@ static void kakyuusei_mem_restore(void)
 static void kakyuusei_mem_init(void)
 {
 	// set up pointer table for memory access
-	// (needed because var4 size changes per game)
-	memory_ptr.system_var16_ptr = memory_raw + MEMORY_MES_NAME_SIZE + VAR4_SIZE;
+	memory_ptr.mes_name = memory_raw;
+	memory_ptr.var4 = memory_raw + VAR4_OFF;
+	memory_ptr.system_var16_ptr = memory_raw + SV16_PTR_OFF;
 	memory_ptr.var16 = memory_raw + VAR16_OFF;
 	memory_ptr.system_var16 = memory_raw + SYSVAR16_OFF;
 	memory_ptr.var32 = memory_raw + VAR32_OFF;
@@ -215,8 +220,8 @@ static void kakyuusei_resume_load(const char *save_name)
 static void kakyuusei_save(const char *save_name)
 {
 	uint8_t save[MEM16_SIZE];
-	uint8_t *var4 = save + MEMORY_VAR4_OFFSET;
-	uint8_t *mem_var4 = memory_raw + MEMORY_VAR4_OFFSET;
+	uint8_t *var4 = save + VAR4_OFF;
+	uint8_t *mem_var4 = memory_raw + VAR4_OFF;
 	savedata_read(save_name, save, 0, MEM16_SIZE);
 	for (int i = 0; i < VAR4_SIZE; i++) {
 		if (mem_var4[i])
@@ -232,9 +237,9 @@ static void kakyuusei_savedata(struct param_list *params)
 	switch (vm_expr_param(params, 0)) {
 	case 0: kakyuusei_resume_load(sys_save_name(params)); break;
 	case 1: savedata_resume_save(sys_save_name(params)); break;
-	case 2: savedata_load(sys_save_name(params)); break;
+	case 2: savedata_load(sys_save_name(params), VAR4_OFF); break;
 	case 3: kakyuusei_save(sys_save_name(params)); break;
-	case 4: savedata_load_variables(sys_save_name(params), vm_string_param(params, 2), VAR4_SIZE); break;
+	case 4: savedata_load_variables(sys_save_name(params), vm_string_param(params, 2)); break;
 	default: VM_ERROR("System.SaveData.function[%u] not implemented",
 				 params->params[0].val);
 	}
@@ -1101,6 +1106,7 @@ struct game game_kakyuusei = {
 		[10] = {    0,    0 },
 	},
 	.bpp = 8,
+	.var4_size = VAR4_SIZE,
 	.mem16_size = MEM16_SIZE,
 	.mem_init = kakyuusei_mem_init,
 	.mem_restore = kakyuusei_mem_restore,

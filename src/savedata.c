@@ -104,58 +104,63 @@ void savedata_resume_save(const char *save_name)
 	savedata_write(save_name, memory_raw, 0, game->mem16_size);
 }
 
-void savedata_load(const char *save_name)
+void savedata_load(const char *save_name, unsigned start)
 {
 	// load except mes name
-	savedata_read(save_name, memory_raw, MEMORY_MES_NAME_SIZE,
-			game->mem16_size - MEMORY_MES_NAME_SIZE);
+	savedata_read(save_name, memory_raw, start, game->mem16_size - start);
 	game->mem_restore();
 }
 
-void savedata_save(const char *save_name)
+void savedata_save(const char *save_name, unsigned start)
 {
 	// save except mes name
-	savedata_write(save_name, memory_raw, MEMORY_MES_NAME_SIZE,
-			game->mem16_size - MEMORY_MES_NAME_SIZE);
+	savedata_write(save_name, memory_raw, start, game->mem16_size - start);
 }
 
-void savedata_load_var4(const char *save_name, unsigned var4_size)
+void savedata_load_var4(const char *save_name)
 {
-	savedata_read(save_name, memory_raw, MEMORY_VAR4_OFFSET, var4_size);
+	savedata_read(save_name, memory_raw, memory_ptr.var4 - memory_raw, game->var4_size);
 }
 
-void savedata_save_var4(const char *save_name, unsigned var4_size)
+void savedata_load_var4_restore(const char *save_name)
 {
-	savedata_write(save_name, memory_raw, MEMORY_VAR4_OFFSET, var4_size);
+	savedata_read(save_name, memory_raw, memory_ptr.var4 - memory_raw, game->var4_size);
+	game->mem_restore();
 }
 
-void savedata_save_union_var4(const char *save_name, unsigned var4_size)
+void savedata_save_var4(const char *save_name)
+{
+	savedata_write(save_name, memory_raw, memory_ptr.var4 - memory_raw, game->var4_size);
+}
+
+void savedata_save_union_var4(const char *save_name)
 {
 	uint8_t buf[MEMORY_VAR4_MAX_SIZE];
+	const size_t var4_off = memory_ptr.var4 - memory_raw;
 	FILE *f = open_save(save_name, "r+b");
 	if (!f) {
 		WARNING("Failed to open save file \"%s\": %s", save_name, strerror(errno));
 		return;
 	}
-	if (fseek(f, MEMORY_VAR4_OFFSET, SEEK_SET) < 0) {
+	if (fseek(f, var4_off, SEEK_SET) < 0) {
 		WARNING("fseek: %s", strerror(errno));
 		goto end;
 	}
-	if (fread(buf, var4_size, 1, f) != 1) {
+	if (fread(buf, game->var4_size, 1, f) != 1) {
 		WARNING("fread: %s", strerror(errno));
 		goto end;
 	}
 
-	uint8_t *var4 = mem_var4();
-	for (unsigned i = 0; i < var4_size; i++) {
+	uint8_t *var4 = memory_ptr.var4;
+	for (unsigned i = 0; i < game->var4_size; i++) {
 		buf[i] |= var4[i];
 	}
 
-	if (fseek(f, MEMORY_VAR4_OFFSET, SEEK_SET) < 0) {
+	if (fseek(f, var4_off, SEEK_SET) < 0) {
 		WARNING("fseek: %s", strerror(errno));
 		goto end;
 	}
-	if (fwrite(buf, var4_size, 1, f) != 1)
+	if (fwrite(buf, game->var4_size, 1, f) != 1)
 		WARNING("fwrite: %s", strerror(errno));
 end:
 	close_save(f);
@@ -165,7 +170,7 @@ void savedata_load_var4_slice(const char *save_name, unsigned from, unsigned to)
 {
 	if (from > to)
 		return;
-	savedata_read(save_name, memory_raw, MEMORY_VAR4_OFFSET + from,
+	savedata_read(save_name, memory_raw, (memory_ptr.var4 - memory_raw) + from,
 			(to + 1) - from);
 }
 
@@ -173,7 +178,7 @@ void savedata_save_var4_slice(const char *save_name, unsigned from, unsigned to)
 {
 	if (from > to)
 		return;
-	savedata_write(save_name, memory_raw, MEMORY_VAR4_OFFSET + from,
+	savedata_write(save_name, memory_raw, (memory_ptr.var4 - memory_raw) + from,
 			(to + 1) - from);
 }
 
@@ -189,9 +194,9 @@ void savedata_set_mes_name(const char *save_name, const char *mes_name)
 	savedata_write(save_name, (const uint8_t*)mes_name, 0, strlen(mes_name) + 1);
 }
 
-void savedata_load_variables(const char *save_name, const char *vars, unsigned var4_size)
+void savedata_load_variables(const char *save_name, const char *vars)
 {
-	unsigned var16_off = MEMORY_VAR4_OFFSET + var4_size + 4;
+	unsigned var16_off = memory_ptr.var16 - memory_raw;
 	uint8_t save[MEMORY_MEM16_MAX_SIZE];
 	savedata_read(save_name, save, var16_off, 26 * 2);
 

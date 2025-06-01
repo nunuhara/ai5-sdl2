@@ -37,8 +37,18 @@
 #include "sys.h"
 #include "vm_private.h"
 
+#define MES_NAME_SIZE 128
 #define VAR4_SIZE 4096
 #define MEM16_SIZE 8192
+
+#define VAR4_OFF     MES_NAME_SIZE
+#define SV16_PTR_OFF (VAR4_OFF + VAR4_SIZE)
+#define VAR16_OFF    (SV16_PTR_OFF + 4)
+#define SYSVAR16_OFF (VAR16_OFF + 26 * 2)
+#define VAR32_OFF    (SYSVAR16_OFF + 26 * 2)
+#define SYSVAR32_OFF (VAR32_OFF + 26 * 4)
+#define HEAP_OFF     (SYSVAR32_OFF + 161 * 4)
+_Static_assert(HEAP_OFF == 0x13d8);
 
 static void yuno_mem_restore(void)
 {
@@ -46,7 +56,7 @@ static void yuno_mem_restore(void)
 	//      address space. Since we support 64-bit systems, we treat
 	//      32-bit pointers as offsets into the `memory` struct (similar
 	//      to how AI5WIN.EXE treats 16-bit pointers).
-	mem_set_sysvar16_ptr(MEMORY_MES_NAME_SIZE + VAR4_SIZE + 56);
+	mem_set_sysvar16_ptr(SYSVAR16_OFF);
 	mem_set_sysvar32(mes_sysvar32_memory, offsetof(struct memory, mem16));
 	mem_set_sysvar32(mes_sysvar32_palette, offsetof(struct memory, palette));
 	mem_set_sysvar32(mes_sysvar32_file_data, offsetof(struct memory, file_data));
@@ -56,19 +66,19 @@ static void yuno_mem_restore(void)
 		offsetof(struct memory, menu_entry_numbers));
 
 	// this value is restored when loading a save via System.SaveData.resume_load...
-	mem_set_sysvar16(0, 5080);
+	mem_set_sysvar16(0, HEAP_OFF);
 }
 
 static void yuno_mem_init(void)
 {
 	// set up pointer table for memory access
-	// (needed because var4 size changes per game)
-	uint32_t off = MEMORY_MES_NAME_SIZE + VAR4_SIZE;
-	memory_ptr.system_var16_ptr = memory_raw + off;
-	memory_ptr.var16 = memory_raw + off + 4;
-	memory_ptr.system_var16 = memory_raw + off + 56;
-	memory_ptr.var32 = memory_raw + off + 108;
-	memory_ptr.system_var32 = memory_raw + off + 212;
+	memory_ptr.mes_name = memory_raw;
+	memory_ptr.var4 = memory_raw + VAR4_OFF;
+	memory_ptr.system_var16_ptr = memory_raw + SV16_PTR_OFF;
+	memory_ptr.var16 = memory_raw + VAR16_OFF;
+	memory_ptr.system_var16 = memory_raw + SYSVAR16_OFF;
+	memory_ptr.var32 = memory_raw + VAR32_OFF;
+	memory_ptr.system_var32 = memory_raw + SYSVAR32_OFF;
 
 	mem_set_sysvar16(mes_sysvar16_flags, 0x260d);
 	mem_set_sysvar16(mes_sysvar16_text_start_x, 0);
@@ -105,10 +115,10 @@ static void yuno_anim(struct param_list *params)
 static void yuno_savedata_load_jewel_save(const char *save_name)
 {
 	uint8_t buf[MEMORY_MEM16_MAX_SIZE];
-	uint8_t *load_var4 = buf + MEMORY_MES_NAME_SIZE;
+	uint8_t *load_var4 = buf + VAR4_OFF;
 	uint8_t *cur_var4 = mem_var4();
-	savedata_read(save_name, buf, 0, MEMORY_VAR4_OFFSET + VAR4_SIZE);
-	memcpy(memory_raw, buf, MEMORY_MES_NAME_SIZE);
+	savedata_read(save_name, buf, 0, VAR4_OFF + VAR4_SIZE);
+	memcpy(memory_raw, buf, MES_NAME_SIZE);
 	cur_var4[18] = load_var4[18];
 	cur_var4[21] = load_var4[21];
 	cur_var4[29] = load_var4[29];
@@ -123,22 +133,22 @@ static void yuno_savedata_load_jewel_save(const char *save_name)
 	vm_flag_on(FLAG_RETURN);
 }
 
-static uint8_t stashed_mes_name[MEMORY_MES_NAME_SIZE];
+static uint8_t stashed_mes_name[MES_NAME_SIZE];
 
 static void yuno_savedata_save_jewel_save(const char *save_name)
 {
 	uint8_t buf[MEMORY_MEM16_MAX_SIZE];
-	uint8_t *out_var4 = buf + MEMORY_MES_NAME_SIZE;
+	uint8_t *out_var4 = buf + VAR4_OFF;
 	uint8_t *cur_var4 = mem_var4();
-	savedata_read(save_name, buf, 0, MEMORY_VAR4_OFFSET + VAR4_SIZE);
-	memcpy(buf, stashed_mes_name, MEMORY_MES_NAME_SIZE);
+	savedata_read(save_name, buf, 0, VAR4_OFF + VAR4_SIZE);
+	memcpy(buf, stashed_mes_name, MES_NAME_SIZE);
 	for (int i = 50; i < 90; i++) {
 		out_var4[i] = cur_var4[i];
 	}
 	for (int i = 150; i < 2000; i++) {
 		out_var4[i] = cur_var4[i];
 	}
-	savedata_write(save_name, buf, 0, MEMORY_VAR4_OFFSET + VAR4_SIZE);
+	savedata_write(save_name, buf, 0, VAR4_OFF + VAR4_SIZE);
 }
 
 static void yuno_savedata(struct param_list *params)
@@ -146,11 +156,11 @@ static void yuno_savedata(struct param_list *params)
 	switch (vm_expr_param(params, 0)) {
 	case 0: savedata_resume_load(sys_save_name(params)); break;
 	case 1: savedata_resume_save(sys_save_name(params)); break;
-	case 2: savedata_load(sys_save_name(params)); break;
-	case 3: savedata_save(sys_save_name(params)); break;
-	case 4: savedata_load_var4(sys_save_name(params), VAR4_SIZE); break;
-	case 5: savedata_save_var4(sys_save_name(params), VAR4_SIZE); break;
-	case 6: savedata_save_union_var4(sys_save_name(params), VAR4_SIZE); break;
+	case 2: savedata_load(sys_save_name(params), VAR4_OFF); break;
+	case 3: savedata_save(sys_save_name(params), VAR4_OFF); break;
+	case 4: savedata_read(sys_save_name(params), memory_raw, VAR4_OFF, VAR4_SIZE); break;
+	case 5: savedata_save_var4(sys_save_name(params)); break;
+	case 6: savedata_save_union_var4(sys_save_name(params)); break;
 	case 7: savedata_load_var4_slice(sys_save_name(params), vm_expr_param(params, 2),
 				vm_expr_param(params, 3)); break;
 	case 8: savedata_save_var4_slice(sys_save_name(params), vm_expr_param(params, 2),
@@ -348,7 +358,7 @@ static void util_fade(struct param_list *params)
 
 static void util_savedata_stash_name(struct param_list *params)
 {
-	memcpy(stashed_mes_name, memory_raw, MEMORY_MES_NAME_SIZE);
+	memcpy(stashed_mes_name, memory_raw, MES_NAME_SIZE);
 }
 
 static void util_pixelate(struct param_list *params)
@@ -1013,6 +1023,7 @@ struct game game_yuno = {
 		{ 0, 0 },
 	},
 	.bpp = 8,
+	.var4_size = VAR4_SIZE,
 	.mem16_size = MEM16_SIZE,
 	.init = yuno_init,
 	.update = yuno_update,

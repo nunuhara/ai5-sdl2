@@ -83,6 +83,8 @@ struct game {
 	//   16 = BGR555
 	//   24 = BGR888
 	unsigned bpp;
+	// size of flags
+	uint32_t var4_size;
 	// size of the 16-bit address space
 	uint32_t mem16_size;
 	// called immediately before running the initial mes file
