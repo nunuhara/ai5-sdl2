@@ -512,7 +512,7 @@ static struct cg *load_bmp_4bpp(struct bitmap_info *bm_info, struct color_map *c
 	uint8_t *mask = xmalloc(w * h);
 	for (int row = 0; row < h; row++) {
 		uint8_t *dst = mask + row * w;
-		uint8_t *src = bitmask + row * (w/8);
+		uint8_t *src = bitmask + row * (((w/8) + 3) & ~3);
 		for (int bit = 0x80, col = 0; col < w; bit >>= 1, col++, dst++) {
 			if (bit == 0) {
 				bit = 0x80;
@@ -529,12 +529,12 @@ static struct cg *load_bmp_4bpp(struct bitmap_info *bm_info, struct color_map *c
 		uint8_t *p_src = pixels + (h - (row + 1)) * w / 2;
 		uint8_t *m_src = mask + (h - (row + 1)) * w;
 		for (unsigned col = 0; col < w; col += 2, p_src++, m_src += 2, dst += 8) {
-			uint8_t c = *p_src & 0xf;
+			uint8_t c = *p_src >> 4;
 			dst[0] = colors->colors[c].r;
 			dst[1] = colors->colors[c].g;
 			dst[2] = colors->colors[c].b;
 			dst[3] = m_src[0];
-			c = *p_src >> 4;
+			c = *p_src & 0xf;
 			dst[4] = colors->colors[c].r;
 			dst[5] = colors->colors[c].g;
 			dst[6] = colors->colors[c].b;
