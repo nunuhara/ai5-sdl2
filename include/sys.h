@@ -25,10 +25,12 @@ struct param_list;
 void util_warn_unimplemented(struct param_list *params);
 void util_noop(struct param_list *params);
 
+const char *_sys_save_name_fmt(const char *fmt, unsigned save_no);
 const char *_sys_save_name(unsigned save_no);
 const char *sys_save_name(struct param_list *params);
 
 void sys_set_font_size(struct param_list *params);
+const char *_sys_number_to_string(uint32_t n, unsigned display_digits, bool halfwidth);
 const char *sys_number_to_string(uint32_t n);
 void sys_display_number(struct param_list *params);
 void sys_cursor_save_pos(struct param_list *params);
@@ -47,8 +49,6 @@ void sys_graphics_blend(struct param_list *params);
 void sys_graphics_blend_masked(struct param_list *params);
 void sys_graphics_invert_colors(struct param_list *params);
 void sys_graphics_copy_progressive(struct param_list *params);
-void sys_graphics_pixel_crossfade(struct param_list *params);
-void sys_graphics_pixel_crossfade_masked(struct param_list *params);
 void sys_wait(struct param_list *params);
 void sys_set_text_colors_indexed(struct param_list *params);
 void sys_set_text_colors_direct(struct param_list *params);

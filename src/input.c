@@ -118,6 +118,8 @@ void handle_events(void)
 			handle_window_event(&e.window);
 			break;
 		case SDL_KEYDOWN:
+			if (e.key.windowID != gfx.window_id)
+				break;
 			key_event(&e.key, true);
 			switch (e.key.keysym.sym) {
 			case SDLK_F10:    gfx_screenshot(); break;
@@ -128,6 +130,8 @@ void handle_events(void)
 			}
 			break;
 		case SDL_KEYUP:
+			if (e.key.windowID != gfx.window_id)
+				break;
 			key_event(&e.key, false);
 			break;
 		case SDL_MOUSEBUTTONDOWN:
@@ -141,6 +145,8 @@ void handle_events(void)
 			mouse_event(&e.button, false);
 			break;
 		case SDL_MOUSEWHEEL:
+			if (e.wheel.windowID != gfx.window_id)
+				break;
 			if (e.wheel.y > 0)
 				cursor_set_direction(CURSOR_DIR_UP);
 			else if (e.wheel.y < 0)

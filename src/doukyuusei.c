@@ -355,6 +355,35 @@ static void doukyuusei_graphics_blend_to(struct param_list *params)
 	gfx_blend(a_x, a_y, 640, 480, a_i, 0, 0, dst_i, rate);
 }
 
+void doukyuusei_graphics_pixel_crossfade(struct param_list *params)
+{
+	// System.Grahpics.pixel_crossfade(src_x, src_y, src_br_x, src_br_y, src_i, dst_x, dst_y, dst_i)
+	int src_x = vm_expr_param(params, 1);
+	int src_y = vm_expr_param(params, 2);
+	int src_w = (vm_expr_param(params, 3) - src_x) + 1;
+	int src_h = (vm_expr_param(params, 4) - src_y) + 1;
+	unsigned src_i = vm_expr_param(params, 5);
+	int dst_x = vm_expr_param(params, 6);
+	int dst_y = vm_expr_param(params, 7);
+	unsigned dst_i = vm_expr_param(params, 8);
+	gfx_pixel_crossfade(src_x, src_y, src_w, src_h, src_i, dst_x, dst_y, dst_i, 30, NULL, NULL);
+}
+
+void doukyuusei_graphics_pixel_crossfade_masked(struct param_list *params)
+{
+	// System.Grahpics.pixel_crossfade_masked(src_x, src_y, src_br_x, src_br_y, src_i, dst_x, dst_y, dst_i)
+	int src_x = vm_expr_param(params, 1);
+	int src_y = vm_expr_param(params, 2);
+	int src_w = (vm_expr_param(params, 3) - src_x) + 1;
+	int src_h = (vm_expr_param(params, 4) - src_y) + 1;
+	unsigned src_i = vm_expr_param(params, 5);
+	int dst_x = vm_expr_param(params, 6);
+	int dst_y = vm_expr_param(params, 7);
+	unsigned dst_i = vm_expr_param(params, 8);
+	gfx_pixel_crossfade_masked(src_x, src_y, src_w, src_h, src_i, dst_x, dst_y, dst_i,
+			mem_get_sysvar16(mes_sysvar16_mask_color));
+}
+
 static void doukyuusei_graphics(struct param_list *params)
 {
 	switch (vm_expr_param(params, 0)) {
@@ -363,9 +392,9 @@ static void doukyuusei_graphics(struct param_list *params)
 	case 2: sys_graphics_fill_bg(params); break;
 	case 3: sys_graphics_copy_swap(params); break;
 	case 4: sys_graphics_swap_bg_fg(params); break;
-	case 5: sys_graphics_pixel_crossfade(params); break;
+	case 5: doukyuusei_graphics_pixel_crossfade(params); break;
 	case 6: sys_graphics_compose(params); break;
-	case 9: sys_graphics_pixel_crossfade_masked(params); break;
+	case 9: doukyuusei_graphics_pixel_crossfade_masked(params); break;
 	case 11: doukyuusei_graphics_darken(params); break;
 	case 14: doukyuusei_graphics_blend_to(params); break;
 	default: VM_ERROR("System.Graphics.function[%u] not implemented",
@@ -1331,7 +1360,7 @@ static void doukyuusei_draw_text(const char *text)
 	if (vm_flag_is_on(FLAG_STRLEN)) {
 		mem_set_var32(11, mem_get_var32(11) + strlen(text));
 	} else {
-		vm_draw_text(text);
+		vm_draw_text(text, 1);
 	}
 }
 
@@ -1360,14 +1389,15 @@ struct game game_doukyuusei = {
 	.init = doukyuusei_init,
 	.draw_text_zen = doukyuusei_draw_text,
 	.draw_text_han = doukyuusei_draw_text,
+	.vm = VM_AI5,
 	.expr_op = {
 		DEFAULT_EXPR_OP,
 		[0xe5] = vm_expr_rand_with_imm_range,
 	},
 	.stmt_op = {
 		DEFAULT_STMT_OP,
-		[0x03] = vm_stmt_set_cflag_4bit_saturate,
-		[0x05] = vm_stmt_set_eflag_4bit_saturate,
+		[0x03] = vm_stmt_set_flag_const16_4bit_saturate,
+		[0x05] = vm_stmt_set_flag_expr_4bit_saturate,
 	},
 	.sys = {
 		[0]  = sys_set_font_size,

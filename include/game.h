@@ -29,6 +29,27 @@ struct param_list;
 struct anim_draw_call;
 typedef union SDL_Event SDL_Event;
 
+struct vm_impl {
+	void (*exec)(void);
+	uint32_t (*eval)(void);
+	void (*read_params)(struct param_list*);
+	uint8_t end_code;
+};
+
+#define VM_AI5 { \
+	.exec = vm_exec, \
+	.eval = vm_eval, \
+	.read_params = vm_read_params, \
+	.end_code = 0x00, \
+}
+
+#define VM_AIW { \
+	.exec = vm_exec_aiw, \
+	.eval = vm_eval_aiw, \
+	.read_params = vm_read_params_aiw, \
+	.end_code = 0xff, \
+}
+
 // virtual flags -- mapped to real flag values in game.flags
 enum game_flag {
 	// enables reflector animation (YU-NO specific)
@@ -69,14 +90,9 @@ enum game_flag {
 #define GAME_NR_FLAGS (FLAG_SAVE_PALETTE+1)
 #define FLAG_ALWAYS_ON 0xffff
 
-enum flags_type {
-	FLAGS_8BIT,
-	FLAGS_4BIT_WRAPPED,
-	FLAGS_4BIT_CAPPED,
-};
-
 struct game {
 	enum ai5_game_id id;
+	struct { unsigned w, h; } view;
 	struct { uint16_t w, h; } surface_sizes[16];
 	// bits per pixel
 	//   8  = 8-bit indexed
@@ -105,6 +121,8 @@ struct game {
 	void (*draw_text_han)(const char *text);
 	// called after animation draw ops
 	void (*after_anim_draw)(struct anim_draw_call *call);
+	// VM implementation (vm_ai5 or vm_aiw)
+	struct vm_impl vm;
 	// VM opcode tables
 	void (*stmt_op[256])(void);
 	void (*expr_op[256])(void);
@@ -121,6 +139,7 @@ extern struct game game_doukyuusei;
 extern struct game game_isaku;
 extern struct game game_kakyuusei;
 extern struct game game_shangrlia;
+extern struct game game_shuusaku;
 extern struct game game_yuno;
 
 extern struct game *game;

@@ -464,6 +464,7 @@ struct game game_shangrlia = {
 	.init = shangrlia_init,
 	.draw_text_zen = shangrlia_draw_text,
 	.draw_text_han = shangrlia_draw_text,
+	.vm = VM_AI5,
 	.expr_op = { CLASSICS_EXPR_OP },
 	.stmt_op = { CLASSICS_STMT_OP },
 	.sys = {

@@ -102,6 +102,21 @@ void audio_se_play(const char *name, unsigned ch)
 	archive_data_release(file);
 }
 
+void audio_sysse_play(const char *name, unsigned ch)
+{
+	if (!audio_se_channel_valid(ch)) {
+		WARNING("Invalid SE channel: %u", ch);
+		return;
+	}
+	struct archive_data *file = asset_load(ASSET_SYSSE, name);
+	if (!file) {
+		WARNING("Failed to load SYSSE file: %s", name);
+		return;
+	}
+	audio_play(AUDIO_CH_SE(ch), file, false);
+	archive_data_release(file);
+}
+
 void audio_voice_play(const char *name, unsigned ch)
 {
 	if (!audio_voice_channel_valid(ch)) {

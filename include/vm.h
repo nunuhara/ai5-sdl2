@@ -37,7 +37,7 @@ struct vm_pointer {
 
 struct vm_mes_call {
 	struct vm_pointer ip;
-	char mes_name[13];
+	char mes_name[32];
 	struct vm_pointer procedures[VM_MAX_PROCEDURES];
 };
 
@@ -55,19 +55,37 @@ struct vm {
 };
 extern struct vm vm;
 
+void _vm_break(const char *file, const char *func, int line, const char *fmt, ...);
 _Noreturn void _vm_error(const char *file, const char *func, int line, const char *fmt, ...);
+#define VM_BREAK(fmt, ...) _vm_break(__FILE__, __func__, __LINE__, fmt "\n", ##__VA_ARGS__)
 #define VM_ERROR(fmt, ...) _vm_error(__FILE__, __func__, __LINE__, fmt "\n", ##__VA_ARGS__)
+
+struct aiw_menu_entry {
+	uint32_t cond_addr;
+	uint32_t body_addr;
+};
+
+#define AIW_MAX_MENUS 5
+#define AIW_MAX_MENU_ENTRIES 100
+
+extern struct aiw_menu_entry aiw_menu_entries[AIW_MAX_MENUS][AIW_MAX_MENU_ENTRIES];
+extern unsigned aiw_menu_nr_entries[AIW_MAX_MENUS];
 
 void vm_init(void);
 void vm_exec(void);
+void vm_exec_aiw(void);
 void vm_peek(void);
 void vm_load_file(struct archive_data *file, uint32_t offset);
 void vm_load_mes(char *name);
 void vm_call_procedure(unsigned no);
 
+uint32_t vm_eval(void);
+uint32_t vm_eval_aiw(void);
+
 // generic stack operations
 void vm_expr_plus(void);
 void vm_expr_minus(void);
+void vm_expr_minus_unsigned(void);
 void vm_expr_mul(void);
 void vm_expr_div(void);
 void vm_expr_mod(void);
@@ -89,9 +107,15 @@ void vm_expr_imm32(void);
 
 // flag/register/memory operations
 void vm_expr_cflag(void);
+void vm_expr_cflag_packed(void);
 void vm_expr_eflag(void);
+void vm_expr_eflag_packed(void);
 void vm_expr_var16(void);
+void vm_expr_var16_const16(void);
+void vm_expr_var16_expr(void);
 void vm_expr_var32(void);
+void vm_expr_sysvar16_const16(void);
+void vm_expr_sysvar16_expr(void);
 void vm_expr_ptr16_get8(void);
 void vm_expr_ptr16_get16(void);
 void vm_expr_ptr32_get8(void);
@@ -106,14 +130,21 @@ void vm_stmt_str_new_log(void);
 void vm_unprefixed_txt_new_log(void);
 void vm_unprefixed_str_new_log(void);
 
-void vm_stmt_set_cflag(void);
-void vm_stmt_set_cflag_4bit_wrap(void);
-void vm_stmt_set_cflag_4bit_saturate(void);
-void vm_stmt_set_var16(void);
-void vm_stmt_set_eflag(void);
-void vm_stmt_set_eflag_4bit_wrap(void);
-void vm_stmt_set_eflag_4bit_saturate(void);
-void vm_stmt_set_var32(void);
+void vm_stmt_set_flag_const16(void);
+void vm_stmt_set_flag_const16_aiw(void);
+void vm_stmt_set_flag_const16_4bit_wrap(void);
+void vm_stmt_set_flag_const16_4bit_saturate(void);
+void vm_stmt_set_flag_expr(void);
+void vm_stmt_set_flag_expr_aiw(void);
+void vm_stmt_set_flag_expr_4bit_wrap(void);
+void vm_stmt_set_flag_expr_4bit_saturate(void);
+void vm_stmt_set_var16_const8(void);
+void vm_stmt_set_var16_const16_aiw(void);
+void vm_stmt_set_var16_expr_aiw(void);
+void vm_stmt_set_var32_const8(void);
+void vm_stmt_set_var32_const8_aiw(void);
+void vm_stmt_set_sysvar16_const16_aiw(void);
+void vm_stmt_set_sysvar16_expr_aiw(void);
 void vm_stmt_ptr16_set8(void);
 void vm_stmt_ptr16_set16(void);
 void vm_stmt_ptr32_set32(void);
@@ -124,9 +155,12 @@ void vm_stmt_jmp(void);
 void vm_stmt_sys(void);
 void vm_stmt_sys_old_log(void);
 void vm_stmt_mesjmp(void);
+void vm_stmt_mesjmp_aiw(void);
 void vm_stmt_mescall(void);
 void vm_stmt_mescall_save_procedures(void);
+void vm_stmt_mescall_aiw(void);
 void vm_stmt_defmenu(void);
+void vm_stmt_defmenu_aiw(void);
 void vm_stmt_menuexec(void);
 void vm_stmt_defproc(void);
 void vm_stmt_call(void);
@@ -165,9 +199,9 @@ void vm_stmt_line(void);
 #define DEFAULT_STMT_OP \
 	[0x01] = vm_stmt_txt_new_log, \
 	[0x02] = vm_stmt_str_new_log, \
-	[0x03] = vm_stmt_set_cflag, \
-	[0x04] = vm_stmt_set_var16, \
-	[0x05] = vm_stmt_set_eflag, \
+	[0x03] = vm_stmt_set_flag_const16, \
+	[0x04] = vm_stmt_set_var16_const8, \
+	[0x05] = vm_stmt_set_flag_expr, \
 	[0x06] = vm_stmt_ptr16_set8, \
 	[0x07] = vm_stmt_ptr16_set16, \
 	[0x08] = vm_stmt_ptr32_set32, \
@@ -182,7 +216,7 @@ void vm_stmt_line(void);
 	[0x11] = vm_stmt_line, \
 	[0x12] = vm_stmt_defproc, \
 	[0x13] = vm_stmt_menuexec, \
-	[0x14] = vm_stmt_set_var32
+	[0x14] = vm_stmt_set_var32_const8
 
 // input.c
 void vm_delay(int ms);

@@ -51,6 +51,10 @@ struct config config = {
 	.font_face = -1,
 	.transition_speed = 1.0,
 	.msg_skip_delay = DEFAULT_MSG_SKIP_DELAY,
+	.volume.music = -1,
+	.volume.se = -1,
+	.volume.effect = -1,
+	.volume.voice = -1,
 };
 bool yuno_eng = false;
 
@@ -115,6 +119,30 @@ static int cfg_handler(void *user, const char *section, const char *name, const 
 		config->file.priv.name = string_new(value);
 	} else if (MATCH("FILE", "CDDRV")) {
 		config->file.cddrv = string_new(value);
+	} else if (MATCH("FILE", "MES")) {
+		config->file.mes.arc = 1;
+		config->file.mes.name = string_new(value);
+	} else if (MATCH("FILE", "PIC")) {
+		config->file.bg.arc = 1;
+		config->file.bg.name = string_new(value);
+	} else if (MATCH("FILE", "SEQ")) {
+		config->file.data.arc = 1;
+		config->file.data.name = string_new(value);
+	} else if (MATCH("FILE", "BGM")) {
+		config->file.bgm.arc = 1;
+		config->file.bgm.name = string_new(value);
+	} else if (MATCH("FILE", "SE")) {
+		config->file.effect.arc = 1;
+		config->file.effect.name = string_new(value);
+	} else if (MATCH("FILE", "SYSSE")) {
+		config->file.sysse.arc = 1;
+		config->file.sysse.name = string_new(value);
+	} else if (MATCH("FILE", "MOVIE")) {
+		config->file.movie.arc = 1;
+		config->file.movie.name = string_new(value);
+	} else if (MATCH("FILE", "VOICE")) {
+		config->file.voice.arc = 1;
+		config->file.voice.name = string_new(value);
 	// [GRAPHICS]
 	} else if (MATCH("GRAPHICS", "bBGTYPE")) {
 		config->graphics.bg_type = atoi(value);
@@ -127,6 +155,21 @@ static int cfg_handler(void *user, const char *section, const char *name, const 
 	// [MONITOR]
 	} else if (MATCH("MONITOR", "SCREEN")) {
 		config->monitor.screen = atoi(value);
+	// [ENV]
+	} else if (MATCH("ENV", "SOUNDBGM")) {
+		config->soundinfo.music = !!atoi(value);
+	} else if (MATCH("ENV", "SOUNDSE")) {
+		config->soundinfo.effect = !!atoi(value);
+	} else if (MATCH("ENV", "SOUNDVOICE")) {
+		config->soundinfo.voice = !!atoi(value);
+	} else if (MATCH("ENV", "VOLUMEBGM")) {
+		config->volume.music = atoi(value);
+	} else if (MATCH("ENV", "VOLUMESE")) {
+		config->volume.se = atoi(value);
+	} else if (MATCH("ENV", "VOLUMEVOICE")) {
+		config->volume.voice = atoi(value);
+	} else if (MATCH("ENV", "KETTEI")) {
+		config->shuusaku.kettei = !!atoi(value);
 	// [VOLUME] / [VOLUMEINFO]
 	} else if (MATCH("VOLUME", "MUSIC") || MATCH("VOLUMEINFO", "MUSIC")) {
 		config->volume.music = atoi(value);
@@ -228,6 +271,9 @@ static void set_game(const char *name)
 	case GAME_BEYOND:
 		game = &game_beyond;
 		break;
+	case GAME_SHUUSAKU:
+		game = &game_shuusaku;
+		break;
 #endif
 	case GAME_KAKYUUSEI:
 		game = &game_kakyuusei;
@@ -276,6 +322,8 @@ static bool set_game_from_config(void)
 		name = "beyond";
 	} else if (!strcmp(config.title, "下級生")) {
 		name = "kakyuusei";
+	} else if (!strcmp(config.title, "臭作")) {
+		name = "shuusaku";
 	}
 	if (!name)
 		return false;
@@ -298,8 +346,26 @@ enum {
 	LOPT_TRANSITION_SPEED,
 };
 
+static int saved_argc;
+static char **saved_argv;
+static char saved_cwd[PATH_MAX];
+
+void restart(void)
+{
+	if (saved_cwd[0] && chdir(saved_cwd))
+		ERROR("chdir(\"%s\"): %s", saved_cwd, strerror(errno));
+	execv(saved_argv[0], saved_argv);
+}
+
 int main(int argc, char *argv[])
 {
+	saved_argc = argc;
+	saved_argv = argv;
+	if (!getcwd(saved_cwd, PATH_MAX)) {
+		WARNING("Failed to get cwd");
+		saved_cwd[0] = '\0';
+	}
+
 	ai5_target_game = -1;
 	bool have_game = false;
 	char *ini_name = NULL;
@@ -405,13 +471,30 @@ int main(int argc, char *argv[])
 		ini_name = path_get_icase("AI5ENG.INI");
 		if (!ini_name)
 			ini_name = path_get_icase("AI5WIN.INI");
+		if (!ini_name)
+			ini_name = path_get_icase("syuusaku.ini");
+		if (!ini_name)
+			ini_name = path_get_icase("aiwin.ini");
 	}
 	if (!ini_name)
 		usage_error("Couldn't find AI5WIN.INI (not a game directory?)");
 
-	// parse AI5WIN ini file
+	// parse ini file
 	if (ini_parse(ini_name, cfg_handler, &config) < 0)
 		sys_error("Failed to read INI file \"%s\"\n", ini_name);
+
+	// handle ini without title
+	if (!config.title) {
+		char *name = path_basename(ini_name);
+		// FIXME: other games probably use aiwin.ini
+		if (!strcasecmp(name, "syuusaku.ini") || !strcasecmp(name, "aiwin.ini")) {
+			config.title = string_new("臭作");
+		} else if (have_game) {
+			config.title = string_new(ai5_games[ai5_target_game].description);
+		} else {
+			usage_error("Unable to detect game, and --game option not given.");
+		}
+	}
 
 	// parse ai5-sdl2 ini file
 	char *our_ini_name = path_get_icase("AI5SDL2.INI");
@@ -469,6 +552,6 @@ int main(int argc, char *argv[])
 	vm_load_mes(config.start_mes);
 	if (debug)
 		dbg_repl();
-	vm_exec();
+	game->vm.exec();
 	return 0;
 }

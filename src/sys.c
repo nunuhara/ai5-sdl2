@@ -45,14 +45,18 @@
  */
 
 // Helper for System.SaveData functions.
-const char *_sys_save_name(unsigned save_no)
+const char *_sys_save_name_fmt(const char *fmt, unsigned save_no)
 {
 	static char save_name[7];
 	if (save_no > 99)
 		VM_ERROR("Invalid save number: %u", save_no);
-	sprintf(save_name, "FLAG%02u", save_no);
+	sprintf(save_name, fmt, save_no);
 	return save_name;
+}
 
+const char *_sys_save_name(unsigned save_no)
+{
+	return _sys_save_name_fmt("FLAG%02u", save_no);
 }
 
 const char *sys_save_name(struct param_list *params)
@@ -87,12 +91,9 @@ static uint8_t *write_digit(uint8_t *buf, int n, bool halfwidth)
 }
 
 #define MAX_DIGITS 10
-const char *sys_number_to_string(uint32_t n)
+const char *_sys_number_to_string(uint32_t n, unsigned display_digits, bool halfwidth)
 {
-	uint16_t flags = mem_get_sysvar16(mes_sysvar16_display_number_flags);
-	unsigned display_digits = min(flags & 0xff, MAX_DIGITS);
-	bool halfwidth = flags & 0x100;
-
+	display_digits = min(display_digits, MAX_DIGITS);
 	// write digits to array
 	uint8_t nr_digits = 0;
 	uint8_t digits[MAX_DIGITS];
@@ -123,6 +124,14 @@ const char *sys_number_to_string(uint32_t n)
 	return (char*)buf;
 }
 
+const char *sys_number_to_string(uint32_t n)
+{
+	uint16_t flags = mem_get_sysvar16(mes_sysvar16_display_number_flags);
+	unsigned display_digits = flags & 0xff;
+	bool halfwidth = flags & 0x100;
+	return _sys_number_to_string(n, display_digits, halfwidth);
+}
+
 void sys_display_number(struct param_list *params)
 {
 	uint16_t flags = mem_get_sysvar16(mes_sysvar16_display_number_flags);
@@ -137,7 +146,7 @@ void sys_display_number(struct param_list *params)
 	if (game->draw_text_zen)
 		game->draw_text_zen(str);
 	else
-		vm_draw_text(str);
+		vm_draw_text(str, 1);
 }
 
 void sys_cursor_save_pos(struct param_list *params)
@@ -367,34 +376,6 @@ void sys_graphics_copy_progressive(struct param_list *params)
 	gfx_copy_progressive(src_x, src_y, src_w, src_h, src_i, dst_x, dst_y, dst_i);
 }
 
-void sys_graphics_pixel_crossfade(struct param_list *params)
-{
-	// System.Grahpics.pixel_crossfade(src_x, src_y, src_br_x, src_br_y, src_i, dst_x, dst_y, dst_i)
-	int src_x = vm_expr_param(params, 1);
-	int src_y = vm_expr_param(params, 2);
-	int src_w = (vm_expr_param(params, 3) - src_x) + 1;
-	int src_h = (vm_expr_param(params, 4) - src_y) + 1;
-	unsigned src_i = vm_expr_param(params, 5);
-	int dst_x = vm_expr_param(params, 6);
-	int dst_y = vm_expr_param(params, 7);
-	unsigned dst_i = vm_expr_param(params, 8);
-	gfx_pixel_crossfade(src_x, src_y, src_w, src_h, src_i, dst_x, dst_y, dst_i);
-}
-
-void sys_graphics_pixel_crossfade_masked(struct param_list *params)
-{
-	// System.Grahpics.pixel_crossfade_masked(src_x, src_y, src_br_x, src_br_y, src_i, dst_x, dst_y, dst_i)
-	int src_x = vm_expr_param(params, 1);
-	int src_y = vm_expr_param(params, 2);
-	int src_w = (vm_expr_param(params, 3) - src_x) + 1;
-	int src_h = (vm_expr_param(params, 4) - src_y) + 1;
-	unsigned src_i = vm_expr_param(params, 5);
-	int dst_x = vm_expr_param(params, 6);
-	int dst_y = vm_expr_param(params, 7);
-	unsigned dst_i = vm_expr_param(params, 8);
-	gfx_pixel_crossfade_masked(src_x, src_y, src_w, src_h, src_i, dst_x, dst_y, dst_i,
-			mem_get_sysvar16(mes_sysvar16_mask_color));
-}
 void sys_wait(struct param_list *params)
 {
 	texthook_commit();

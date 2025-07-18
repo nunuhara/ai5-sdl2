@@ -1,0 +1,537 @@
+/* Copyright (C) 2025 Nunuhara Cabbage <nunuhara@haniwa.technology>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, see <http://gnu.org/licenses/>.
+ */
+
+#include "nulib.h"
+#include "shuusaku.h"
+
+#define AWAY_EVENT(d, minut, time, no, ch) \
+	{ .t = time, .flag_no = no, .character = ch }
+
+// {{{
+
+static struct sched_away_event nagisa_away_events[] = {
+	AWAY_EVENT(DAY_SUN, 1800, 100, 4700, CHAR_SHIHO),
+	{0}
+};
+
+static struct sched_away_event kaori_away_events[] = {
+	AWAY_EVENT(DAY_SUN,  730, 58,  4701, CHAR_NAGISA),
+	AWAY_EVENT(DAY_SUN,  745, 59,  4702, CHAR_NAGISA),
+	{0}
+};
+
+static struct sched_away_event shiho_away_events[] = {
+	AWAY_EVENT(DAY_SAT, 1800, 4,   4776, CHAR_NAGISA),
+	AWAY_EVENT(DAY_SAT, 2215, 21,  4703, CHAR_NAGISA),
+	AWAY_EVENT(DAY_SUN,  815, 61,  4704, CHAR_NAGISA),
+	AWAY_EVENT(DAY_SUN,  915, 65,  4705, CHAR_NAGISA),
+	AWAY_EVENT(DAY_SUN, 2030, 110, 4706, CHAR_NAGISA),
+	AWAY_EVENT(DAY_SUN, 2045, 111, 4707, CHAR_NAGISA),
+	{0}
+};
+
+static struct sched_away_event chiaki_away_events[] = {
+	AWAY_EVENT(DAY_SAT, 1830, 6,   4777, CHAR_ASAMI),
+	AWAY_EVENT(DAY_SUN,    0, 28,  4708, CHAR_ASAMI),
+	AWAY_EVENT(DAY_SUN,   15, 29,  4709, CHAR_ASAMI),
+	AWAY_EVENT(DAY_SUN, 1015, 69,  4710, CHAR_ASAMI),
+	AWAY_EVENT(DAY_SUN, 1630, 94,  4711, CHAR_ASAMI),
+	AWAY_EVENT(DAY_SUN, 1645, 95,  4712, CHAR_ASAMI),
+	{0}
+};
+
+static struct sched_away_event asami_away_events[] = {
+	AWAY_EVENT(DAY_SAT, 2345, 27,  4713, CHAR_CHIAKI),
+	AWAY_EVENT(DAY_MON,  115, 129, 4714, CHAR_MOEKO),
+	AWAY_EVENT(DAY_MON,  130, 130, 4715, CHAR_MOEKO),
+	{0}
+};
+
+static struct sched_away_event moeko_away_events[] = {
+	AWAY_EVENT(DAY_SAT, 2045, 15,  4716, CHAR_KAORI),
+	AWAY_EVENT(DAY_SAT, 2100, 16,  4717, CHAR_KAORI),
+	AWAY_EVENT(DAY_SUN,  115, 33,  4718, CHAR_KAORI),
+	AWAY_EVENT(DAY_SUN,  130, 34,  4719, CHAR_KAORI),
+	AWAY_EVENT(DAY_SUN, 1615, 93,  4720, CHAR_KAORI),
+	{0}
+};
+
+static struct sched_away_event toilet_away_events[] = {
+	AWAY_EVENT(DAY_SAT, 1800, 4,   4204, CHAR_ERI),
+	AWAY_EVENT(DAY_SAT, 1845, 7,   4207, CHAR_CHIAKI),
+	AWAY_EVENT(DAY_SAT, 1930, 10,  4210, CHAR_SHIHO),
+	AWAY_EVENT(DAY_SAT, 1945, 11,  4211, CHAR_KAORI),
+	AWAY_EVENT(DAY_SAT, 2000, 12,  4212, CHAR_NAGISA),
+	AWAY_EVENT(DAY_SAT, 2045, 15,  4215, CHAR_ASAMI),
+	AWAY_EVENT(DAY_SAT, 2200, 20,  4220, CHAR_NAGISA),
+	AWAY_EVENT(DAY_SAT, 2215, 21,  4221, CHAR_MOEKO),
+	AWAY_EVENT(DAY_SAT, 2230, 22,  4222, CHAR_CHIAKI),
+	AWAY_EVENT(DAY_SAT, 2245, 23,  4223, CHAR_SHIHO),
+	AWAY_EVENT(DAY_SAT, 2300, 24,  4224, CHAR_ERI),
+	AWAY_EVENT(DAY_SUN,   30, 30,  4230, CHAR_KAORI),
+	AWAY_EVENT(DAY_SUN,  145, 35,  4235, CHAR_MOEKO),
+	AWAY_EVENT(DAY_SUN,  230, 38,  4238, CHAR_ASAMI),
+	AWAY_EVENT(DAY_SUN,  245, 39,  4239, CHAR_CHIAKI),
+	AWAY_EVENT(DAY_SUN,  300, 40,  4240, CHAR_NAGISA),
+	AWAY_EVENT(DAY_SUN,  330, 42,  4242, CHAR_KAORI),
+	AWAY_EVENT(DAY_SUN,  400, 44,  4244, CHAR_MOEKO),
+	AWAY_EVENT(DAY_SUN,  645, 55,  4255, CHAR_SHIHO),
+	AWAY_EVENT(DAY_SUN,  700, 56,  4256, CHAR_ERI),
+	AWAY_EVENT(DAY_SUN,  800, 60,  4260, CHAR_ASAMI),
+	AWAY_EVENT(DAY_SUN,  830, 62,  4262, CHAR_NAGISA),
+	AWAY_EVENT(DAY_SUN,  845, 63,  4263, CHAR_CHIAKI),
+	AWAY_EVENT(DAY_SUN, 1045, 71,  4271, CHAR_ASAMI),
+	AWAY_EVENT(DAY_SUN, 1115, 73,  4273, CHAR_ERI),
+	AWAY_EVENT(DAY_SUN, 1145, 75,  4275, CHAR_NAGISA),
+	AWAY_EVENT(DAY_SUN, 1200, 76,  4276, CHAR_MOEKO),
+	AWAY_EVENT(DAY_SUN, 1330, 82,  4282, CHAR_KAORI),
+	AWAY_EVENT(DAY_SUN, 1345, 83,  4283, CHAR_CHIAKI),
+	AWAY_EVENT(DAY_SUN, 1545, 91,  4291, CHAR_MOEKO),
+	AWAY_EVENT(DAY_SUN, 1600, 92,  4292, CHAR_ASAMI),
+	AWAY_EVENT(DAY_SUN, 1715, 97,  4297, CHAR_KAORI),
+	AWAY_EVENT(DAY_SUN, 1745, 99,  4299, CHAR_SHIHO),
+	AWAY_EVENT(DAY_SUN, 1800, 100, 4300, CHAR_ERI),
+	AWAY_EVENT(DAY_SUN, 1815, 101, 4301, CHAR_NAGISA),
+	AWAY_EVENT(DAY_SUN, 1915, 105, 4305, CHAR_ASAMI),
+	AWAY_EVENT(DAY_SUN, 1930, 106, 4306, CHAR_ASAMI),
+	AWAY_EVENT(DAY_SUN, 1945, 107, 4307, CHAR_ASAMI),
+	AWAY_EVENT(DAY_SUN, 2115, 113, 4313, CHAR_KAORI),
+	AWAY_EVENT(DAY_SUN, 2230, 118, 4318, CHAR_ERI),
+	AWAY_EVENT(DAY_SUN, 2245, 119, 4319, CHAR_SHIHO),
+	AWAY_EVENT(DAY_SUN, 2300, 120, 4320, CHAR_CHIAKI),
+	AWAY_EVENT(DAY_SUN, 2315, 121, 4321, CHAR_NAGISA),
+	AWAY_EVENT(DAY_SUN, 2330, 122, 4322, CHAR_MOEKO),
+	AWAY_EVENT(DAY_MON,   15, 125, 4325, CHAR_ASAMI),
+	AWAY_EVENT(DAY_MON,   45, 127, 4327, CHAR_KAORI),
+	AWAY_EVENT(DAY_MON,  110, 128, 4328, CHAR_CHIAKI),
+	AWAY_EVENT(DAY_MON,  145, 131, 4331, CHAR_ASAMI),
+	AWAY_EVENT(DAY_MON,  315, 137, 4337, CHAR_SHIHO),
+	AWAY_EVENT(DAY_MON,  330, 138, 4338, CHAR_SHIHO),
+	AWAY_EVENT(DAY_MON,  345, 139, 4339, CHAR_ASAMI),
+	{0}
+};
+
+static struct sched_away_event changing_away_events[] = {
+	AWAY_EVENT(DAY_SAT, 2100, 16, 4721, CHAR_NAGISA),
+	AWAY_EVENT(DAY_SAT, 2100, 16, 4722, CHAR_SHIHO),
+	AWAY_EVENT(DAY_SAT, 2100, 16, 4724, CHAR_ERI),
+	AWAY_EVENT(DAY_SAT, 2130, 18, 4726, CHAR_ASAMI),
+	AWAY_EVENT(DAY_SAT, 2145, 19, 4728, CHAR_CHIAKI),
+	AWAY_EVENT(DAY_SAT, 2200, 20, 4727, CHAR_SHIHO),
+	AWAY_EVENT(DAY_SAT, 2215, 21, 4730, CHAR_KAORI),
+	AWAY_EVENT(DAY_SAT, 2330, 26, 4732, CHAR_KAORI),
+	AWAY_EVENT(DAY_SAT, 2330, 26, 4733, CHAR_MOEKO),
+	AWAY_EVENT(DAY_SUN,  100, 32, 4382, CHAR_CHIAKI),
+	AWAY_EVENT(DAY_SUN,  115, 33, 4383, CHAR_CHIAKI),
+	AWAY_EVENT(DAY_SUN,  800, 60, 4410, CHAR_ERI),
+	AWAY_EVENT(DAY_SUN,  815, 61, 4411, CHAR_ERI),
+	AWAY_EVENT(DAY_SUN,  830, 62, 4412, CHAR_ERI),
+	AWAY_EVENT(DAY_SUN, 1000, 68, 4418, CHAR_NAGISA),
+	AWAY_EVENT(DAY_SUN, 1015, 69, 4419, CHAR_NAGISA),
+	AWAY_EVENT(DAY_SUN, 1030, 70, 4420, CHAR_NAGISA),
+	AWAY_EVENT(DAY_SUN, 1100, 72, 4422, CHAR_SHIHO),
+	AWAY_EVENT(DAY_SUN, 1115, 73, 4423, CHAR_SHIHO),
+	AWAY_EVENT(DAY_SUN, 1130, 74, 4424, CHAR_SHIHO),
+	AWAY_EVENT(DAY_SUN, 1200, 76, 4426, CHAR_ASAMI),
+	AWAY_EVENT(DAY_SUN, 1215, 77, 4427, CHAR_ASAMI),
+	AWAY_EVENT(DAY_SUN, 1230, 78, 4428, CHAR_MOEKO),
+	AWAY_EVENT(DAY_SUN, 1245, 79, 4429, CHAR_MOEKO),
+	AWAY_EVENT(DAY_SUN, 1300, 80, 4430, CHAR_MOEKO),
+	AWAY_EVENT(DAY_SUN, 1315, 81, 4431, CHAR_CHIAKI),
+	AWAY_EVENT(DAY_SUN, 1330, 82, 4432, CHAR_CHIAKI),
+	AWAY_EVENT(DAY_SUN, 1400, 84, 4434, CHAR_MOEKO),
+	AWAY_EVENT(DAY_SUN, 1500, 88, 4438, CHAR_KAORI),
+	AWAY_EVENT(DAY_SUN, 1515, 89, 4439, CHAR_KAORI),
+	AWAY_EVENT(DAY_SUN, 1530, 90, 4440, CHAR_KAORI),
+	AWAY_EVENT(DAY_SUN, 2045, 111, 4461, CHAR_MOEKO),
+	AWAY_EVENT(DAY_SUN, 2100, 112, 4734, CHAR_MOEKO),
+	AWAY_EVENT(DAY_SUN, 2100, 112, 4735, CHAR_ERI),
+	AWAY_EVENT(DAY_SUN, 2115, 113, 4736, CHAR_NAGISA),
+	AWAY_EVENT(DAY_SUN, 2115, 113, 4737, CHAR_SHIHO),
+	AWAY_EVENT(DAY_SUN, 2200, 116, 4741, CHAR_SHIHO),
+	AWAY_EVENT(DAY_SUN, 2215, 117, 4789, CHAR_KAORI),
+	AWAY_EVENT(DAY_SUN, 2230, 118, 4790, CHAR_ASAMI),
+	{0}
+};
+
+static struct sched_away_event kanrinin_away_events[] = {
+	AWAY_EVENT(DAY_SAT, 1715, 1, 4501, CHAR_ERI),
+	AWAY_EVENT(DAY_SAT, 1730, 2, 4502, CHAR_NAGISA),
+	AWAY_EVENT(DAY_SAT, 1730, 2, 4502, CHAR_SHIHO),
+	AWAY_EVENT(DAY_SAT, 1800, 4, 4504, CHAR_CHIAKI),
+	AWAY_EVENT(DAY_SAT, 1800, 4, 4504, CHAR_ASAMI),
+	AWAY_EVENT(DAY_SAT, 1830, 6, 4506, CHAR_KAORI),
+	AWAY_EVENT(DAY_SAT, 1900, 8, 4744, CHAR_NAGISA),
+	AWAY_EVENT(DAY_SAT, 1900, 8, 4745, CHAR_KAORI),
+	AWAY_EVENT(DAY_SAT, 1900, 8, 4746, CHAR_SHIHO),
+	AWAY_EVENT(DAY_SAT, 1900, 8, 4747, CHAR_ASAMI),
+	AWAY_EVENT(DAY_SAT, 1915, 9, 4509, CHAR_ASAMI),
+	AWAY_EVENT(DAY_SAT, 1930, 10, 4748, CHAR_NAGISA),
+	AWAY_EVENT(DAY_SAT, 1930, 10, 4749, CHAR_KAORI),
+	AWAY_EVENT(DAY_SAT, 1930, 10, 4750, CHAR_SHIHO),
+	AWAY_EVENT(DAY_SAT, 1930, 10, 4751, CHAR_ASAMI),
+	AWAY_EVENT(DAY_SAT, 1945, 11, 4511, CHAR_ASAMI),
+	AWAY_EVENT(DAY_SAT, 2000, 12, 4775, CHAR_KAORI),
+	AWAY_EVENT(DAY_SAT, 2000, 12, 4771, CHAR_CHIAKI),
+	AWAY_EVENT(DAY_SAT, 2015, 13, 4752, CHAR_NAGISA),
+	AWAY_EVENT(DAY_SAT, 2015, 13, 4753, CHAR_KAORI),
+	AWAY_EVENT(DAY_SAT, 2015, 13, 4772, CHAR_CHIAKI),
+	AWAY_EVENT(DAY_SAT, 2030, 14, 4773, CHAR_CHIAKI),
+	AWAY_EVENT(DAY_SAT, 2030, 14, 4514, CHAR_MOEKO),
+	AWAY_EVENT(DAY_SAT, 2045, 15, 4515, CHAR_CHIAKI),
+	AWAY_EVENT(DAY_SAT, 2100, 16, 4754, CHAR_NAGISA),
+	AWAY_EVENT(DAY_SAT, 2100, 16, 4755, CHAR_SHIHO),
+	AWAY_EVENT(DAY_SAT, 2115, 17, 4517, CHAR_KAORI),
+	AWAY_EVENT(DAY_SAT, 2130, 18, 4778, CHAR_KAORI),
+	AWAY_EVENT(DAY_SAT, 2130, 18, 4779, CHAR_CHIAKI),
+	AWAY_EVENT(DAY_SAT, 2130, 18, 4780, CHAR_ASAMI),
+	AWAY_EVENT(DAY_SAT, 2145, 19, 4756, CHAR_NAGISA),
+	AWAY_EVENT(DAY_SAT, 2145, 19, 4757, CHAR_MOEKO),
+	AWAY_EVENT(DAY_SAT, 2200, 20, 4520, CHAR_SHIHO),
+	AWAY_EVENT(DAY_SAT, 2215, 21, 4521, CHAR_KAORI),
+	AWAY_EVENT(DAY_SAT, 2245, 23, 4781, CHAR_CHIAKI),
+	AWAY_EVENT(DAY_SAT, 2245, 23, 4782, CHAR_ASAMI),
+	AWAY_EVENT(DAY_SAT, 2300, 24, 4524, CHAR_NAGISA),
+	AWAY_EVENT(DAY_SAT, 2315, 25, 4525, CHAR_NAGISA),
+	AWAY_EVENT(DAY_SAT, 2330, 26, 4758, CHAR_KAORI),
+	AWAY_EVENT(DAY_SAT, 2330, 26, 4759, CHAR_ERI),
+	AWAY_EVENT(DAY_SAT, 2345, 27, 4527, CHAR_KAORI),
+	AWAY_EVENT(DAY_SUN,   15, 29, 4529, CHAR_KAORI),
+	AWAY_EVENT(DAY_SUN,   30, 30, 4530, CHAR_ASAMI),
+	AWAY_EVENT(DAY_SUN,   45, 31, 4531, CHAR_ASAMI),
+	AWAY_EVENT(DAY_SUN,  200, 36, 4536, CHAR_MOEKO),
+	AWAY_EVENT(DAY_SUN,  215, 37, 4537, CHAR_MOEKO),
+	AWAY_EVENT(DAY_SUN,  230, 38, 4538, CHAR_MOEKO),
+	AWAY_EVENT(DAY_SUN,  245, 39, 4539, CHAR_MOEKO),
+	AWAY_EVENT(DAY_SUN,  300, 40, 4540, CHAR_MOEKO),
+	AWAY_EVENT(DAY_SUN,  315, 41, 4541, CHAR_MOEKO),
+	AWAY_EVENT(DAY_SUN,  330, 42, 4542, CHAR_MOEKO),
+	AWAY_EVENT(DAY_SUN,  345, 43, 4543, CHAR_MOEKO),
+	AWAY_EVENT(DAY_SUN,  815, 61, 4561, CHAR_CHIAKI),
+	AWAY_EVENT(DAY_SUN,  830, 62, 4562, CHAR_KAORI),
+	AWAY_EVENT(DAY_SUN,  845, 63, 4783, CHAR_KAORI),
+	AWAY_EVENT(DAY_SUN,  845, 63, 4784, CHAR_SHIHO),
+	AWAY_EVENT(DAY_SUN,  900, 64, 4564, CHAR_ASAMI),
+	AWAY_EVENT(DAY_SUN,  915, 65, 4565, CHAR_KAORI),
+	AWAY_EVENT(DAY_SUN,  945, 67, 4567, CHAR_ASAMI),
+	AWAY_EVENT(DAY_SUN, 1000, 68, 4568, CHAR_CHIAKI),
+	AWAY_EVENT(DAY_SUN, 1015, 69, 4569, CHAR_SHIHO),
+	AWAY_EVENT(DAY_SUN, 1030, 70, 4570, CHAR_SHIHO),
+	AWAY_EVENT(DAY_SUN, 1045, 71, 4571, CHAR_MOEKO),
+	AWAY_EVENT(DAY_SUN, 1100, 72, 4572, CHAR_NAGISA),
+	AWAY_EVENT(DAY_SUN, 1115, 73, 4573, CHAR_ASAMI),
+	AWAY_EVENT(DAY_SUN, 1130, 74, 4574, CHAR_ASAMI),
+	AWAY_EVENT(DAY_SUN, 1200, 76, 4576, CHAR_NAGISA),
+	AWAY_EVENT(DAY_SUN, 1215, 77, 4577, CHAR_CHIAKI),
+	AWAY_EVENT(DAY_SUN, 1230, 78, 4578, CHAR_SHIHO),
+	AWAY_EVENT(DAY_SUN, 1300, 80, 4580, CHAR_KAORI),
+	AWAY_EVENT(DAY_SUN, 1315, 81, 4581, CHAR_ASAMI),
+	AWAY_EVENT(DAY_SUN, 1345, 83, 4583, CHAR_MOEKO),
+	AWAY_EVENT(DAY_SUN, 1400, 84, 4584, CHAR_KAORI),
+	AWAY_EVENT(DAY_SUN, 1415, 85, 4585, CHAR_KAORI),
+	AWAY_EVENT(DAY_SUN, 1430, 86, 4586, CHAR_CHIAKI),
+	AWAY_EVENT(DAY_SUN, 1445, 87, 4587, CHAR_MOEKO),
+	AWAY_EVENT(DAY_SUN, 1500, 88, 4760, CHAR_ASAMI),
+	AWAY_EVENT(DAY_SUN, 1500, 88, 4761, CHAR_MOEKO),
+	AWAY_EVENT(DAY_SUN, 1515, 89, 4589, CHAR_CHIAKI),
+	AWAY_EVENT(DAY_SUN, 1600, 92, 4592, CHAR_SHIHO),
+	AWAY_EVENT(DAY_SUN, 1615, 93, 4593, CHAR_CHIAKI),
+	AWAY_EVENT(DAY_SUN, 1630, 94, 4594, CHAR_KAORI),
+	AWAY_EVENT(DAY_SUN, 1700, 96, 4762, CHAR_CHIAKI),
+	AWAY_EVENT(DAY_SUN, 1700, 96, 4763, CHAR_MOEKO),
+	AWAY_EVENT(DAY_SUN, 1730, 98, 4598, CHAR_SHIHO),
+	AWAY_EVENT(DAY_SUN, 1745, 99, 4599, CHAR_NAGISA),
+	AWAY_EVENT(DAY_SUN, 1815, 101, 4601, CHAR_KAORI),
+	AWAY_EVENT(DAY_SUN, 1830, 102, 4602, CHAR_KAORI),
+	AWAY_EVENT(DAY_SUN, 1900, 104, 4764, CHAR_NAGISA),
+	AWAY_EVENT(DAY_SUN, 1900, 104, 4765, CHAR_KAORI),
+	AWAY_EVENT(DAY_SUN, 1900, 104, 4766, CHAR_SHIHO),
+	AWAY_EVENT(DAY_SUN, 1945, 107, 4767, CHAR_NAGISA),
+	AWAY_EVENT(DAY_SUN, 1945, 107, 4768, CHAR_SHIHO),
+	AWAY_EVENT(DAY_SUN, 2000, 108, 4608, CHAR_NAGISA),
+	AWAY_EVENT(DAY_SUN, 2015, 109, 4609, CHAR_MOEKO),
+	AWAY_EVENT(DAY_SUN, 2030, 110, 4610, CHAR_ASAMI),
+	AWAY_EVENT(DAY_SUN, 2045, 111, 4611, CHAR_ASAMI),
+	AWAY_EVENT(DAY_SUN, 2100, 112, 4785, CHAR_KAORI),
+	AWAY_EVENT(DAY_SUN, 2100, 112, 4786, CHAR_SHIHO),
+	AWAY_EVENT(DAY_SUN, 2115, 113, 4787, CHAR_NAGISA),
+	AWAY_EVENT(DAY_SUN, 2115, 113, 4788, CHAR_MOEKO),
+	AWAY_EVENT(DAY_SUN, 2200, 116, 4769, CHAR_NAGISA),
+	AWAY_EVENT(DAY_SUN, 2200, 116, 4770, CHAR_SHIHO),
+	AWAY_EVENT(DAY_SUN, 2215, 117, 4617, CHAR_CHIAKI),
+	AWAY_EVENT(DAY_MON,    0, 124, 4624, CHAR_NAGISA),
+	AWAY_EVENT(DAY_MON,   15, 125, 4625, CHAR_NAGISA),
+	AWAY_EVENT(DAY_MON,   45, 127, 4627, CHAR_MOEKO),
+	{0}
+};
+// }}}
+
+static struct sched_away_event *_away_events[NR_LOC] = {
+	[LOC_NAGISA] = nagisa_away_events,
+	[LOC_KAORI] = kaori_away_events,
+	[LOC_SHIHO] = shiho_away_events,
+	[LOC_CHIAKI] = chiaki_away_events,
+	[LOC_ASAMI] = asami_away_events,
+	[LOC_MOEKO] = moeko_away_events,
+	[LOC_TOILET] = toilet_away_events,
+	[LOC_CHANGING] = changing_away_events,
+	[LOC_KANRININ] = kanrinin_away_events,
+};
+
+void shuusaku_init_away_events(struct sched_away_event *away_events[NR_LOC])
+{
+	// expand away-event defs into arrays indexed by absolute time
+	for (int loc = 0; loc < NR_LOC; loc++) {
+		if (!_away_events[loc])
+			continue;
+		away_events[loc] = xcalloc(NR_INTERVALS, sizeof(struct sched_away_event) * 4);
+		for (int i = 0; _away_events[loc][i].flag_no > 0; i++) {
+			struct sched_away_event *ev = &_away_events[loc][i];
+			assert(ev->t < NR_INTERVALS);
+
+			// 
+			int j;
+			for (j = 0; j < 4; j++) {
+				if (away_events[loc][ev->t*4 + j].flag_no == 0) {
+					away_events[loc][ev->t*4 + j] = *ev;
+					break;
+				}
+			}
+			if (j == 4)
+				WARNING("Too many events at time %u", ev->t);
+		}
+	}
+}
+
+#define CAM_EVENT1(time, flag, nam, zoom_nam) { \
+	.t = time, \
+	.entries = { \
+		{ \
+			.flag_no = flag, \
+			.name = nam, \
+			.zoom_name = zoom_nam \
+		} \
+	} \
+}
+
+#define CAM_EVENT2(time, flag, nam, zoom_nam, flag2, nam2, zoom_nam2) { \
+	.t = time, \
+	.entries = { \
+		{ \
+			.flag_no = flag, \
+			.name = nam, \
+			.zoom_name = zoom_nam \
+		}, \
+		{ \
+			.flag_no = flag2, \
+			.name = nam2, \
+			.zoom_name = zoom_nam2 \
+		} \
+	} \
+}
+
+#define CAM_EVENT3(time, flag, nam, zoom_nam, flag2, nam2, zoom_nam2, flag3, nam3, zoom_nam3) { \
+	.t = time, \
+	.entries = { \
+		{ \
+			.flag_no = flag, \
+			.name = nam, \
+			.zoom_name = zoom_nam \
+		}, \
+		{ \
+			.flag_no = flag2, \
+			.name = nam2, \
+			.zoom_name = zoom_nam2 \
+		}, \
+		{ \
+			.flag_no = flag3, \
+			.name = nam3, \
+			.zoom_name = zoom_nam3 \
+		} \
+	} \
+}
+
+static struct sched_cam_event nagisa_cam_events[] = {
+	CAM_EVENT1(3, 2800, "ev16", NULL),
+	CAM_EVENT1(11, 2801, "ev18", NULL),
+	CAM_EVENT2(15, 2802, "ev21", NULL, 2803, "ev22", NULL),
+	CAM_EVENT1(22, 2804, "ev24", "ev24up"),
+	CAM_EVENT1(27, 2805, "ev25", NULL),
+	CAM_EVENT1(60, 2806, "ev27", "ev27up"),
+	CAM_EVENT1(73, 2807, "ev29", NULL),
+	CAM_EVENT2(112, 2808, "ev21", NULL, 2809, "ev22", NULL),
+	CAM_EVENT1(119, 2810, "ev24", NULL),
+	CAM_EVENT1(127, 2811, "ev25", NULL),
+	{0}
+};
+
+static struct sched_cam_event kaori_cam_events[] = {
+	CAM_EVENT1(7, 2812, "ev56", NULL),
+	CAM_EVENT1(14, 2813, "ev57", "ev57up"),
+	CAM_EVENT2(28, 2814, "ev60", "ev60up", 2815, "ev60a", "ev60aup"),
+	CAM_EVENT1(64, 2816, "ev57", NULL),
+	CAM_EVENT1(92, 2817, "ev63", "ev63up"),
+	CAM_EVENT1(125, 2818, "ev56", NULL),
+	{0}
+};
+
+static struct sched_cam_event shiho_cam_events[] = {
+	CAM_EVENT1(3, 2819, "ev17", NULL),
+	CAM_EVENT1(24, 2820, "ev42", NULL),
+	CAM_EVENT1(29, 2821, "ev43", NULL),
+	CAM_EVENT1(58, 2822, "ev44", "ev44up"),
+	CAM_EVENT1(67, 2823, "ev45", NULL),
+	CAM_EVENT1(68, 2824, "ev45", NULL),
+	CAM_EVENT1(107, 2825, "ev47", "ev47up"),
+	CAM_EVENT1(120, 2826, "ev42", NULL),
+	CAM_EVENT1(130, 2827, "ev43", NULL),
+	{0}
+};
+
+static struct sched_cam_event chiaki_cam_events[] = {
+	CAM_EVENT1(5, 2828, "ev112", NULL),
+	CAM_EVENT1(30, 2829, "ev116", NULL),
+	CAM_EVENT1(35, 2830, "ev118", NULL),
+	CAM_EVENT1(64, 2831, "ev119", "ev119up"),
+	CAM_EVENT1(79, 2832, "ev121", "ev121up"),
+	CAM_EVENT2(85, 2833, "ev123", "ev123up", 2834, "ev123", "ev123aup"),
+	CAM_EVENT1(124, 2835, "ev116", NULL),
+	{0}
+};
+
+static struct sched_cam_event asami_cam_events[] = {
+	CAM_EVENT1(5, 2836, "ev92", NULL),
+	CAM_EVENT1(33, 2837, "ev96", "ev96up"),
+	CAM_EVENT1(62, 2838, "ev97", "ev97up"),
+	CAM_EVENT1(89, 2839, "ev100", NULL),
+	CAM_EVENT1(90, 2840, "ev100", NULL),
+	CAM_EVENT1(91, 2841, "ev100", NULL),
+	CAM_EVENT1(132, 2842, "ev96", "ev96up"),
+	{0}
+};
+
+static struct sched_cam_event moeko_cam_events[] = {
+	CAM_EVENT1(15, 2843, "ev74", NULL),
+	CAM_EVENT1(16, 2844, "ev74", NULL),
+	CAM_EVENT1(36, 2845, "ev77", "ev77up"),
+	CAM_EVENT1(45, 2846, "ev77", "ev77up"),
+	CAM_EVENT1(72, 2847, "ev78", "ev78up"),
+	CAM_EVENT1(95, 2848, "ev83", NULL),
+	CAM_EVENT1(124, 2849, "ev77", "ev77up"),
+	{0}
+};
+
+static struct sched_cam_event eri_cam_events[] = {
+	CAM_EVENT1(2, 2850, "ev142", NULL),
+	CAM_EVENT1(25, 2851, "ev144", NULL),
+	CAM_EVENT1(57, 2852, "ev145", NULL),
+	CAM_EVENT1(68, 2853, "ev148", NULL),
+	CAM_EVENT1(69, 2854, "ev148", NULL),
+	CAM_EVENT1(70, 2855, "ev148", NULL),
+	CAM_EVENT1(71, 2856, "ev148", NULL),
+	CAM_EVENT1(96, 2857, "ev150", NULL),
+	CAM_EVENT1(97, 2858, "ev150", NULL),
+	CAM_EVENT1(98, 2859, "ev150", NULL),
+	CAM_EVENT1(99, 2860, "ev150", NULL),
+	CAM_EVENT1(101, 2861, "ev150", NULL),
+	CAM_EVENT1(102, 2862, "ev150", NULL),
+	CAM_EVENT1(103, 2863, "ev150", NULL),
+	CAM_EVENT1(117, 2864, "ev144", NULL),
+	{0}
+};
+
+static struct sched_cam_event toilet_cam_events[] = {
+	CAM_EVENT1(10, 2865, "ev19", NULL),
+	CAM_EVENT1(21, 2866, "ev75", NULL),
+	CAM_EVENT1(30, 2867, "ev61", NULL),
+	CAM_EVENT1(40, 2868, "ev26", NULL),
+	CAM_EVENT1(71, 2869, "ev98", NULL),
+	CAM_EVENT1(73, 2870, "ev149", NULL),
+	CAM_EVENT1(76, 2871, "ev75", NULL),
+	CAM_EVENT1(83, 2872, "ev122", NULL),
+	CAM_EVENT1(99, 2873, "ev19", NULL),
+	CAM_EVENT1(121, 2874, "ev26", NULL),
+	{0}
+};
+
+static struct sched_cam_event changing_cam_events[] = {
+	CAM_EVENT3(16, 2875, "ev23", NULL, 2876, "ev39", NULL, 2877, "ev143", NULL),
+	CAM_EVENT2(18, 2878, "ev94", "ev94up", 2879, "ev94", "ev94aup"),
+	CAM_EVENT1(19, 2880, "ev115", "ev115up"),
+	CAM_EVENT1(20, 2881, "ev40", "ev40up"),
+	CAM_EVENT2(26, 2882, "ev59", "ev59up", 2883, "ev76", "ev76up"),
+	CAM_EVENT1(32, 2884, "ev117", "ev117up"),
+	CAM_EVENT1(60, 2885, "ev147", NULL),
+	CAM_EVENT1(61, 2886, "ev147", NULL),
+	CAM_EVENT1(62, 2887, "ev147", NULL),
+	CAM_EVENT1(68, 2888, "ev28", "ev28up"),
+	CAM_EVENT2(72, 2889, "ev46", "ev46up", 2892, "ev46", "ev46aup"),
+	CAM_EVENT2(73, 2890, "ev46", "ev46up", 2893, "ev46", "ev46aup"),
+	CAM_EVENT2(74, 2891, "ev46", "ev46up", 2894, "ev46", "ev46aup"),
+	CAM_EVENT1(76, 2895, "ev99", "ev99up"),
+	CAM_EVENT1(77, 2896, "ev99", "ev99up"),
+	CAM_EVENT1(84, 2897, "ev80", "ev80up"),
+	CAM_EVENT2(112, 2898, "ev76", "ev76up", 2899, "ev143", NULL),
+	CAM_EVENT1(113, 2900, "ev30", "ev30up"),
+	CAM_EVENT1(116, 2901, "ev48", NULL),
+	CAM_EVENT1(117, 2902, "ev65", "ev65up"),
+	CAM_EVENT1(118, 2903, "ev102", "ev102up"),
+	{0}
+};
+
+static struct sched_cam_event kanrinin_cam_events[] = {
+	CAM_EVENT1(12, 2904, "ev113", NULL),
+	CAM_EVENT1(13, 2905, "ev20", NULL),
+	CAM_EVENT1(14, 2907, "ev113", NULL),
+	CAM_EVENT1(15, 2908, "ev113", NULL),
+	CAM_EVENT1(20, 2909, "ev41", NULL),
+	CAM_EVENT1(31, 2910, "ev95", NULL),
+	CAM_EVENT1(68, 2911, "ev120", NULL),
+	CAM_EVENT1(69, 2912, "ev41", NULL),
+	CAM_EVENT1(70, 2913, "ev41", NULL),
+	CAM_EVENT1(83, 2914, "ev79", NULL),
+	CAM_EVENT1(84, 2915, "ev62", NULL),
+	CAM_EVENT1(85, 2916, "ev62", NULL),
+	CAM_EVENT1(87, 2917, "ev82", NULL),
+	CAM_EVENT1(88, 2918, "ev82", NULL),
+	CAM_EVENT1(101, 2919, "ev58", NULL),
+	CAM_EVENT1(108, 2920, "ev20", NULL),
+	{0}
+};
+
+struct sched_cam_event *cam_events[NR_LOC] = {
+	[LOC_NAGISA] = nagisa_cam_events,
+	[LOC_KAORI] = kaori_cam_events,
+	[LOC_SHIHO] = shiho_cam_events,
+	[LOC_CHIAKI] = chiaki_cam_events,
+	[LOC_ASAMI] = asami_cam_events,
+	[LOC_MOEKO] = moeko_cam_events,
+	[LOC_ERI] = eri_cam_events,
+	[LOC_TOILET] = toilet_cam_events,
+	[LOC_CHANGING] = changing_cam_events,
+	[LOC_KANRININ] = kanrinin_cam_events
+};
+
+struct sched_cam_event *shuusaku_get_cam_event(enum sched_location loc, unsigned t)
+{
+	if (!cam_events[loc])
+		return NULL;
+	for (int i = 0; cam_events[loc][i].t; i++) {
+		if (cam_events[loc][i].t == t)
+			return &cam_events[loc][i];
+	}
+	return NULL;
+}

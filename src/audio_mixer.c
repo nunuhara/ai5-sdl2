@@ -528,16 +528,27 @@ struct mixer_stream *mixer_stream_open(struct archive_data *dfile, enum mix_chan
 	ch->volume = 100;
 	ch->mixer_no = mixer;
 
-	// get loop info from WAV file
+	// get loop info
 	unsigned loop_start = 0;
 	unsigned loop_end = 0;
 	unsigned loop_count = 0;
-	SF_INSTRUMENT instr;
-	if (sf_command(ch->file, SFC_GET_INSTRUMENT, &instr, sizeof(instr)) == SF_TRUE) {
-		if (instr.loop_count > 0) {
-			loop_start = instr.loops[0].start;
-			loop_end = instr.loops[0].end;
-			loop_count = instr.loops[0].count;
+	if (dfile->archive->meta.type == ARCHIVE_TYPE_AWD) {
+		// loop info stored in archive
+		if (dfile->meta.loop_start != 0xffffffff) {
+			// XXX: convert to sample offsets (assuming 16-bit mono PCM)
+			loop_start = dfile->meta.loop_start * 2;
+			loop_end = dfile->meta.loop_end * 2;
+			loop_count = -1;
+		}
+	} else {
+		// loop info stored in file
+		SF_INSTRUMENT instr;
+		if (sf_command(ch->file, SFC_GET_INSTRUMENT, &instr, sizeof(instr)) == SF_TRUE) {
+			if (instr.loop_count > 0) {
+				loop_start = instr.loops[0].start;
+				loop_end = instr.loops[0].end;
+				loop_count = instr.loops[0].count;
+			}
 		}
 	}
 

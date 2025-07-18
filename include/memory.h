@@ -98,9 +98,29 @@ static inline uint8_t mem_get_var4(unsigned i)
 	return memory_ptr.var4[i];
 }
 
+static inline uint8_t mem_get_var4_packed(unsigned no)
+{
+	uint8_t flag = mem_get_var4(no/2);
+	if (no % 2) {
+		return flag & 0xf;
+	}
+	return flag >> 4;
+}
+
 static inline void mem_set_var4(unsigned i, uint8_t v)
 {
 	memory_ptr.var4[i] = v;
+}
+
+static inline void mem_set_var4_packed(unsigned no, uint8_t val)
+{
+	unsigned i = no / 2;
+	uint8_t b = mem_get_var4(i);
+	if (no % 2) {
+		mem_set_var4(i, (b & 0xf0) | val);
+	} else {
+		mem_set_var4(i, (b & 0x0f) | (val << 4));
+	}
 }
 
 static inline uint16_t mem_get_var16(unsigned i)

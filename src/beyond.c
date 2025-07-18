@@ -462,6 +462,7 @@ struct game game_beyond = {
 	.mem16_size = MEM16_SIZE,
 	.mem_init = beyond_mem_init,
 	.mem_restore = beyond_mem_restore,
+	.vm = VM_AI5,
 	.expr_op = { DEFAULT_EXPR_OP },
 	.stmt_op = { DEFAULT_STMT_OP },
 	.sys = {

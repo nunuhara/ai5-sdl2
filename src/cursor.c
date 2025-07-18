@@ -640,7 +640,7 @@ int read_group_cursor(struct buffer *b, struct resource *res)
 
 bool read_icon_data(struct buffer *b, struct icon_data *icon, uint8_t **image, uint8_t **bitmask)
 {
-	if (buffer_remaining(b) < sizeof(struct icon_data))
+	if (buffer_remaining(b) < sizeof(struct bitmap_info))
 		return false;
 	read_bitmap_info(b, &icon->bm_info);
 	if (icon->bm_info.planes != 1)
@@ -649,12 +649,21 @@ bool read_icon_data(struct buffer *b, struct icon_data *icon, uint8_t **image, u
 		return false;
 	if (icon->bm_info.compression != 0)
 		return false;
-	int nr_colors = 256;
-	int image_size = icon->bm_info.width * (icon->bm_info.height / 2);
-	if (icon->bm_info.bpp == 4) {
-		nr_colors = 16;
-		image_size /= 2;
+
+	int nr_colors = icon->bm_info.colors_used;
+	if (!nr_colors) {
+		if (icon->bm_info.bpp == 4)
+			nr_colors = 16;
+		else
+			nr_colors = 256;
 	}
+	if (buffer_remaining(b) < 4 * nr_colors)
+		return false;
+
+	int image_size = icon->bm_info.width * (icon->bm_info.height / 2);
+	if (icon->bm_info.bpp == 4)
+		image_size /= 2;
+
 	for (unsigned i = 0; i < nr_colors; i++) {
 		icon->colors.colors[i].b = buffer_read_u8(b);
 		icon->colors.colors[i].g = buffer_read_u8(b);

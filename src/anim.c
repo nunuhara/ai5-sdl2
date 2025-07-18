@@ -64,20 +64,7 @@ struct anim_stream {
 
 static struct anim_stream streams[ANIM_MAX_STREAMS] = {0};
 
-enum anim_state {
-	// stream is in halted state
-	ANIM_STATE_HALTED,
-	// stream is in running state
-	ANIM_STATE_RUNNING,
-	// halt on next CHECK_STOP instruction
-	ANIM_STATE_HALT_NEXT,
-	// waiting until halted
-	ANIM_STATE_WAITING,
-	// pause on next CHECK_STOP instruction
-	ANIM_STATE_PAUSE_NEXT,
-	// stream is in paused state
-	ANIM_STATE_PAUSED,
-};
+void(*anim_load_palette)(uint8_t*) = NULL;
 
 static void check_slot(unsigned i)
 {
@@ -89,6 +76,8 @@ static uint32_t get_mask_color(void)
 {
 	if (game->bpp == 24)
 		return mem_get_sysvar32(mes_sysvar32_mask_color);
+	else if (game->id == GAME_SHUUSAKU)
+		return 10;
 	return mem_get_sysvar16(mes_sysvar16_mask_color);
 }
 
@@ -124,6 +113,12 @@ void anim_init_stream_from(unsigned slot, unsigned stream, uint32_t off)
 	_anim_init_stream(slot, stream, off);
 }
 
+enum anim_state anim_get_state(unsigned slot)
+{
+	check_slot(slot);
+	return streams[slot].state;
+}
+
 void anim_start(unsigned slot)
 {
 	ANIM_LOG("anim_start(%u)", slot);
@@ -139,6 +134,35 @@ void anim_stop(unsigned slot)
 	ANIM_LOG("anim_stop(%u)", slot);
 	check_slot(slot);
 	streams[slot].state = ANIM_STATE_HALT_NEXT;
+}
+
+void anim_pause(unsigned slot)
+{
+	ANIM_LOG("anim_pause(%u)", slot);
+	check_slot(slot);
+	if (streams[slot].initialized && streams[slot].state == ANIM_STATE_RUNNING)
+		streams[slot].state = ANIM_STATE_PAUSE_NEXT;
+}
+
+void anim_pause_sync(unsigned slot)
+{
+	ANIM_LOG("anim_pause_sync(%u)", slot);
+	check_slot(slot);
+	if (streams[slot].initialized || streams[slot].state != ANIM_STATE_RUNNING)
+		return;
+
+	streams[slot].state = ANIM_STATE_PAUSE_NEXT;
+	do {
+		vm_peek();
+	} while (streams[slot].state != ANIM_STATE_PAUSED);
+}
+
+void anim_unpause(unsigned slot)
+{
+	ANIM_LOG("anim_unpause(%u)", slot);
+	check_slot(slot);
+	if (streams[slot].initialized && streams[slot].state == ANIM_STATE_PAUSED)
+		streams[slot].state = ANIM_STATE_RUNNING;
 }
 
 void anim_halt(unsigned slot)
@@ -195,35 +219,50 @@ void anim_wait_all(void)
 	}
 }
 
-bool anim_any_running(void)
+bool anim_range_running(unsigned start, unsigned end)
 {
-	for (int i = 0; i < ANIM_MAX_STREAMS; i++) {
+	for (unsigned i = start; i < end; i++) {
 		if (streams[i].state != ANIM_STATE_HALTED && streams[i].state != ANIM_STATE_PAUSED)
 			return true;
 	}
 	return false;
 }
 
-void anim_pause_all_sync(void)
+bool anim_any_running(void)
 {
-	ANIM_LOG("anim_pause_all_sync()");
-	for (int i = 0; i < ANIM_MAX_STREAMS; i++) {
+	return anim_range_running(0, ANIM_MAX_STREAMS);
+}
+
+void anim_pause_range_sync(unsigned start, unsigned end)
+{
+	for (unsigned i = start; i < end; i++) {
 		if (streams[i].state == ANIM_STATE_RUNNING)
 			streams[i].state = ANIM_STATE_PAUSE_NEXT;
 	}
 	// wait for all animations to enter halted or paused state
 	do {
 		vm_peek();
-	} while (anim_any_running());
+	} while (anim_range_running(start, end));
+}
+
+void anim_pause_all_sync(void)
+{
+	ANIM_LOG("anim_pause_all_sync()");
+	anim_pause_range_sync(0, ANIM_MAX_STREAMS);
+}
+
+void anim_unpause_range(unsigned start, unsigned end)
+{
+	for (int i = start; i < end; i++) {
+		if (streams[i].state == ANIM_STATE_PAUSED)
+			streams[i].state = ANIM_STATE_RUNNING;
+	}
 }
 
 void anim_unpause_all(void)
 {
 	ANIM_LOG("anim_unpause_all()");
-	for (int i = 0; i < ANIM_MAX_STREAMS; i++) {
-		if (streams[i].state == ANIM_STATE_PAUSED)
-			streams[i].state = ANIM_STATE_RUNNING;
-	}
+	anim_unpause_range(0, ANIM_MAX_STREAMS);
 }
 
 void anim_set_offset(unsigned slot, unsigned x, unsigned y)
@@ -262,7 +301,13 @@ static bool anim_stream_draw(struct anim_stream *anim, uint8_t i)
 
 	// parse
 	struct anim_draw_call call;
-	if (!anim_parse_draw_call(anim->file_data + off, &call)) {
+	unsigned src_i = 1;
+	if (ai5_target_game == GAME_DOUKYUUSEI) {
+		src_i = 9;
+	} else if (ai5_target_game == GAME_SHUUSAKU) {
+		src_i = ((anim - streams) < 10) ? 6 : 7;
+	}
+	if (!anim_parse_draw_call(anim->file_data + off, &call, src_i)) {
 		WARNING("Failed to parse draw call %u", i);
 		return false;
 	}
@@ -389,10 +434,21 @@ bool anim_stream_execute(struct anim_stream *anim)
 		break;
 	case 0xff:
 	case 0xffff:
+		STREAM_LOG("[END];");
 		anim->state = ANIM_STATE_HALTED;
 		break;
 	default:
-		return anim_stream_draw(anim, op);
+		// XXX: ANIM_OP_LOAD_PALETTE is a valid draw call index, so we only
+		//      execute it as an instruction if anim_load_palette is set.
+		if (op == ANIM_OP_LOAD_PALETTE && anim_load_palette) {
+			uint16_t addr = le_get16(anim->bytecode, anim->ip);
+			STREAM_LOG("LOAD_PALETTE %u;", addr);
+			anim_load_palette(anim->file_data + addr);
+			anim->ip += 2;
+		} else {
+			return anim_stream_draw(anim, op);
+		}
+		break;
 	}
 	return false;
 }

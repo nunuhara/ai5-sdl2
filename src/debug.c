@@ -211,6 +211,29 @@ static int dbg_cmd_map(unsigned nr_args, char **args)
 #undef ENTRY
 }
 
+static int dbg_cmd_palette(unsigned nr_args, char **args)
+{
+	printf("gfx.palette");
+	for (int i = 0; i < 256; i += 16) {
+		printf("[%3u] =", i);
+		for (int j = 0; j < 16; j++) {
+			SDL_Color c = gfx.palette[i+j];
+			printf(" %02x%02x%02x", c.r, c.g, c.b);
+		}
+		printf("\n");
+	}
+	printf("memory.palette");
+	for (int i = 0; i < 256; i += 16) {
+		printf("[%3u] = ", i);
+		for (int j = 0; j < 16; j++) {
+			uint8_t *p = &memory.palette[(i+j)*4];
+			printf(" %02x%02x%02x", p[2], p[1], p[0]);
+		}
+		printf("\n");
+	}
+	return DBG_REPL;
+}
+
 static int dbg_cmd_quit(unsigned nr_args, char **args)
 {
 	return DBG_QUIT;
@@ -224,7 +247,22 @@ static int dbg_cmd_get_flag(unsigned nr_args, char **args)
 		printf("Invalid flag number: %s\n", args[0]);
 		return DBG_REPL;
 	}
-	printf("flag[%ld] = %u\n", flag_no, mem_get_var4(flag_no));
+	if (game->id == GAME_SHUUSAKU)
+		printf("flag[%ld] = %u\n", flag_no, mem_get_var4_packed(flag_no));
+	else
+		printf("flag[%ld] = %u\n", flag_no, mem_get_var4(flag_no));
+	return DBG_REPL;
+}
+
+static int dbg_cmd_get_var16(unsigned nr_args, char **args)
+{
+	long var_no;
+	if (!parse_number(args[0], &var_no) || var_no < 0
+			|| !mem_ptr_valid(memory_ptr.var16 + var_no, 2)) {
+		printf("Invalid var16 number: %s\n", args[0]);
+		return DBG_REPL;
+	}
+	printf("var16[%ld] = %u\n", var_no, mem_get_var16(var_no));
 	return DBG_REPL;
 }
 
@@ -240,7 +278,26 @@ static int dbg_cmd_set_flag(unsigned nr_args, char **args)
 		printf("Invalid flag value: %s\n", args[1]);
 		return DBG_REPL;
 	}
-	mem_set_var4(flag_no, value);
+	if (game->id == GAME_SHUUSAKU)
+		mem_set_var4_packed(flag_no, value);
+	else
+		mem_set_var4(flag_no, value);
+	return DBG_REPL;
+}
+
+static int dbg_cmd_set_var16(unsigned nr_args, char **args)
+{
+	long var_no, value;
+	if (!parse_number(args[0], &var_no) || var_no < 0
+			|| !mem_ptr_valid(memory_ptr.var16 + var_no, 2)) {
+		printf("Invalid var16 number: %s\n", args[0]);
+		return DBG_REPL;
+	}
+	if (!parse_number(args[1], &value) || value < 0 || value > 65565) {
+		printf("Invalid var16 value: %s\n", args[1]);
+		return DBG_REPL;
+	}
+	mem_set_var16(var_no, value);
 	return DBG_REPL;
 }
 
@@ -252,6 +309,37 @@ static int dbg_cmd_surface_dump(unsigned nr_args, char **args)
 		char name[20];
 		sprintf(name, "surface%d.png", i);
 		gfx_dump_surface(i, name);
+	}
+	return DBG_REPL;
+}
+
+static int dbg_cmd_get_pixel(unsigned nr_args, char **args)
+{
+	long i = 0;
+	if (nr_args == 3) {
+		if (!parse_number(args[2], &i) || i < 0 || i >= GFX_NR_SURFACES
+				|| game->surface_sizes[i].w == 0) {
+			printf("Invalid surface number: %s\n", args[2]);
+			return DBG_REPL;
+		}
+	}
+	long x, y;
+	if (!parse_number(args[0], &x) || x < 0 || x >= game->surface_sizes[i].w) {
+		printf("Invalid x-coordinate: %s\n", args[0]);
+		return DBG_REPL;
+	}
+	if (!parse_number(args[1], &y) || y < 0 || y >= game->surface_sizes[i].h) {
+		printf("Invalid y-coordinate: %s\n", args[1]);
+		return DBG_REPL;
+	}
+
+	SDL_Surface *s = gfx_get_surface(i);
+	if (game->bpp == 8) {
+		uint8_t *p = ((uint8_t*)s->pixels) + y * s->pitch + x;
+		printf("surface[%ld].pixel(%ld,%ld) = %u\n", i, x, y, *p);
+	} else {
+		uint8_t *p = ((uint8_t*)s->pixels) + y * s->pitch + x * s->format->BytesPerPixel;
+		printf("surface[%ld].pixel(%ld,%ld) = %u,%u,%u\n", i, x, y, p[0], p[1], p[2]);
 	}
 	return DBG_REPL;
 }
@@ -299,9 +387,13 @@ static struct cmdline_cmd dbg_commands[] = {
 	{ "continue", "c", NULL, "Continue running", 0, 0, dbg_cmd_continue },
 	{ "help", "h", NULL, "Display debugger help", 0, 2, dbg_cmd_help },
 	{ "map", NULL, NULL, "Display memory map", 0, 0, dbg_cmd_map },
+	{ "palette", "pal", NULL, "Print the current palette", 0, 0, dbg_cmd_palette },
 	{ "quit", "q", NULL, "Quit AI5-SDL2", 0, 0, dbg_cmd_quit },
 	{ "get-flag", NULL, "<flag-number>", "Get a flag", 1, 1, dbg_cmd_get_flag },
+	{ "get-var16", NULL, "<var-number>", "Get a 16-bit variable", 1, 1, dbg_cmd_get_var16 },
+	{ "get-pixel", NULL, "<x> <y> [surface]", "Get a pixel value", 2, 3, dbg_cmd_get_pixel },
 	{ "set-flag", NULL, "<flag-number> <value>", "Set a flag", 2, 2, dbg_cmd_set_flag },
+	{ "set-var16", NULL, "<var-number> <value>", "Set a 16-bit variable", 2, 2, dbg_cmd_set_var16 },
 	{ "surface-dump", "sd", NULL, "Dump surfaces", 0, 0, dbg_cmd_surface_dump },
 	{ "vm-state", "vm", NULL, "Display current VM state", 0, 0, dbg_cmd_vm_state },
 };

@@ -956,47 +956,7 @@ static void yuno_draw_text(const char *text)
 		return;
 	}
 
-	const uint16_t surface = mem_get_sysvar16(mes_sysvar16_dst_surface);
-	const uint16_t start_x = mem_get_sysvar16(mes_sysvar16_text_start_x);
-	const uint16_t end_x = mem_get_sysvar16(mes_sysvar16_text_end_x);
-	const uint16_t char_space = mem_get_sysvar16(mes_sysvar16_char_space);
-	const uint16_t line_space = mem_get_sysvar16(mes_sysvar16_line_space);
-	uint16_t x = mem_get_sysvar16(mes_sysvar16_text_cursor_x);
-	uint16_t y = mem_get_sysvar16(mes_sysvar16_text_cursor_y);
-
-	bool last_char_is_close = false;
-	while (*text) {
-		int ch;
-		bool zenkaku = SJIS_2BYTE(*text);
-		uint16_t this_char_space = zenkaku ? char_space / 8 : char_space / 16;
-		uint16_t this_x = x;
-		if (x + this_char_space > end_x) {
-			x = start_x;
-			y += line_space;
-		}
-
-		// opener at end of line: drop to next line
-		if (x + this_char_space * 2 > end_x && char_is_opener(text)) {
-			x = start_x;
-			y += line_space;
-		}
-
-		// closer at start of line: go to last column of previous line
-		// (game allows some extra space for this)
-		if (x == start_x && !last_char_is_close && char_is_closer(text)) {
-			x = this_x;
-			y -= line_space;
-			last_char_is_close = true;
-		} else {
-			last_char_is_close = false;
-		}
-
-		text = sjis_char2unicode(text, &ch);
-		gfx_text_draw_glyph(x * 8, y, surface, ch);
-		x += this_char_space;
-	}
-	mem_set_sysvar16(mes_sysvar16_text_cursor_x, x);
-	mem_set_sysvar16(mes_sysvar16_text_cursor_y, y);
+	vm_draw_text(text, 8);
 }
 
 static void yuno_update(void)
@@ -1009,6 +969,7 @@ static void yuno_update(void)
 
 static void yuno_init(void)
 {
+	han_line_breaks = true;
 	asset_effect_is_bgm = false;
 }
 
@@ -1031,11 +992,12 @@ struct game game_yuno = {
 	.mem_restore = yuno_mem_restore,
 	.draw_text_zen = yuno_draw_text,
 	.draw_text_han = yuno_draw_text,
+	.vm = VM_AI5,
 	.expr_op = { CLASSICS_EXPR_OP },
 	.stmt_op = {
 		CLASSICS_STMT_OP,
-		[0x03] = vm_stmt_set_cflag_4bit_wrap,
-		[0x05] = vm_stmt_set_eflag_4bit_wrap,
+		[0x03] = vm_stmt_set_flag_const16_4bit_wrap,
+		[0x05] = vm_stmt_set_flag_expr_4bit_wrap,
 		[0x0f] = vm_stmt_mescall_save_procedures,
 	},
 	.sys = {

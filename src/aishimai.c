@@ -345,7 +345,7 @@ static void ai_shimai_TXT(const char *txt)
 		if (mem_get_var4(2002) < 4)
 			render_text_select(txt);
 		else {
-			vm_draw_text(txt);
+			vm_draw_text(txt, 1);
 		}
 		return;
 	}
@@ -1255,6 +1255,7 @@ struct game game_ai_shimai = {
 	.mem_restore = ai_shimai_mem_restore,
 	.init = ai_shimai_init,
 	.draw_text_zen = ai_shimai_TXT,
+	.vm = VM_AI5,
 	.expr_op = { DEFAULT_EXPR_OP },
 	.stmt_op = { DEFAULT_STMT_OP },
 	.sys = {

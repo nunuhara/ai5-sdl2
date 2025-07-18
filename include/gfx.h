@@ -17,6 +17,9 @@
 #ifndef AI5_GFX_H
 #define AI5_GFX_H
 
+#include <stdbool.h>
+#include <stdint.h>
+
 struct cg;
 
 #define GFX_NR_SURFACES 15
@@ -62,6 +65,8 @@ void _gfx_palette_set(const uint8_t *data, unsigned start, unsigned n);
 void gfx_palette_set(const uint8_t *data, unsigned start, unsigned n);
 void gfx_palette_set_color(uint8_t c, uint8_t r, uint8_t g, uint8_t b);
 void gfx_palette_copy(uint8_t *dst, unsigned start, unsigned n);
+void gfx_crossfade_colors(uint8_t *pal, uint8_t *colors_in, unsigned nr_colors_in,
+		unsigned ms, bool (*cb)(float,void*), void *data);
 void gfx_palette_crossfade(const uint8_t *data, unsigned start, unsigned n, unsigned ms);
 void gfx_palette_crossfade_to(uint8_t r, uint8_t g, uint8_t b, unsigned start, unsigned n,
 		unsigned ms);
@@ -97,7 +102,8 @@ void gfx_fade_progressive(int x, int y, int w, int h, unsigned dst_i);
 void gfx_copy_progressive(int src_x, int src_y, int w, int h, unsigned src_i, int dst_x,
 		int dst_y, unsigned dst_i);
 void gfx_pixel_crossfade(int src_x, int src_y, int w, int h, unsigned src_i, int dst_x,
-		int dst_y, unsigned dst_i);
+		int dst_y, unsigned dst_i, unsigned frame_t, bool(*update)(float t, void*),
+		void *data);
 void gfx_pixel_crossfade_masked(int src_x, int src_y, int w, int h, unsigned src_i, int dst_x,
 		int dst_y, unsigned dst_i, uint32_t mask_color);
 void gfx_pixel_crossfade_masked_indexed(int src_x, int src_y, int w, int h, unsigned src_i,
@@ -119,8 +125,14 @@ void gfx_text_swap_colors(int x, int y, int w, int h, unsigned i);
 unsigned gfx_text_draw_glyph(int x, int y, unsigned i, uint32_t ch);
 unsigned gfx_text_size_char(uint32_t ch);
 
+enum text_shadow_type {
+	TEXT_SHADOW_NONE = 0,
+	TEXT_SHADOW_A = 1,
+	TEXT_SHADOW_B = 2,
+};
+
 // default: false
 extern bool text_antialias;
-extern bool text_shadow;
+extern enum text_shadow_type text_shadow;
 
 #endif // AI5_GFX_H

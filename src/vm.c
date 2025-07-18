@@ -48,6 +48,18 @@ struct memory memory = {0};
 struct memory_ptr memory_ptr = {0};
 struct game *game = NULL;
 
+void _vm_break(const char *file, const char *func, int line, const char *fmt, ...)
+{
+	va_list ap;
+	char buf[1024];
+	va_start(ap, fmt);
+	vsnprintf(buf, 1024, fmt, ap);
+	va_end(ap);
+
+	sys_warning("BREAK(%s:%s:%d): %s", file, func, line, buf);
+	dbg_repl();
+}
+
 void _vm_error(const char *file, const char *func, int line, const char *fmt, ...)
 {
 	va_list ap;
@@ -164,6 +176,26 @@ void vm_expr_var16(void)
 	vm_stack_push(mem_get_var16(vm_read_byte()));
 }
 
+void vm_expr_var16_const16(void)
+{
+	vm_stack_push(mem_get_var16(vm_read_word()));
+}
+
+void vm_expr_var16_expr(void)
+{
+	vm_stack_push(mem_get_var16(vm_stack_pop()));
+}
+
+void vm_expr_sysvar16_const16(void)
+{
+	vm_stack_push(mem_get_sysvar16(vm_read_word()));
+}
+
+void vm_expr_sysvar16_expr(void)
+{
+	vm_stack_push(mem_get_sysvar16(vm_stack_pop()));
+}
+
 void vm_expr_ptr16_get16(void)
 {
 	int32_t i = vm_stack_pop();
@@ -211,6 +243,16 @@ VM_EXPR_OPERATOR(vm_expr_eq,    ==)
 VM_EXPR_OPERATOR(vm_expr_neq,   !=)
 #undef VM_EXPR_OPERATOR
 
+void vm_expr_minus_unsigned(void)
+{
+	uint32_t b = vm_stack_pop();
+	uint32_t a = vm_stack_pop();
+	if (b > a)
+		vm_stack_push(0);
+	else
+		vm_stack_push(a - b);
+}
+
 void vm_expr_rand(void)
 {
 	uint32_t range = vm_stack_pop();
@@ -239,9 +281,19 @@ void vm_expr_cflag(void)
 	vm_stack_push(mem_get_var4(vm_read_word()));
 }
 
+void vm_expr_cflag_packed(void)
+{
+	vm_stack_push(mem_get_var4_packed(vm_read_word()));
+}
+
 void vm_expr_eflag(void)
 {
 	vm_stack_push(mem_get_var4(vm_stack_pop()));
+}
+
+void vm_expr_eflag_packed(void)
+{
+	vm_stack_push(mem_get_var4_packed(vm_stack_pop()));
 }
 
 void vm_expr_ptr32_get32(void)
@@ -290,7 +342,7 @@ static uint32_t vm_expr_end(void)
 	return r;
 }
 
-static uint32_t vm_eval(void)
+uint32_t vm_eval(void)
 {
 	while (true) {
 		uint8_t op = vm_read_byte();
@@ -304,11 +356,33 @@ static uint32_t vm_eval(void)
 	return 0;
 }
 
-static void read_string_param(char *str)
+uint32_t vm_eval_aiw(void)
+{
+	while (true) {
+		uint8_t op = vm_read_byte();
+		if (op == 0xff)
+			return vm_expr_end();
+		if (op < 0x80) {
+			vm_stack_push(op);
+		} else if (op < 0xa0) {
+			vm_stack_push(mem_get_var32(op - 0x80));
+		} else if (op < 0xe0) {
+			// TODO? (not used in Shuusaku or Kawarazaki-ke)
+			VM_ERROR("Invalid expression opcode: %02x", op);
+		} else if (game->expr_op[op]) {
+			game->expr_op[op]();
+		} else {
+			VM_ERROR("Invalid expression opcode: %02x", op);
+		}
+	}
+	return 0;
+}
+
+static void read_string_param(char *str, uint8_t term)
 {
 	size_t str_i = 0;
 	uint8_t c;
-	for (str_i = 0; (c = vm_read_byte()); str_i++) {
+	for (str_i = 0; (c = vm_read_byte()) != term; str_i++) {
 		if (unlikely(str_i >= STRING_PARAM_SIZE))
 			VM_ERROR("String parameter overflowed buffer");
 		str[str_i] = c;
@@ -316,7 +390,7 @@ static void read_string_param(char *str)
 	str[str_i] = '\0';
 }
 
-void read_params(struct param_list *params)
+void vm_read_params(struct param_list *params)
 {
 	int i;
 	uint8_t b;
@@ -325,12 +399,32 @@ void read_params(struct param_list *params)
 			VM_ERROR("Too many parameters");
 		params->params[i].type = b;
 		if (b == MES_PARAM_EXPRESSION) {
-			params->params[i].val = vm_eval();
+			params->params[i].val = game->vm.eval();
 		} else {
-			read_string_param(params->params[i].str);
+			read_string_param(params->params[i].str, 0);
 		}
 	}
 	params->nr_params = i;
+}
+
+void vm_read_params_aiw(struct param_list *params)
+{
+	int i;
+	uint8_t b;
+	for (i = 0; (b = vm_peek_byte()) != 0xff; i++) {
+		if (unlikely(i >= MAX_PARAMS))
+			VM_ERROR("Too many parameters");
+		if (b == 0xf5) {
+			vm_read_byte();
+			params->params[i].type = MES_PARAM_STRING;
+			read_string_param(params->params[i].str, 0xff);
+		} else {
+			params->params[i].type = MES_PARAM_EXPRESSION;
+			params->params[i].val = game->vm.eval();
+		}
+	}
+	params->nr_params = i;
+	vm_read_byte();
 }
 
 char *vm_string_param(struct param_list *params, int i)
@@ -396,7 +490,9 @@ bool char_is_closer(const char *_ch)
 	return false;
 }
 
-void vm_draw_text(const char *text)
+bool han_line_breaks = false;
+
+void vm_draw_text(const char *text, unsigned mult)
 {
 	const uint16_t surface = mem_get_sysvar16(mes_sysvar16_dst_surface);
 	const uint16_t start_x = mem_get_sysvar16(mes_sysvar16_text_start_x);
@@ -409,9 +505,9 @@ void vm_draw_text(const char *text)
 	while (*text) {
 		int ch;
 		bool zenkaku = SJIS_2BYTE(*text);
-		uint16_t this_char_space = zenkaku ? char_space : char_space / 2;
+		uint16_t this_char_space = zenkaku ? (char_space / mult): (char_space / (mult * 2));
 		uint16_t this_x = x;
-		if (x + char_space > end_x) {
+		if (x + (han_line_breaks ? this_char_space : char_space) > end_x) {
 			x = start_x;
 			y += line_space;
 		}
@@ -433,14 +529,12 @@ void vm_draw_text(const char *text)
 		}
 
 		text = sjis_char2unicode(text, &ch);
-		gfx_text_draw_glyph(x, y, surface, ch);
+		gfx_text_draw_glyph(x * mult, y, surface, ch);
 		x += this_char_space;
 	}
 	mem_set_sysvar16(mes_sysvar16_text_cursor_x, x);
 	mem_set_sysvar16(mes_sysvar16_text_cursor_y, y);
 }
-
-#define TXT_BUF_SIZE 4096
 
 static void read_zenkaku(char *str)
 {
@@ -472,12 +566,28 @@ unterminated:
 	str[str_i] = 0;
 }
 
+void vm_read_text_aiw(char *str, uint8_t term)
+{
+	uint8_t c;
+	int str_i = 0;
+	while ((c = vm_read_byte()) != term) {
+		str[str_i++] = c;
+		if (unlikely(vm_peek_byte() == term)) {
+			WARNING("String is not word-aligned");
+			str[str_i++] = ' ';
+			break;
+		}
+		str[str_i++] = vm_read_byte();
+	}
+	str[str_i] = '\0';
+}
+
 /*
  * Zenkaku text without logging.
  */
 void vm_stmt_txt_no_log(void)
 {
-	char str[TXT_BUF_SIZE];
+	char str[VM_TXT_BUF_SIZE];
 	read_zenkaku(str);
 	texthook_push(str);
 
@@ -485,7 +595,7 @@ void vm_stmt_txt_no_log(void)
 	if (game->draw_text_zen)
 		game->draw_text_zen(str);
 	else
-		vm_draw_text(str);
+		vm_draw_text(str, 1);
 }
 
 /*
@@ -493,7 +603,7 @@ void vm_stmt_txt_no_log(void)
  */
 void vm_stmt_str_no_log(void)
 {
-	char str[TXT_BUF_SIZE];
+	char str[VM_TXT_BUF_SIZE];
 	read_hankaku(str);
 	texthook_push(str);
 
@@ -501,7 +611,7 @@ void vm_stmt_str_no_log(void)
 	if (game->draw_text_han)
 		game->draw_text_han(str);
 	else
-		vm_draw_text(str);
+		vm_draw_text(str, 1);
 }
 
 /*
@@ -588,103 +698,185 @@ void vm_unprefixed_str_new_log(void)
 		vm_flag_off(FLAG_LOG);
 }
 
-void vm_stmt_set_cflag(void)
+#define CHECK_FLAG(i) \
+	do { \
+		if (unlikely(!mem_ptr_valid(memory_ptr.var4 + i, 1))) \
+			VM_ERROR("Out of bounds write"); \
+	} while (0)
+
+void vm_stmt_set_flag_const16(void)
 {
 	uint16_t i = vm_read_word();
 	do {
-		if (unlikely(!mem_ptr_valid(memory_ptr.var4 + i, 1)))
-			VM_ERROR("Out of bounds write");
-		mem_set_var4(i++, vm_eval());
+		CHECK_FLAG(i);
+		mem_set_var4(i++, game->vm.eval());
 	} while (vm_read_byte());
 }
 
-void vm_stmt_set_cflag_4bit_wrap(void)
+void vm_stmt_set_flag_const16_4bit_wrap(void)
 {
 	uint16_t i = vm_read_word();
 	do {
-		if (unlikely(!mem_ptr_valid(memory_ptr.var4 + i, 1)))
-			VM_ERROR("Out of bounds write");
-		mem_set_var4(i++, vm_eval() & 0xf);
+		CHECK_FLAG(i);
+		mem_set_var4(i++, game->vm.eval() & 0xf);
 	} while (vm_read_byte());
 }
 
-void vm_stmt_set_cflag_4bit_saturate(void)
+void vm_stmt_set_flag_const16_4bit_saturate(void)
 {
 	uint16_t i = vm_read_word();
 	do {
-		if (unlikely(!mem_ptr_valid(memory_ptr.var4 + i, 1)))
-			VM_ERROR("Out of bounds write");
-		mem_set_var4(i++, min(vm_eval(), 0xf));
+		CHECK_FLAG(i);
+		mem_set_var4(i++, min(game->vm.eval(), 0xf));
 	} while (vm_read_byte());
 }
 
-void vm_stmt_set_var16(void)
+void vm_stmt_set_flag_expr(void)
+{
+	int32_t i = game->vm.eval();
+	do {
+		CHECK_FLAG(i);
+		mem_set_var4(i++, game->vm.eval());
+	} while (vm_read_byte());
+}
+
+void vm_stmt_set_flag_expr_4bit_wrap(void)
+{
+	int32_t i = game->vm.eval();
+	do {
+		CHECK_FLAG(i);
+		mem_set_var4(i++, game->vm.eval() & 0xf);
+	} while (vm_read_byte());
+}
+
+void vm_stmt_set_flag_expr_4bit_saturate(void)
+{
+	int32_t i = game->vm.eval();
+	do {
+		CHECK_FLAG(i);
+		mem_set_var4(i++, min(game->vm.eval(), 0xf));
+	} while (vm_read_byte());
+}
+
+void vm_stmt_set_flag_const16_aiw(void)
+{
+	uint16_t i = vm_read_word();
+	do {
+		CHECK_FLAG(i);
+		mem_set_var4_packed(i++, min(game->vm.eval(), 0xf));
+	} while (vm_peek_byte() != 0xff);
+	vm_read_byte();
+}
+
+void vm_stmt_set_flag_expr_aiw(void)
+{
+	int32_t i = game->vm.eval();
+	do {
+		CHECK_FLAG(i);
+		mem_set_var4_packed(i++, min(game->vm.eval(), 0xf));
+	} while (vm_peek_byte() != 0xff);
+	vm_read_byte();
+}
+
+#define CHECK_VAR16(i) \
+	do { \
+		if (unlikely(!mem_ptr_valid(memory_ptr.var16 + (i) * 2, 2))) \
+			VM_ERROR(""); \
+	} while (0)
+
+void vm_stmt_set_var16_const8(void)
 {
 	uint8_t i = vm_read_byte();
 	do {
-		if (unlikely(!mem_ptr_valid(memory_ptr.var16 + i * 2, 2)))
-			VM_ERROR("Out of bounds write");
-		mem_set_var16(i++, vm_eval());
+		CHECK_VAR16(i);
+		mem_set_var16(i++, game->vm.eval());
 	} while (vm_read_byte());
 }
 
-void vm_stmt_set_eflag(void)
+void vm_stmt_set_var16_const16_aiw(void)
 {
-	int32_t i = vm_eval();
+	uint16_t i = vm_read_word();
 	do {
-		if (unlikely(!mem_ptr_valid(memory_ptr.var4 + i, 1)))
-			VM_ERROR("Out of bounds write");
-		mem_set_var4(i++, vm_eval());
-	} while (vm_read_byte());
+		CHECK_VAR16(i);
+		mem_set_var16(i++, min(0xffff, game->vm.eval()));
+	} while (vm_peek_byte() != 0xff);
+	vm_read_byte();
 }
 
-void vm_stmt_set_eflag_4bit_wrap(void)
+void vm_stmt_set_var16_expr_aiw(void)
 {
-	int32_t i = vm_eval();
+	uint32_t i = game->vm.eval();
 	do {
-		if (unlikely(!mem_ptr_valid(memory_ptr.var4 + i, 1)))
-			VM_ERROR("Out of bounds write");
-		mem_set_var4(i++, vm_eval() & 0xf);
-	} while (vm_read_byte());
+		CHECK_VAR16(i);
+		mem_set_var16(i++, min(0xffff, game->vm.eval()));
+	} while (vm_peek_byte() != 0xff);
+	vm_read_byte();
 }
 
-void vm_stmt_set_eflag_4bit_saturate(void)
-{
-	int32_t i = vm_eval();
-	do {
-		if (unlikely(!mem_ptr_valid(memory_ptr.var4 + i, 1)))
-			VM_ERROR("Out of bounds write");
-		mem_set_var4(i++, min(vm_eval(), 0xf));
-	} while (vm_read_byte());
-}
+#define CHECK_VAR32(i) \
+	do { \
+		if (unlikely(!mem_ptr_valid(memory_ptr.var32 + i * 4, 4))) \
+			VM_ERROR("Out of bounds write"); \
+	} while (0)
 
-void vm_stmt_set_var32(void)
+void vm_stmt_set_var32_const8(void)
 {
 	int32_t i = vm_read_byte();
-
 	do {
-		if (unlikely(!mem_ptr_valid(memory_ptr.var32 + i * 4, 4)))
-			VM_ERROR("Out of bounds write");
-		mem_set_var32(i++, vm_eval());
+		CHECK_VAR32(i);
+		mem_set_var32(i++, game->vm.eval());
 	} while (vm_read_byte());
+}
+
+void vm_stmt_set_var32_const8_aiw(void)
+{
+	uint8_t i = vm_read_byte();
+	CHECK_VAR32(i);
+	mem_set_var32(i, game->vm.eval());
+}
+
+#define CHECK_SYSVAR16(i) \
+	do { \
+		if (unlikely(!mem_ptr_valid(memory_ptr.system_var16 + (i) * 2, 2))) \
+			VM_ERROR("Out of bounds write"); \
+	} while (0)
+
+void vm_stmt_set_sysvar16_const16_aiw(void)
+{
+	uint16_t i = vm_read_word();
+	do {
+		CHECK_SYSVAR16(i);
+		mem_set_sysvar16(i++, min(game->vm.eval(), 0xffff));
+	} while (vm_peek_byte() != 0xff);
+	vm_read_byte();
+}
+
+void vm_stmt_set_sysvar16_expr_aiw(void)
+{
+	int32_t i = game->vm.eval();
+	do {
+		CHECK_SYSVAR16(i);
+		mem_set_sysvar16(i++, min(game->vm.eval(), 0xffff));
+	} while (vm_peek_byte() != 0xff);
+	vm_read_byte();
 }
 
 void vm_stmt_ptr16_set8(void)
 {
-	int32_t i = vm_eval();
+	int32_t i = game->vm.eval();
 	uint8_t var = vm_read_byte();
 	uint8_t *dst = memory_raw + mem_get_var16(var) + i;
 
 	do {
 		if (unlikely(!mem_ptr_valid(dst, 1)))
 			VM_ERROR("Out of bounds write");
-		*dst++ = vm_eval();
+		*dst++ = game->vm.eval();
 	} while (vm_read_byte());
 }
 
 void vm_stmt_ptr16_set16(void)
 {
-	int32_t i = vm_eval();
+	int32_t i = game->vm.eval();
 	uint8_t var = vm_read_byte();
 	uint8_t *dst = memory_ptr.system_var16;
 	if (var)
@@ -693,14 +885,14 @@ void vm_stmt_ptr16_set16(void)
 	do {
 		if (unlikely(!mem_ptr_valid(dst + i * 2, 2)))
 			VM_ERROR("Out of bounds write");
-		le_put16(dst, i * 2, vm_eval());
+		le_put16(dst, i * 2, game->vm.eval());
 		i++;
 	} while (vm_read_byte());
 }
 
 void vm_stmt_ptr32_set32(void)
 {
-	int32_t i = vm_eval();
+	int32_t i = game->vm.eval();
 	uint8_t var = vm_read_byte();
 	uint8_t *dst = memory_ptr.system_var32;
 	if (var)
@@ -709,41 +901,41 @@ void vm_stmt_ptr32_set32(void)
 	do {
 		if (unlikely(!mem_ptr_valid(dst + i*4, 4)))
 			VM_ERROR("Out of bounds write");
-		le_put32(dst, i * 4, vm_eval());
+		le_put32(dst, i * 4, game->vm.eval());
 		i++;
 	} while (vm_read_byte());
 }
 
 void vm_stmt_ptr32_set16(void)
 {
-	int32_t i = vm_eval();
+	int32_t i = game->vm.eval();
 	uint8_t var = vm_read_byte();
 	uint8_t *dst = memory_raw + mem_get_var32(var - 1);
 
 	do {
 		if (unlikely(!mem_ptr_valid(dst + i*2, 2)))
 			VM_ERROR("Out of bounds write");
-		le_put16(dst, i * 2, vm_eval());
+		le_put16(dst, i * 2, game->vm.eval());
 		i++;
 	} while (vm_read_byte());
 }
 
 void vm_stmt_ptr32_set8(void)
 {
-	int32_t i = vm_eval();
+	int32_t i = game->vm.eval();
 	uint8_t var = vm_read_byte();
 	uint8_t *dst = memory_raw + mem_get_var32(var - 1) + i;
 
 	do {
 		if (unlikely(!mem_ptr_valid(dst, 1)))
 			VM_ERROR("Out of bounds write");
-		*dst++ = vm_eval();
+		*dst++ = game->vm.eval();
 	} while (vm_read_byte());
 }
 
 void vm_stmt_jz(void)
 {
-	uint32_t val = vm_eval();
+	uint32_t val = game->vm.eval();
 	uint32_t ptr = vm_read_dword();
 	if (val == 1)
 		return;
@@ -757,9 +949,9 @@ void vm_stmt_jmp(void)
 
 static void _vm_stmt_sys(void)
 {
-	uint32_t no = vm_eval();
+	uint32_t no = game->vm.eval();
 	struct param_list params = {0};
-	read_params(&params);
+	game->vm.read_params(&params);
 
 	if (unlikely(no >= GAME_MAX_SYS))
 		VM_ERROR("Invalid System call number: %u", no);
@@ -795,7 +987,7 @@ void vm_stmt_sys_old_log(void)
 void vm_stmt_mesjmp(void)
 {
 	struct param_list params = {0};
-	read_params(&params);
+	game->vm.read_params(&params);
 
 	vm_load_mes(vm_string_param(&params, 0));
 
@@ -805,7 +997,7 @@ void vm_stmt_mesjmp(void)
 static void _vm_stmt_mescall(bool save_procedures)
 {
 	struct param_list params = {0};
-	read_params(&params);
+	game->vm.read_params(&params);
 	vm_string_param(&params, 0);
 
 	// save current VM state
@@ -820,7 +1012,7 @@ static void _vm_stmt_mescall(bool save_procedures)
 	vm.ip.ptr = 0;
 	vm.ip.code = memory.file_data;
 	vm_load_mes(params.params[0].str);
-	vm_exec();
+	game->vm.exec();
 
 	// restore previous VM state
 	frame = &vm.mes_call_stack[--vm.mes_call_stack_ptr];
@@ -850,10 +1042,29 @@ void vm_stmt_mescall_save_procedures(void)
 void vm_stmt_defmenu(void)
 {
 	struct param_list params = {0};
-	read_params(&params);
+	game->vm.read_params(&params);
 	uint32_t addr = vm_read_dword();
 	menu_define(vm_expr_param(&params, 0), addr == vm.ip.ptr + 1);
 	vm.ip.ptr = addr;
+}
+
+struct aiw_menu_entry aiw_menu_entries[AIW_MAX_MENUS][AIW_MAX_MENU_ENTRIES];
+unsigned aiw_menu_nr_entries[AIW_MAX_MENUS];
+
+void vm_stmt_defmenu_aiw(void)
+{
+	uint32_t no = game->vm.eval();
+	if (no >= AIW_MAX_MENUS)
+		VM_ERROR("Invalid menu index: %u", no);
+
+	vm.ip.ptr = vm_read_dword();
+	uint8_t nr_entries = vm_read_byte();
+
+	for (unsigned i = 0; i < nr_entries; i++) {
+		aiw_menu_entries[no][i].cond_addr = vm_read_dword();
+		aiw_menu_entries[no][i].body_addr = vm_read_dword();
+	}
+	aiw_menu_nr_entries[no] = nr_entries;
 }
 
 void vm_call_procedure(unsigned no)
@@ -863,7 +1074,7 @@ void vm_call_procedure(unsigned no)
 
 	struct vm_pointer saved_ip = vm.ip;
 	vm.ip = vm.procedures[no];
-	vm_exec();
+	game->vm.exec();
 	vm.ip = saved_ip;
 }
 
@@ -873,7 +1084,7 @@ void vm_stmt_call(void)
 	vm_flag_off(FLAG_PROC_CLEAR);
 
 	struct param_list params = {0};
-	read_params(&params);
+	game->vm.read_params(&params);
 	vm_call_procedure(vm_expr_param(&params, 0));
 
 	if (flag_on)
@@ -888,7 +1099,7 @@ void vm_stmt_call_old_log(void)
 			backlog_push_byte(mes_code_tables.stmt_op_to_int[MES_STMT_CALL_PROC]);
 	}
 	struct param_list params = {0};
-	read_params(&params);
+	game->vm.read_params(&params);
 	if (vm_flag_is_on(FLAG_LOG))
 		vm_flag_off(FLAG_LOG);
 	vm_call_procedure(vm_expr_param(&params, 0));
@@ -897,7 +1108,7 @@ void vm_stmt_call_old_log(void)
 void vm_stmt_util(void)
 {
 	struct param_list params = {0};
-	read_params(&params);
+	game->vm.read_params(&params);
 	if (unlikely(params.nr_params < 1))
 		VM_ERROR("Util without parameters");
 	uint32_t no = vm_expr_param(&params, 0);
@@ -923,7 +1134,7 @@ void vm_stmt_line(void)
 
 void vm_stmt_defproc(void)
 {
-	uint32_t i = vm_eval();
+	uint32_t i = game->vm.eval();
 	if (unlikely(i >= VM_MAX_PROCEDURES))
 		VM_ERROR("Invalid procedure number: %d", i);
 	vm.procedures[i] = vm.ip;
@@ -939,16 +1150,22 @@ void vm_stmt_menuexec(void)
 bool vm_exec_statement(void)
 {
 #if 0
-	printf("%08x: ", vm.ip.ptr);
-	struct mes_statement *stmt = mes_parse_statement(vm.ip.code + vm.ip.ptr, 2048);
-	mes_statement_print(stmt, port_stdout());
-	mes_statement_free(stmt);
+	if (!game_is_aiwin() || vm.ip.code[vm.ip.ptr] != 0x13) {
+		printf("%08x: ", vm.ip.ptr);
+		struct mes_statement *stmt = mes_parse_statement(vm.ip.code + vm.ip.ptr, 8192);
+		if (!stmt) {
+			WARNING("Failed to parse statement @ %08x", vm.ip.ptr);
+		} else {
+			mes_statement_print(stmt, port_stdout());
+			mes_statement_free(stmt);
+		}
+	}
 #endif
 
 	uint8_t op = vm_peek_byte();
 retry:
 	if (unlikely(!game->stmt_op[op])) {
-		if (!op)
+		if (op == game->vm.end_code)
 			return false;
 		if (op == MES_STMT_BREAKPOINT) {
 			op = dbg_handle_breakpoint((vm.ip.code + vm.ip.ptr - 1) - memory_raw);
@@ -999,4 +1216,63 @@ void vm_exec(void)
 		vm_peek();
 	}
 	vm.scope_counter--;
+}
+
+static char next_mes[33] = {0};
+static bool load_next_mes = false;
+
+void vm_mesjmp_aiw(const char *name)
+{
+	strncpy(next_mes, name, 32);
+	load_next_mes = true;
+}
+
+void vm_stmt_mesjmp_aiw(void)
+{
+	struct param_list params = {0};
+	game->vm.read_params(&params);
+	vm_mesjmp_aiw(vm_string_param(&params, 0));
+}
+
+void vm_stmt_mescall_aiw(void)
+{
+	struct param_list params = {0};
+	game->vm.read_params(&params);
+	vm_string_param(&params, 0);
+
+	// save current VM state
+	struct vm_mes_call *frame = &vm.mes_call_stack[vm.mes_call_stack_ptr++];
+	frame->ip = vm.ip;
+	memcpy(frame->mes_name, mem_mes_name(), 31);
+	frame->mes_name[31] = '\0';
+
+	// load and execute mes file
+	vm.ip.ptr = 0;
+	vm.ip.code = memory.file_data;
+	vm_load_mes(params.params[0].str);
+	game->vm.exec();
+
+	// restore previous VM state
+	frame = &vm.mes_call_stack[--vm.mes_call_stack_ptr];
+	vm.ip.code = frame->ip.code;
+	vm.ip.ptr = frame->ip.ptr;
+	vm_load_mes(frame->mes_name);
+	frame->ip.ptr = 0;
+	frame->ip.code = NULL;
+	frame->mes_name[0] = '\0';
+}
+
+void vm_exec_aiw(void)
+{
+	while (true) {
+		if (!vm_exec_statement())
+			break;
+		if (load_next_mes) {
+			vm_load_mes(next_mes);
+			vm.ip.ptr = 0;
+			load_next_mes = false;
+			next_mes[0] = '\0';
+		}
+		vm_peek();
+	}
 }

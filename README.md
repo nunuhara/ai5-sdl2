@@ -15,6 +15,7 @@ Only the games listed below are supported.
 | 同級生 Windows版                                 | doukyuusei |
 | 下級生                                           | kakyuusei  |
 | 遺作 リニューアル                                | isaku      |
+| 臭作                                             | shuusaku   |
 | 愛姉妹 ～二人の果実～                            | aishimai   |
 
 Additional Features
@@ -42,11 +43,28 @@ The following keybindings can be used in-game.
 | --- | --------------------------------------------------------- |
 | =   | Increase window size to the next highest integer multiple |
 | -   | Decrease window size to the next lowest integer multiple  |
-| s   | Open the save menu (Isaku only)                           |
-| l   | Open the load menu (Isaku only)                           |
 | F10 | Take a screenshot                                         |
 | F11 | Toggle fullscreen mode (borderless)                       |
 | F12 | Open debugger REPL (debug builds only)                    |
+
+Some games have game-specific key bindings.
+
+### Isaku
+
+| Key         | Action               |
+| ----------- | -------------------- |
+| s           | Open the save menu   |
+| l           | Open the load menu   |
+| space       | Open the item window |
+| right click | Open the popup menu  |
+
+### Shuusaku
+
+| Key          | Action                   |
+| ------------ | ------------------------ |
+| space        | Open the schedule window |
+| F1           | Open the status window   |
+| middle click | Open the popup menu      |
 
 Fonts
 -----
@@ -84,16 +102,16 @@ MAPNOWALLSLIDE=1
 
 The available configuration options are as follows:
 
-| INI Name          | Command Line Name      | Description                                   |
-| ----------------- | ---------------------- | --------------------------------------------- |
-| FONT              | `--font`               | Font to use                                   |
-| FONTFACE          | `--font-face`          | Font face to use                              |
-| MSGSKIPDELAY      | `--msg-skip-delay`     | Message skip delay time                       |
-| NOWARPMOUSE       | `--no-warp-mouse`      | Disable automatic mouse movement              |
-| TEXTHOOKCLIPBOARD | `--texthook-clipboard` | Copy text to the system clipboard             |
-| TEXTHOOKSTDOUT    | `--texthook-stdout`    | Copy text to standard output                  |
-| TRANSITIONSPEED   | `--cg-load-frame-time` | Speed of transition effects (lower is faster) |
-| MAPNOWALLSLIDE    | `--map-no-wallslide`   | Disable sliding along walls (Doukyuusei only) |
+| INI Name          | Command Line Name      | Description                                        |
+| ----------------- | ---------------------- | -------------------------------------------------- |
+| FONT              | `--font`               | Font to use                                        |
+| FONTFACE          | `--font-face`          | Font face to use                                   |
+| MSGSKIPDELAY      | `--msg-skip-delay`     | Message skip delay time                            |
+| NOWARPMOUSE       | `--no-warp-mouse`      | Disable automatic mouse movement                   |
+| TEXTHOOKCLIPBOARD | `--texthook-clipboard` | Copy text to the system clipboard                  |
+| TEXTHOOKSTDOUT    | `--texthook-stdout`    | Copy text to standard output                       |
+| TRANSITIONSPEED   | `--cg-load-frame-time` | Speed of transition effects (lower is faster)      |
+| MAPNOWALLSLIDE    | `--map-no-wallslide`   | Disable sliding along walls (Doukyuusei/Kakyuusei) |
 
 Building
 --------

@@ -414,13 +414,15 @@ static void draw_entry(struct menu_window *m, struct menu_entry *e, bool selecte
 	// icon
 	if (e->icon_no >= 0) {
 		SDL_Surface *icon = icon_get(e->icon_no);
-		SDL_Rect r = {
-			BORDER_SIZE + ENTRY_ICON_PAD,
-			e->y + (ENTRY_H - icon->h) / 2,
-			icon->w,
-			icon->h
-		};
-		SDL_CALL(SDL_BlitSurface, icon, NULL, m->surface, &r);
+		if (icon) {
+			SDL_Rect r = {
+				BORDER_SIZE + ENTRY_ICON_PAD,
+				e->y + (ENTRY_H - icon->h) / 2,
+				icon->w,
+				icon->h
+			};
+			SDL_CALL(SDL_BlitSurface, icon, NULL, m->surface, &r);
+		}
 	}
 
 	// text

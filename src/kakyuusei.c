@@ -1081,7 +1081,7 @@ static void kakyuusei_clock_get(struct param_list *params)
 
 static void kakyuusei_init(void)
 {
-	text_shadow = true;
+	text_shadow = TEXT_SHADOW_A;
 }
 
 static void kakyuusei_update(void)
@@ -1115,6 +1115,7 @@ struct game game_kakyuusei = {
 	.after_anim_draw = kakyuusei_after_anim_draw,
 	.unprefixed_zen = vm_stmt_txt_no_log,
 	.unprefixed_han = vm_stmt_str_no_log,
+	.vm = VM_AI5,
 	.expr_op = {
 		DEFAULT_EXPR_OP,
 		[0xe5] = vm_expr_rand_with_imm_range,

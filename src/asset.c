@@ -24,17 +24,7 @@
 #include "asset.h"
 #include "game.h"
 
-static struct {
-	struct archive *bg;
-	struct archive *mes;
-	struct archive *bgm;
-	struct archive *voice;
-	struct archive *voice2;
-	struct archive *voicesub;
-	struct archive *effect;
-	struct archive *data;
-	struct archive *priv;
-} arc = {0};
+static struct archive *arc[NR_ASSET_TYPES] = {0};
 
 char *asset_mes_name = NULL;
 char *asset_cg_name = NULL;
@@ -69,37 +59,36 @@ void asset_init(void)
 	if (!config.data.data_type)
 		data_flags |= ARCHIVE_RAW;
 
-#define ARC_OPEN(t, flags, warn) \
-	if (config.file.t.arc) { \
-		assert(config.file.t.name); \
-		if (!(arc.t = open_arc(config.file.t.name, flags))) \
-			warn("Failed to open archive \"%s\"", config.file.t.name); \
+#define ARC_OPEN(asset_t, conf_t, flags, warn) \
+	if (config.file.conf_t.arc) { \
+		assert(config.file.conf_t.name); \
+		if (!(arc[asset_t] = open_arc(config.file.conf_t.name, flags))) \
+			warn("Failed to open archive \"%s\"", config.file.conf_t.name); \
 	}
-	ARC_OPEN(bg,       typ_flags,  WARNING);
-	ARC_OPEN(mes,      mes_flags,  ERROR);
-	ARC_OPEN(bgm,      typ_flags,  WARNING);
-	ARC_OPEN(voice,    typ_flags,  WARNING);
-	ARC_OPEN(voice2,   typ_flags,  WARNING);
-	ARC_OPEN(voicesub, typ_flags,  WARNING);
-	ARC_OPEN(effect,   typ_flags,  WARNING);
-	ARC_OPEN(data,     data_flags, WARNING);
-	ARC_OPEN(priv,     typ_flags,  WARNING);
+	ARC_OPEN(ASSET_BG,       bg,       typ_flags,  WARNING);
+	ARC_OPEN(ASSET_MES,      mes,      mes_flags,  ERROR);
+	ARC_OPEN(ASSET_BGM,      bgm,      typ_flags,  WARNING);
+	ARC_OPEN(ASSET_VOICE,    voice,    typ_flags,  WARNING);
+	ARC_OPEN(ASSET_VOICE2,   voice2,   typ_flags,  WARNING);
+	ARC_OPEN(ASSET_VOICESUB, voicesub, typ_flags,  WARNING);
+	ARC_OPEN(ASSET_EFFECT,   effect,   typ_flags,  WARNING);
+	ARC_OPEN(ASSET_DATA,     data,     data_flags, WARNING);
+	ARC_OPEN(ASSET_PRIV,     priv,     typ_flags,  WARNING);
+	ARC_OPEN(ASSET_MOVIE,    movie,    typ_flags,  WARNING);
+	ARC_OPEN(ASSET_SYSSE,    sysse,    typ_flags,  WARNING);
 #undef ARC_OPEN
+
 	cg_cache_init();
 }
 
 void asset_fini(void)
 {
-#define ARC_CLOSE(t) if (arc.t) { archive_close(arc.t); arc.t = NULL; }
-	ARC_CLOSE(bg);
-	ARC_CLOSE(mes);
-	ARC_CLOSE(bgm);
-	ARC_CLOSE(voice);
-	ARC_CLOSE(voicesub);
-	ARC_CLOSE(effect);
-	ARC_CLOSE(data);
-	ARC_CLOSE(priv);
-#undef ARC_CLOSE
+	for (unsigned i = 0; i < ARRAY_SIZE(arc); i++) {
+		if (arc[i]) {
+			archive_close(arc[i]);
+			arc[i] = NULL;
+		}
+	}
 }
 
 bool asset_set_voice_archive(const char *name)
@@ -112,9 +101,9 @@ bool asset_set_voice_archive(const char *name)
 		NOTICE("failed to open %s", name);
 		return false;
 	}
-	if (arc.voice)
-		archive_close(arc.voice);
-	arc.voice = ar;
+	if (arc[ASSET_VOICE])
+		archive_close(arc[ASSET_VOICE]);
+	arc[ASSET_VOICE] = ar;
 	config.file.voice.arc = true;
 	string_free(config.file.voice.name);
 	config.file.voice.name = string_new(name);
@@ -163,9 +152,9 @@ struct archive_data *asset_fs_load(const char *_name)
 
 struct archive_data *asset_mes_load(const char *name)
 {
-	if (!arc.mes)
+	if (!arc[ASSET_MES])
 		return asset_fs_load(name);
-	struct archive_data *file = archive_get(arc.mes, name);
+	struct archive_data *file = archive_get(arc[ASSET_MES], name);
 	if (!file)
 		return NULL;
 	free(asset_mes_name);
@@ -194,11 +183,18 @@ static void cg_cache_init(void)
 	}
 }
 
+struct archive_data *asset_load(enum asset_type t, const char *name)
+{
+	if (!arc[t])
+		return asset_fs_load(name);
+	return archive_get(arc[t], name);
+}
+
 struct archive_data *_asset_cg_load(const char *name)
 {
-	if (!arc.bg)
+	if (!arc[ASSET_BG])
 		return asset_fs_load(name);
-	struct archive_data *file = archive_get(arc.bg, name);
+	struct archive_data *file = archive_get(arc[ASSET_BG], name);
 	if (!file)
 		return NULL;
 	free(asset_cg_name);
@@ -278,9 +274,9 @@ struct cg *asset_cg_load(const char *name)
 
 struct archive_data *asset_bgm_load(const char *name)
 {
-	if (!arc.bgm)
+	if (!arc[ASSET_BGM])
 		return asset_fs_load(name);
-	struct archive_data *file = archive_get(arc.bgm, name);
+	struct archive_data *file = archive_get(arc[ASSET_BGM], name);
 	if (!file)
 		return NULL;
 	free(asset_bgm_name);
@@ -292,9 +288,9 @@ struct archive_data *asset_effect_load(const char *name)
 {
 	if (asset_effect_is_bgm)
 		return asset_bgm_load(name);
-	if (!arc.effect)
+	if (!arc[ASSET_EFFECT])
 		return asset_fs_load(name);
-	struct archive_data *file = archive_get(arc.effect, name);
+	struct archive_data *file = archive_get(arc[ASSET_EFFECT], name);
 	if (!file)
 		return NULL;
 	free(asset_effect_name);
@@ -304,12 +300,12 @@ struct archive_data *asset_effect_load(const char *name)
 
 struct archive_data *asset_voice_load(const char *name)
 {
-	if (!arc.voice)
+	if (!arc[ASSET_VOICE])
 		return asset_fs_load(name);
-	struct archive_data *file = archive_get(arc.voice, name);
+	struct archive_data *file = archive_get(arc[ASSET_VOICE], name);
 	if (!file)
-		file = archive_get(arc.voice2, name);
-	if (!file && (!arc.voice2 || !(file = archive_get(arc.voice2, name))))
+		file = archive_get(arc[ASSET_VOICE2], name);
+	if (!file && (!arc[ASSET_VOICE2] || !(file = archive_get(arc[ASSET_VOICE2], name))))
 		return NULL;
 	free(asset_voice_name);
 	asset_voice_name = xstrdup(name);
@@ -318,9 +314,9 @@ struct archive_data *asset_voice_load(const char *name)
 
 struct archive_data *asset_voicesub_load(const char *name)
 {
-	if (!arc.voicesub)
+	if (!arc[ASSET_VOICESUB])
 		return asset_fs_load(name);
-	struct archive_data *file = archive_get(arc.voicesub, name);
+	struct archive_data *file = archive_get(arc[ASSET_VOICESUB], name);
 	if (!file)
 		return NULL;
 	free(asset_voice_name);
@@ -330,9 +326,9 @@ struct archive_data *asset_voicesub_load(const char *name)
 
 struct archive_data *asset_data_load(const char *name)
 {
-	if (!arc.data)
+	if (!arc[ASSET_DATA])
 		return asset_fs_load(name);
-	struct archive_data *file = archive_get(arc.data, name);
+	struct archive_data *file = archive_get(arc[ASSET_DATA], name);
 	if (!file)
 		return NULL;
 	free(asset_data_name);

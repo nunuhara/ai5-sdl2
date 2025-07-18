@@ -459,7 +459,6 @@ static void item_window_toggle(void)
 		builtin_se_play("winopn.wav");
 		item_window.opened = true;
 		item_window_update();
-		gfx_dump_surface(7, "item_window.png");
 	}
 }
 
@@ -1067,7 +1066,7 @@ static void isaku_draw_text(const char *text)
 	if (vm_flag_is_on(FLAG_STRLEN))
 		mem_set_var32(18, mem_get_var32(18) + strlen(text));
 	else
-		vm_draw_text(text);
+		vm_draw_text(text, 1);
 }
 
 static void isaku_init(void)
@@ -1120,6 +1119,7 @@ struct game game_isaku = {
 	.draw_text_han = isaku_draw_text,
 	.init = isaku_init,
 	.update = isaku_update,
+	.vm = VM_AI5,
 	.expr_op = { DEFAULT_EXPR_OP },
 	.stmt_op = { DEFAULT_STMT_OP },
 	.sys = {

@@ -77,13 +77,18 @@ SDL_Surface *gfx_get_surface(unsigned i);
 SDL_Surface *gfx_get_overlay(void);
 void _gfx_update_palette(int start, int n);
 void gfx_update_palette(int start, int n);
+void _gfx_palette_crossfade(SDL_Color *new, unsigned start, unsigned n, unsigned ms);
 bool gfx_fill_clip(SDL_Surface *s, SDL_Rect *r);
 bool gfx_copy_clip(SDL_Surface *src, SDL_Rect *src_r, SDL_Surface *dst, SDL_Point *dst_p);
+void _gfx_indexed_copy_masked(int src_x, int src_y, int w, int h, SDL_Surface *src,
+		int dst_x, int dst_y, SDL_Surface *dst, uint8_t mask_color);
+unsigned _gfx_text_draw_glyph(SDL_Surface *dst, int x, int y, uint32_t ch);
 void ui_draw_text(SDL_Surface *s, int x, int y, const char *text, SDL_Color color);
 int ui_measure_text(const char *text);
 SDL_Surface *icon_get(unsigned no);
 
 void gfx_dump_surface(unsigned i, const char *filename);
+struct cg *gfx_surface_to_cg(SDL_Surface *s);
 
 static inline SDL_Surface *gfx_lock_surface(unsigned i)
 {

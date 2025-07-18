@@ -37,9 +37,9 @@ void classics_get_text_colors(struct param_list *params);
 #define CLASSICS_STMT_OP \
 	[0x01] = vm_stmt_txt_new_log, \
 	[0x02] = vm_stmt_str_new_log, \
-	[0x03] = vm_stmt_set_cflag, \
-	[0x04] = vm_stmt_set_var16, \
-	[0x05] = vm_stmt_set_eflag, \
+	[0x03] = vm_stmt_set_flag_const16, \
+	[0x04] = vm_stmt_set_var16_const8, \
+	[0x05] = vm_stmt_set_flag_expr, \
 	[0x06] = vm_stmt_ptr16_set8, \
 	[0x07] = vm_stmt_ptr16_set16, \
 	[0x08] = vm_stmt_ptr32_set32, \
@@ -56,6 +56,6 @@ void classics_get_text_colors(struct param_list *params);
 	[0x13] = vm_stmt_line, \
 	[0x14] = vm_stmt_defproc, \
 	[0x15] = vm_stmt_menuexec, \
-	[0x16] = vm_stmt_set_var32
+	[0x16] = vm_stmt_set_var32_const8
 
 #endif // AI5_SDL2_CLASSICS_H

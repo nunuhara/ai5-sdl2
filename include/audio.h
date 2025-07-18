@@ -17,6 +17,7 @@
 #ifndef AI5_AUDIO_H
 #define AI5_AUDIO_H
 
+#include <stdbool.h>
 #include <stdint.h>
 
 enum audio_channel {
@@ -73,6 +74,7 @@ bool audio_is_fading(enum audio_channel ch);
 void audio_bgm_play(const char *name, bool check_playing);
 
 void audio_se_play(const char *name, unsigned ch);
+void audio_sysse_play(const char *name, unsigned ch);
 void audio_se_stop(unsigned ch);
 void audio_se_fade(int vol, unsigned t, bool stop, bool sync, unsigned ch);
 

@@ -423,7 +423,8 @@ void gfx_copy_progressive(int src_x, int src_y, int w, int h, unsigned src_i, in
 }
 
 void gfx_pixel_crossfade(int src_x, int src_y, int w, int h, unsigned src_i, int dst_x,
-		int dst_y, unsigned dst_i)
+		int dst_y, unsigned dst_i, unsigned frame_t, bool(*update)(float t, void*),
+		void *data)
 {
 	const SDL_Point offsets[] = {
 		{ 0, 0 }, { 1, 2 }, { 2, 1 }, { 3, 3 },
@@ -461,8 +462,14 @@ void gfx_pixel_crossfade(int src_x, int src_y, int w, int h, unsigned src_i, int
 				memcpy(dst_p, src_p, bytes_pp);
 			}
 		}
-		transition_update(&timer, dst_i, 30);
+		if (update && !update((float)off_i/ARRAY_SIZE(offsets), data)) {
+			gfx_copy(src_x, src_y, w, h, src_i, dst_x, dst_y, dst_i);
+			break;
+		}
+		transition_update(&timer, dst_i, frame_t);
 	}
+	if (update)
+		update(1.f, data);
 }
 
 void gfx_pixel_crossfade_masked_indexed(int src_x, int src_y, int w, int h, unsigned src_i,

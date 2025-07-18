@@ -50,6 +50,8 @@ struct config {
 		struct { bool arc; string name; } effect;
 		struct { bool arc; string name; } data;
 		struct { bool arc; string name; } priv;
+		struct { bool arc; string name; } movie;
+		struct { bool arc; string name; } sysse;
 		string cddrv;
 	} file;
 
@@ -65,7 +67,7 @@ struct config {
 	// [MONITOR]
 	struct { int screen; } monitor;
 
-	// [VOLUME] / [VOLUMEINFO]
+	// [VOLUME] / [VOLUMEINFO] / [ENV]
 	struct {
 		int music;
 		int se;
@@ -73,7 +75,7 @@ struct config {
 		int voice;
 	} volume;
 
-	// [SOUNDINFO]
+	// [SOUNDINFO] / [ENV]
 	struct {
 		bool music;
 		bool effect;
@@ -85,6 +87,11 @@ struct config {
 		int x;
 		int y;
 	} itemwin;
+
+	// [ENV]
+	struct {
+		bool kettei;
+	} shuusaku;
 
 	char *exe_path;
 	char *font_path;
@@ -100,5 +107,7 @@ struct config {
 extern struct config config;
 
 extern bool yuno_eng;
+
+void restart(void);
 
 #endif // AI5_H
