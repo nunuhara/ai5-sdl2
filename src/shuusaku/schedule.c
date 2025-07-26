@@ -396,15 +396,31 @@ static void update_time(void)
 				mem_get_sysvar16(61));
 }
 
+static void schedule_close(void)
+{
+	SDL_HideWindow(schedule.window);
+	audio_sysse_play("se03.wav", 0);
+	schedule.open = false;
+}
+
+bool shuusaku_subwindow_valid(void)
+{
+	unsigned day = mem_get_sysvar16(60);
+	unsigned t = mem_get_sysvar16(61);
+	if (day == 0xffff || t == 0xffff)
+		return false;
+	if (day == DAY_MON && t == 500)
+		return false;
+	return true;
+}
+
 void shuusaku_schedule_window_toggle(void)
 {
 	if (schedule.open) {
-		// close
-		SDL_HideWindow(schedule.window);
-		audio_sysse_play("se03.wav", 0);
-		schedule.open = false;
+		schedule_close();
 	} else {
-		// open
+		if (!shuusaku_subwindow_valid())
+			return;
 		schedule.open = true;
 		update_time();
 		if (schedule.current_t >= 0) {
@@ -421,6 +437,10 @@ void schedule_window_update(void)
 {
 	if (!schedule.open)
 		return;
+	if (!shuusaku_subwindow_valid()) {
+		schedule_close();
+		return;
+	}
 	SDL_CALL(SDL_UpdateTexture, schedule.texture, NULL, schedule.display->pixels,
 			schedule.display->pitch);
 	SDL_CALL(SDL_RenderClear, schedule.renderer);

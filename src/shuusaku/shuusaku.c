@@ -490,7 +490,7 @@ static bool crossfade_tick(float rate, void *data)
 {
 	if (mem_get_sysvar16(19))
 		return true;
-	return !input_down(INPUT_CTRL);
+	return !input_down(INPUT_SHIFT);
 }
 
 void shuusaku_crossfade(uint8_t *pal, bool allow_16_32)
@@ -900,7 +900,7 @@ static bool crossfade_update_palette(float t, void *_data)
 	struct crossfade_data *data = _data;
 
 	// check cancel
-	if (mem_get_sysvar16(19) && input_down(INPUT_CTRL)) {
+	if (mem_get_sysvar16(19) && input_down(INPUT_SHIFT)) {
 		for (int i = 0; i < 236; i++) {
 			if (i > 15 && i < 32)
 				continue;
@@ -1623,8 +1623,7 @@ static void status_window_clicked(void *_)
 
 static void restart_clicked(void *_)
 {
-	if (gfx_confirm_quit())
-		restart();
+	restart();
 }
 
 static void quit_clicked(void *_)

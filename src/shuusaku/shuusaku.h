@@ -108,6 +108,7 @@ void shuusaku_schedule_set_flag(unsigned location, unsigned day, unsigned t, uin
 void shuusaku_schedule_set_plan_time(unsigned day, unsigned t);
 void shuusaku_schedule_clear_plan(void);
 int shuusaku_absolute_time(unsigned day, unsigned t);
+bool shuusaku_subwindow_valid(void);
 
 // status.c
 void shuusaku_status_init(void);

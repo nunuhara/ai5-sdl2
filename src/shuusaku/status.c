@@ -125,15 +125,20 @@ static void status_window_update(void)
 	SDL_RenderPresent(status.renderer);
 }
 
+static void status_close(void)
+{
+	SDL_HideWindow(status.window);
+	audio_sysse_play("se03.wav", 0);
+	status.open = false;
+}
+
 void shuusaku_status_window_toggle(void)
 {
 	if (status.open) {
-		// close
-		SDL_HideWindow(status.window);
-		audio_sysse_play("se03.wav", 0);
-		status.open = false;
+		status_close();
 	} else {
-		// open
+		if (!shuusaku_subwindow_valid())
+			return;
 		status.open = true;
 		status_window_draw();
 		SDL_ShowWindow(status.window);
@@ -143,6 +148,12 @@ void shuusaku_status_window_toggle(void)
 
 void shuusaku_status_update(void)
 {
+	if (!status.open)
+		return;
+	if (!shuusaku_subwindow_valid()) {
+		status_close();
+		return;
+	}
 	status_window_draw();
 	status_window_update();
 }
