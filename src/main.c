@@ -264,15 +264,15 @@ static void set_game(const char *name)
 	case GAME_ISAKU:
 		game = &game_isaku;
 		break;
+	case GAME_SHUUSAKU:
+		game = &game_shuusaku;
+		break;
 #ifdef BUILD_DEBUG
 	case GAME_SHANGRLIA:
 		game = &game_shangrlia;
 		break;
 	case GAME_BEYOND:
 		game = &game_beyond;
-		break;
-	case GAME_SHUUSAKU:
-		game = &game_shuusaku;
 		break;
 #endif
 	case GAME_KAKYUUSEI:
