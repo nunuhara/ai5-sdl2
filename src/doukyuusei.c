@@ -1010,7 +1010,7 @@ static void util_movie_load(struct param_list *params)
 	if (movie.arc == NULL) {
 		// open "STREAM.DAT"
 		char *arc_path = path_get_icase("STREAM.DAT");
-		if (!arc_path || !(movie.arc = archive_open(arc_path, 0))) {
+		if (!arc_path || !(movie.arc = archive_open(arc_path, ARCHIVE_RAW))) {
 			WARNING("Failed to open archive: STREAM.DAT");
 			goto error;
 		}
