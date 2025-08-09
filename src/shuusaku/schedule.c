@@ -621,7 +621,7 @@ static void run_cam_event(struct sched_cam_event *ev)
 		cam_event_wait();
 
 		if (e->zoom_name) {
-			struct cg_metrics metrics;
+			struct cg_metrics metrics = {0};
 			snprintf(name, 16, "%s.gpx", e->zoom_name);
 			_load_image(name, 1, &metrics);
 			shuusaku_cam_event_zoom(metrics.x, metrics.y, metrics.w, metrics.h);
