@@ -1,7 +1,8 @@
-name: Windows Build (MSYS2)
+name: Windows Build
 
 on:
   push:
+    tags: ['*']
 
 jobs:
   build-windows:
