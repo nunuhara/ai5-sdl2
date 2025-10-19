@@ -67,3 +67,9 @@ jobs:
           mkdir build
           meson build
           ninja -C build
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai5-windows-build
+          path: build/ai5.exe
