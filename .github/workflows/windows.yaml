@@ -2,7 +2,7 @@ name: Windows Build
 
 on:
   push:
-    tags: ['*']
+    # tags: ['*']
 
 jobs:
   build-windows:
@@ -72,5 +72,12 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ai5-windows-build
+          name: ai5
           path: build/ai5.exe
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: build/ai5.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
