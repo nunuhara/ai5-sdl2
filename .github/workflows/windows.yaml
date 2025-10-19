@@ -1,0 +1,69 @@
+name: Windows Build (MSYS2)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          update: true
+          install: >-
+            base-devel
+            git
+            nasm
+            diffutils
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-meson
+            mingw-w64-x86_64-pkg-config
+            mingw-w64-x86_64-SDL2
+            mingw-w64-x86_64-SDL2_ttf
+            mingw-w64-x86_64-libpng
+            mingw-w64-x86_64-libsndfile
+
+      - name: Build FFmpeg
+        run: |
+          git clone https://github.com/FFmpeg/FFmpeg.git
+          cd FFmpeg
+          git checkout n7.0.1
+          ./configure --disable-everything \
+            --enable-decoder=cinepak \
+            --enable-decoder=indeo3 \
+            --enable-decoder=pcm_s16le \
+            --enable-demuxer=avi \
+            --enable-demuxer=wav \
+            --enable-protocol=file \
+            --enable-filter=scale \
+            --enable-static \
+            --disable-shared \
+            --extra-libs=-static \
+            --extra-cflags=--static
+          make -j$(nproc)
+          make install
+          cd ..
+          export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"
+
+      - name: Configure and Build Project
+        run: |
+          mkdir build
+          meson build
+          ninja -C build
