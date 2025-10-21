@@ -1,8 +1,6 @@
 name: Windows Build
 
-on:
-  push:
-    tags: ['*']
+on: [push, pull_request]
 
 jobs:
   build-windows:
@@ -17,10 +15,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
-
-      - uses: actions/setup-node@v3
-        with:
-          node-version: 18
 
       - name: Setup MSYS2
         uses: msys2/setup-msys2@v2
@@ -42,9 +36,8 @@ jobs:
 
       - name: Build FFmpeg
         run: |
-          git clone https://github.com/FFmpeg/FFmpeg.git
+          git clone --depth 1 --branch n7.0.1 https://github.com/FFmpeg/FFmpeg.git
           cd FFmpeg
-          git checkout n7.0.1
           ./configure --disable-everything \
             --enable-decoder=cinepak \
             --enable-decoder=indeo3 \
@@ -57,27 +50,36 @@ jobs:
             --disable-shared \
             --disable-doc \
             --extra-libs=-static \
-            --extra-cflags=--static
+            --extra-cflags=--static \
+            --prefix=/mingw64
           make -j$(nproc)
           make install
           cd ..
-          export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"
 
       - name: Configure and Build Project
         run: |
-          mkdir build
-          meson build
-          ninja -C build
+          mkdir debug
+          meson debug -Dbuildtype=debug
+          ninja -C debug
+          mkdir release
+          meson release -Dbuiltype=release
+          ninja -C release
+
+      - name: Copy licenses
+        run: |
+          ls /mingw64/share/licenses
+          mkdir dist
+          cp -r /mingw64/share/licenses dist/
+          cp fonts/*.license dist/licenses/
+
+      - name: Package
+        run: |
+          cp release/ai5.exe LICENSE README.md dist/
+          cp debug/ai5.exe dist/ai5-debug.exe
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: ai5
-          path: build/ai5.exe
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: build/ai5.exe
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          path: dist
+          compression-level: 9
