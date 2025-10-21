@@ -62,7 +62,7 @@ jobs:
           meson debug -Dbuildtype=debug
           ninja -C debug
           mkdir release
-          meson release -Dbuiltype=release
+          meson release -Dbuildtype=release
           ninja -C release
 
       - name: Copy licenses
