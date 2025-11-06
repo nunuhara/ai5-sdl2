@@ -532,7 +532,7 @@ struct mixer_stream *mixer_stream_open(struct archive_data *dfile, enum mix_chan
 	unsigned loop_start = 0;
 	unsigned loop_end = 0;
 	unsigned loop_count = 0;
-	if (dfile->archive->meta.type == ARCHIVE_TYPE_AWD) {
+	if (dfile->archive && dfile->archive->meta.type == ARCHIVE_TYPE_AWD) {
 		// loop info stored in archive
 		if (dfile->meta.loop_start != 0xffffffff) {
 			// XXX: convert to sample offsets (assuming 16-bit mono PCM)
