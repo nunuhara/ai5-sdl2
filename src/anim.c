@@ -339,6 +339,18 @@ static bool anim_stream_draw(struct anim_stream *anim, uint8_t i)
 				call.copy.dst.x + anim->off.x, call.copy.dst.y + anim->off.y,
 				call.copy.dst.i, get_mask_color());
 		break;
+	case ANIM_DRAW_OP_COPY_MASKED2:
+		STREAM_LOG("COPY_MASKED2 %u(%u,%u) + %u(%u,%u) -> %u(%u,%u) @ (%u,%u);",
+				call.compose.bg.i, call.compose.bg.x, call.compose.bg.y,
+				call.compose.fg.i, call.compose.fg.x, call.compose.fg.y,
+				call.compose.dst.i, call.compose.dst.x, call.compose.dst.y,
+				call.compose.dim.w, call.compose.dim.h);
+		gfx_copy_masked(call.compose.fg.x, call.compose.fg.y, call.compose.dim.w,
+				call.compose.dim.h, call.compose.fg.i,
+				call.compose.dst.x + anim->off.x,
+				call.compose.dst.y + anim->off.y,
+				call.compose.dst.i, get_mask_color());
+		break;
 	case ANIM_DRAW_OP_SWAP:
 		STREAM_LOG("SWAP %u(%u,%u) -> %u(%u,%u) @ (%u,%u);", call.copy.src.i,
 				call.copy.src.x, call.copy.src.y, call.copy.dst.i,
@@ -525,6 +537,7 @@ void anim_decompose_draw_call(struct anim_draw_call *call, int *dst_x, int *dst_
 		*h = call->copy.dim.h;
 		break;
 	case ANIM_DRAW_OP_COMPOSE:
+	case ANIM_DRAW_OP_COPY_MASKED2:
 		*dst_x = call->compose.dst.x;
 		*dst_y = call->compose.dst.y;
 		*w = call->compose.dim.w;

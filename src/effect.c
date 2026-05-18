@@ -517,7 +517,7 @@ void gfx_pixel_crossfade_masked_indexed(int src_x, int src_y, int w, int h, unsi
 }
 
 void gfx_pixel_crossfade_masked_indexed_8x8(int src_x, int src_y, int w, int h, unsigned src_i,
-		int dst_x, int dst_y, unsigned dst_i, uint8_t mask_color)
+		int dst_x, int dst_y, unsigned dst_i, uint8_t mask_color, unsigned frame_ms)
 {
 	assert(game->bpp == 8);
 	const SDL_Point offsets[] = {
@@ -565,7 +565,7 @@ void gfx_pixel_crossfade_masked_indexed_8x8(int src_x, int src_y, int w, int h, 
 						*dst_p = *src_p;
 				}
 			}
-			transition_update(&timer, dst_i, 30);
+			transition_update(&timer, dst_i, frame_ms);
 		}
 	}
 }

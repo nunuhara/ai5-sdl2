@@ -36,6 +36,7 @@
  */
 
 #if 0
+#define MAP_LOG_ENABLED
 #define MAP_LOG(...) NOTICE(__VA_ARGS__)
 #else
 #define MAP_LOG(...)
@@ -53,6 +54,8 @@
 
 #define NO_TILE 0xffff
 #define NO_LOCATION 0xffff
+
+enum map_version map_version = MAP_VERSION_OLD;
 
 // static map tile data
 struct map_tile {
@@ -238,7 +241,7 @@ void map_load_tilemap(void)
 	if (map.rows * map.cols > MAP_MAX_TILES)
 		VM_ERROR("too many tiles in mpx: %ux%u", map.cols, map.rows);
 
-	if (game->id == GAME_KAKYUUSEI) {
+	if (map_version == MAP_VERSION_OLD) {
 		uint8_t *mpc = memory.file_data + mpx_off;
 		for (unsigned row = 0; row < map.rows; row++) {
 			for (unsigned col = 0; col < map.cols; col++) {
@@ -430,7 +433,7 @@ void map_draw_tiles(void)
 {
 	for (unsigned row = 0; row < map.screen.th; row++) {
 		for (unsigned col = 0; col < map.screen.tw; col++) {
-			if (game->id == GAME_KAKYUUSEI)
+			if (map_version == MAP_VERSION_OLD)
 				draw_tile_kakyuusei(&map.tiles[row][col], col * 16, row * 16);
 			else
 				draw_tile(&map.tiles[row][col], col * 16, row * 16);
@@ -443,14 +446,15 @@ void map_draw_tiles(void)
 	//      This is not what AI5WIN.EXE does (it doubles the amount of movement that
 	//      occurs per-frame), but the end result is the same, and this method results
 	//      in smoother movement.
-	vm_timer_tick(&map.timer, input_down(INPUT_SHIFT) ? MAP_FRAME_TIME/2 : MAP_FRAME_TIME);
+	if (game->id != GAME_DOUKYUUSEI2)
+		vm_timer_tick(&map.timer, input_down(INPUT_SHIFT) ? MAP_FRAME_TIME/2 : MAP_FRAME_TIME);
 }
 
 // Tiles }}}
 // Sprites {{{
 
-#define FRAME_BITS (game->id == GAME_KAKYUUSEI ? 2 : 4)
-#define FRAME_MASK (game->id == GAME_KAKYUUSEI ? 0x3 : 0xf)
+#define FRAME_BITS (map_version == MAP_VERSION_OLD ? 2 : 4)
+#define FRAME_MASK (map_version == MAP_VERSION_OLD ? 0x3 : 0xf)
 
 static uint8_t *get_ccd(void)
 {
@@ -561,8 +565,8 @@ void map_set_sprite_state(unsigned no, uint8_t state)
 	vector_A(map.sprites, no).state = state;
 }
 
-#define TILES_PER_FRAME (game->id == GAME_KAKYUUSEI ? 4 : 9)
-#define FRAMES_PER_ANIM (game->id == GAME_KAKYUUSEI ? 4 : 12)
+#define TILES_PER_FRAME (map_version == MAP_VERSION_OLD ? 4 : 9)
+#define FRAMES_PER_ANIM (map_version == MAP_VERSION_OLD ? 4 : 12)
 #define ANIMS_PER_SHEET 4
 
 #define BYTES_PER_FRAME (TILES_PER_FRAME * 2)
@@ -719,7 +723,7 @@ static bool sprite_can_move_right(struct ccd_sprite *sp, bool *r)
 
 static void sprite_advance_frame(struct ccd_sprite *sp, enum map_direction dir)
 {
-	if (game->id == GAME_KAKYUUSEI) {
+	if (map_version == MAP_VERSION_OLD) {
 		sp->frame = (sp->frame + 1) & FRAME_MASK;
 	} else {
 		sp->frame = (sp->frame & FRAME_MASK) + 1;
@@ -768,7 +772,7 @@ static uint16_t sprite_move_up(struct ccd_sprite *sp, bool advance, bool slide_o
 
 static void _sprite_move_down(struct ccd_sprite *sp)
 {
-	if (sp->y + sp->h < map.rows - 1) {
+	if (sp->y + sp->h < map.rows) {
 		sp->y++;
 		if (sp->state & MAP_SP_CAMERA) {
 			int max_ty = map.rows - map.screen.th;
@@ -837,7 +841,7 @@ static uint16_t sprite_move_left(struct ccd_sprite *sp, bool advance, bool slide
 
 static void _sprite_move_right(struct ccd_sprite *sp)
 {
-	if (sp->x + sp->w < map.cols - 1) {
+	if (sp->x + sp->w < map.cols) {
 		sp->x++;
 		if (sp->state & MAP_SP_CAMERA) {
 			int max_tx = map.cols - map.screen.tw;
@@ -1115,7 +1119,7 @@ static uint16_t exec_sprite(struct ccd_sprite *sp)
 		sp->script_ptr++;
 		sp->script_cmd = *script >> 4;
 		sp->script_repetitions = *script & 0xf;
-		if (game->id == GAME_KAKYUUSEI)
+		if (map_version == MAP_VERSION_OLD)
 			sp->script_repetitions++;
 	}
 
@@ -1427,7 +1431,7 @@ static bool map_tile_collides(unsigned x, unsigned y)
  */
 static bool sprite_pos_valid(unsigned x, unsigned y)
 {
-	if (game->id == GAME_KAKYUUSEI) {
+	if (map_version == MAP_VERSION_OLD) {
 		return !map_tile_collides(x, y + 1) && !map_tile_collides(x + 1, y + 1);
 	}
 	return !map_tile_collides(x, y + 1) && !map_tile_collides(x, y + 2)
@@ -1498,8 +1502,10 @@ void map_path_sprite(unsigned sp_no, unsigned tx, unsigned ty)
 {
 	MAP_LOG("map_path_sprite(%u,%u,%u)", sp_no, tx, ty);
 	struct ccd_sprite *sp = get_sprite(sp_no);
-	if (!sp)
+	if (!sp) {
+		MAP_LOG("No sprite for pathing");
 		return;
+	}
 
 	if (tx + 2 >= map.cols || ty < 1 || ty + 1 >= map.rows || map.tile_data[ty * map.cols + tx].collides) {
 		WARNING("Invalid pathing target: (%u,%u)", tx, ty);
@@ -1516,8 +1522,10 @@ void map_path_sprite(unsigned sp_no, unsigned tx, unsigned ty)
 
 	struct map_pos start = { sp->x, sp->y };
 	map.path.goal = (struct map_pos) { tx, ty };
-	if (map_pos_equal(start, map.path.goal))
+	if (map_pos_equal(start, map.path.goal)) {
+		MAP_LOG("Already at pathing goal");
 		return;
+	}
 
 	// initialize path data
 	memset(map.path.tiles, 0xff, sizeof(map.path.tiles));
@@ -1568,7 +1576,7 @@ void map_path_sprite(unsigned sp_no, unsigned tx, unsigned ty)
 	} while (!map_pos_equal(cur, start));
 	map.path.path_ptr = vector_length(map.path.path);
 
-#if MAP_LOG
+#ifdef MAP_LOG_ENABLED
 	NOTICE("--- PATH ---");
 	struct map_pos *p;
 	vector_foreach_p(p, map.path.path) {
@@ -1599,6 +1607,11 @@ void map_stop_pathing(void)
 		if (map.location_mode != MAP_LOCATION_DISABLED)
 			map.get_location_enabled = true;
 	}
+}
+
+bool map_is_pathing(void)
+{
+	return map.path.active;
 }
 
 void map_get_pathing(void)

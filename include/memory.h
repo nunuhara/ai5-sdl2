@@ -52,6 +52,7 @@ struct memory {
 	uint8_t mem16[MEMORY_MEM16_MAX_SIZE];
 	uint8_t file_data[MEMORY_FILE_DATA_SIZE];
 	uint8_t palette[0x400];
+	uint8_t saved_palette[0x400];
 	uint32_t menu_entry_addresses[MEMORY_MENU_ENTRY_MAX];
 	uint32_t menu_entry_numbers[MEMORY_MENU_ENTRY_MAX];
 	uint8_t backlog[MEMORY_BACKLOG_DATA_SIZE * MEMORY_BACKLOG_NR_ENTRIES];

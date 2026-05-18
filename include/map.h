@@ -17,6 +17,16 @@
 #ifndef AI5_SDL2_MAP_H
 #define AI5_SDL2_MAP_H
 
+#include <stdint.h>
+#include <stdbool.h>
+
+enum map_version {
+	// Kakyuusei, Doukyuusei 2
+	MAP_VERSION_OLD,
+	// Doukyuusei
+	MAP_VERSION_NEW
+};
+
 enum map_location_mode {
 	// Map.get_location is disabled
 	MAP_LOCATION_DISABLED = 0,
@@ -52,6 +62,8 @@ enum map_diagonal {
 	MAP_DOWN_RIGHT = 7,
 };
 
+extern enum map_version map_version;
+
 void map_load_bitmap(const char *name, unsigned col, unsigned row, unsigned which);
 void map_load_palette(const char *name, unsigned which);
 void map_load_tilemap(void);
@@ -69,6 +81,7 @@ void map_exec_sprites_and_redraw(void);
 void map_move_sprite(unsigned sp_no, enum map_direction dir);
 void map_path_sprite(unsigned sp_no, unsigned tx, unsigned ty);
 void map_stop_pathing(void);
+bool map_is_pathing(void);
 void map_get_pathing(void);
 void map_skip_pathing(unsigned sp_no);
 void map_set_location_mode(enum map_location_mode mode);

@@ -160,7 +160,8 @@ end:
 void vm_load_mes(char *name)
 {
 	char *mem_name = mem_mes_name();
-	strcpy(mem_name, name);
+	if (name != mem_name)
+		strcpy(mem_name, name);
 	for (int i = 0; mem_name[i]; i++) {
 		mem_name[i] = toupper(mem_name[i]);
 	}
@@ -667,6 +668,22 @@ void vm_stmt_str_new_log(void)
 }
 
 /*
+ * Hankaku text with older logging logic (Doukyuusei 2)
+ */
+void vm_stmt_str_old_log(void)
+{
+	if (vm_flag_is_on(FLAG_LOG_TEXT))
+		vm_flag_on(FLAG_LOG);
+	if (vm_flag_is_on(FLAG_LOG_ENABLE) && vm_flag_is_on(FLAG_LOG))
+		backlog_push_byte(mes_code_tables.stmt_op_to_int[MES_STMT_HANKAKU]);
+
+	vm_stmt_str_no_log();
+
+	if (vm_flag_is_on(FLAG_LOG))
+		vm_flag_off(FLAG_LOG);
+}
+
+/*
  * Unprefixed zenkaku text with newer logging logic.
  */
 void vm_unprefixed_txt_new_log(void)
@@ -1132,6 +1149,18 @@ void vm_stmt_line(void)
 	mem_set_sysvar16(mes_sysvar16_text_cursor_y, cur_y + line_space);
 }
 
+void vm_stmt_line_old_log(void)
+{
+	if (vm_flag_is_on(FLAG_LOG_TEXT)) {
+		vm_flag_on(FLAG_LOG);
+		if (vm_flag_is_on(FLAG_LOG_ENABLE))
+			backlog_push_byte(mes_code_tables.stmt_op_to_int[MES_STMT_CALL_PROC]);
+	}
+	vm_stmt_line();
+	if (vm_flag_is_on(FLAG_LOG))
+		vm_flag_off(FLAG_LOG);
+}
+
 void vm_stmt_defproc(void)
 {
 	uint32_t i = game->vm.eval();
@@ -1152,12 +1181,16 @@ bool vm_exec_statement(void)
 #if 0
 	if (!game_is_aiwin() || vm.ip.code[vm.ip.ptr] != 0x13) {
 		printf("%08x: ", vm.ip.ptr);
-		struct mes_statement *stmt = mes_parse_statement(vm.ip.code + vm.ip.ptr, 8192);
-		if (!stmt) {
-			WARNING("Failed to parse statement @ %08x", vm.ip.ptr);
+		if (vm.ip.code[vm.ip.ptr] < 0x80) {
+			struct mes_statement *stmt = mes_parse_statement(vm.ip.code + vm.ip.ptr, 8192);
+			if (!stmt) {
+				WARNING("Failed to parse statement @ %08x", vm.ip.ptr);
+			} else {
+				mes_statement_print(stmt, port_stdout());
+				mes_statement_free(stmt);
+			}
 		} else {
-			mes_statement_print(stmt, port_stdout());
-			mes_statement_free(stmt);
+			printf("[unprefixed text]\n");
 		}
 	}
 #endif

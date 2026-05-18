@@ -291,6 +291,9 @@ static void set_game(const char *name)
 	case GAME_DOUKYUUSEI:
 		game = &game_doukyuusei;
 		break;
+	case GAME_DOUKYUUSEI2:
+		game = &game_doukyuusei2;
+		break;
 	case GAME_YUNO:
 		game = &game_yuno;
 		break;
@@ -318,6 +321,8 @@ static bool set_game_from_config(void)
 		name = "aishimai";
 	} else if (!strcmp(config.title, "DOUKYUSEI")) {
 		name = "doukyuusei";
+	} else if (!strcmp(config.title, "同級生２")) {
+		name = "doukyuusei2";
 	} else if (!strcmp(config.title, "Be-Yond")) {
 		name = "beyond";
 	} else if (!strcmp(config.title, "下級生")) {

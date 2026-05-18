@@ -29,6 +29,7 @@
 #include "debug.h"
 #include "game.h"
 #include "gfx.h"
+#include "gfx_private.h"
 #include "input.h"
 #include "menu.h"
 #include "savedata.h"
@@ -175,6 +176,7 @@ void sys_load_file(struct param_list *params)
 
 void _sys_load_image(const char *name, unsigned i, unsigned x_mult)
 {
+	GFX_LOG("load_image(\"%s\", %d)", name, i);
 	struct archive_data *data = _asset_cg_load(name);
 	if (!data) {
 		WARNING("Failed to load CG \"%s\"", name);
@@ -206,6 +208,7 @@ void _sys_load_image(const char *name, unsigned i, unsigned x_mult)
 
 	// load palette
 	if (cg->palette && vm_flag_is_on(FLAG_LOAD_PALETTE)) {
+		GFX_LOG("(loading palette from image)");
 		memcpy(memory.palette, cg->palette, 256 * 4);
 	}
 	cg_free(cg);
@@ -407,6 +410,15 @@ void sys_set_text_colors_indexed(struct param_list *params)
 {
 	uint32_t colors = vm_expr_param(params, 0);
 	gfx_text_set_colors((colors >> 4) & 0xf, colors & 0xf);
+}
+
+void sys_set_text_colors_indexed_with_sysvar(struct param_list *params)
+{
+	uint8_t param = vm_expr_param(params, 0);
+	uint8_t bg = (param & 0xf0) >> 4;
+	uint8_t fg = param & 0x0f;
+	mem_set_sysvar16(mes_sysvar16_bg_color, ((uint16_t)bg << 8) | fg);
+	gfx_text_set_colors(bg, fg);
 }
 
 void sys_set_text_colors_direct(struct param_list *params)

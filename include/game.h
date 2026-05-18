@@ -136,6 +136,7 @@ struct game {
 extern struct game game_ai_shimai;
 extern struct game game_beyond;
 extern struct game game_doukyuusei;
+extern struct game game_doukyuusei2;
 extern struct game game_isaku;
 extern struct game game_kakyuusei;
 extern struct game game_shangrlia;

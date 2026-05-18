@@ -27,6 +27,8 @@ enum asset_type {
 	ASSET_BGM,
 	ASSET_VOICE,
 	ASSET_VOICE2,
+	ASSET_VOICE3,
+	ASSET_VOICE4,
 	ASSET_VOICESUB,
 	ASSET_EFFECT,
 	ASSET_DATA,
@@ -40,6 +42,9 @@ void asset_init(void);
 void asset_fini(void);
 
 bool asset_set_voice_archive(const char *name);
+bool asset_set_voice2_archive(const char *name);
+bool asset_set_voice3_archive(const char *name);
+bool asset_set_voice4_archive(const char *name);
 
 struct archive_data *asset_load(enum asset_type t, const char *name);
 struct archive_data *asset_mes_load(const char *name);

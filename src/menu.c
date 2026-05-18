@@ -96,8 +96,11 @@ void menu_exec(void)
 		vm_call_procedure(39);
 		if (input_down(INPUT_ACTIVATE)) {
 			vm_call_procedure(32);
-			input_wait_until_up(INPUT_ACTIVATE);
+			if (game->id != GAME_DOUKYUUSEI2 || mem_get_var4(2035) == 0)
+				input_wait_until_up(INPUT_ACTIVATE);
 		} else if (input_down(INPUT_CANCEL)) {
+			if (game->id == GAME_DOUKYUUSEI2)
+				input_wait_until_up(INPUT_CANCEL);
 			vm_call_procedure(33);
 			input_wait_until_up(INPUT_CANCEL);
 		} else if (input_down(INPUT_UP)) {

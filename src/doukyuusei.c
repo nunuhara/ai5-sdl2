@@ -1350,6 +1350,7 @@ static void util_end_wait(struct param_list *params)
 
 static void doukyuusei_init(void)
 {
+	map_version = MAP_VERSION_NEW;
 	audio_set_volume(AUDIO_CH_BGM, -1500);
 	audio_set_volume(AUDIO_CH_SE0, -1500);
 	audio_set_volume(AUDIO_CH_VOICE0, -500);

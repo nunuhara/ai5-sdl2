@@ -42,6 +42,7 @@ void gfx_set_screen_surface(unsigned i);
 
 // dialogs
 void gfx_error_message(const char *message);
+void gfx_warning_message(const char *message);
 bool gfx_confirm_quit(void);
 
 // window operations
@@ -109,7 +110,7 @@ void gfx_pixel_crossfade_masked(int src_x, int src_y, int w, int h, unsigned src
 void gfx_pixel_crossfade_masked_indexed(int src_x, int src_y, int w, int h, unsigned src_i,
 		int dst_x, int dst_y, unsigned dst_i, uint8_t mask_color);
 void gfx_pixel_crossfade_masked_indexed_8x8(int src_x, int src_y, int w, int h, unsigned src_i,
-		int dst_x, int dst_y, unsigned dst_i, uint8_t mask_color);
+		int dst_x, int dst_y, unsigned dst_i, uint8_t mask_color, unsigned frame_ms);
 void gfx_scale_h(unsigned i, int mag);
 void gfx_zoom(int src_x, int src_y, int w, int h, unsigned src_i, unsigned dst_i,
 		unsigned ms);

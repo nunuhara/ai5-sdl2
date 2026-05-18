@@ -27,6 +27,11 @@
 
 typedef char* string;
 
+struct config_arcfile {
+	bool arc;
+	string name;
+};
+
 struct config {
 	// [CONFIG]
 	string title;
@@ -41,17 +46,19 @@ struct config {
 
 	// [FILE]
 	struct {
-		struct { bool arc; string name; } bg;
-		struct { bool arc; string name; } mes;
-		struct { bool arc; string name; } bgm;
-		struct { bool arc; string name; } voice;
-		struct { bool arc; string name; } voice2;
-		struct { bool arc; string name; } voicesub;
-		struct { bool arc; string name; } effect;
-		struct { bool arc; string name; } data;
-		struct { bool arc; string name; } priv;
-		struct { bool arc; string name; } movie;
-		struct { bool arc; string name; } sysse;
+		struct config_arcfile bg;
+		struct config_arcfile mes;
+		struct config_arcfile bgm;
+		struct config_arcfile voice;
+		struct config_arcfile voice2;
+		struct config_arcfile voice3;
+		struct config_arcfile voice4;
+		struct config_arcfile voicesub;
+		struct config_arcfile effect;
+		struct config_arcfile data;
+		struct config_arcfile priv;
+		struct config_arcfile movie;
+		struct config_arcfile sysse;
 		string cddrv;
 	} file;
 

@@ -51,6 +51,7 @@ void sys_graphics_invert_colors(struct param_list *params);
 void sys_graphics_copy_progressive(struct param_list *params);
 void sys_wait(struct param_list *params);
 void sys_set_text_colors_indexed(struct param_list *params);
+void sys_set_text_colors_indexed_with_sysvar(struct param_list *params);
 void sys_set_text_colors_direct(struct param_list *params);
 void sys_farcall(struct param_list *params);
 void _sys_get_cursor_segment(unsigned x, unsigned y, uint32_t off);

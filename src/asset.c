@@ -91,23 +91,45 @@ void asset_fini(void)
 	}
 }
 
-bool asset_set_voice_archive(const char *name)
+static bool set_archive(const char *name, unsigned flags, enum asset_type t,
+		struct config_arcfile *cfg)
 {
-	if (config.file.voice.arc && !strcasecmp(config.file.voice.name, name))
+	if (cfg->arc && !strcasecmp(cfg->name, name))
 		return true;
 
-	struct archive *ar = open_arc(name, ARCHIVE_RAW);
+	struct archive *ar = open_arc(name, flags);
 	if (!ar) {
 		NOTICE("failed to open %s", name);
 		return false;
 	}
-	if (arc[ASSET_VOICE])
-		archive_close(arc[ASSET_VOICE]);
-	arc[ASSET_VOICE] = ar;
-	config.file.voice.arc = true;
-	string_free(config.file.voice.name);
-	config.file.voice.name = string_new(name);
+	if (arc[t])
+		archive_close(arc[t]);
+	arc[t] = ar;
+	cfg->arc = true;
+	if (cfg->name)
+		string_free(cfg->name);
+	cfg->name = string_new(name);
 	return true;
+}
+
+bool asset_set_voice_archive(const char *name)
+{
+	return set_archive(name, ARCHIVE_RAW, ASSET_VOICE, &config.file.voice);
+}
+
+bool asset_set_voice2_archive(const char *name)
+{
+	return set_archive(name, ARCHIVE_RAW, ASSET_VOICE2, &config.file.voice2);
+}
+
+bool asset_set_voice3_archive(const char *name)
+{
+	return set_archive(name, ARCHIVE_RAW, ASSET_VOICE3, &config.file.voice3);
+}
+
+bool asset_set_voice4_archive(const char *name)
+{
+	return set_archive(name, ARCHIVE_RAW, ASSET_VOICE4, &config.file.voice4);
 }
 
 struct archive_data *asset_fs_load(const char *_name)
@@ -300,13 +322,17 @@ struct archive_data *asset_effect_load(const char *name)
 
 struct archive_data *asset_voice_load(const char *name)
 {
-	if (!arc[ASSET_VOICE])
-		return asset_fs_load(name);
-	struct archive_data *file = archive_get(arc[ASSET_VOICE], name);
-	if (!file)
-		file = archive_get(arc[ASSET_VOICE2], name);
-	if (!file && (!arc[ASSET_VOICE2] || !(file = archive_get(arc[ASSET_VOICE2], name))))
-		return NULL;
+	struct archive_data *file;
+	if (arc[ASSET_VOICE] && (file = archive_get(arc[ASSET_VOICE], name)))
+		goto found;
+	if (arc[ASSET_VOICE2] && (file = archive_get(arc[ASSET_VOICE2], name)))
+		goto found;
+	if (arc[ASSET_VOICE3] && (file = archive_get(arc[ASSET_VOICE3], name)))
+		goto found;
+	if (arc[ASSET_VOICE4] && (file = archive_get(arc[ASSET_VOICE4], name)))
+		goto found;
+	return asset_fs_load(name);
+found:
 	free(asset_voice_name);
 	asset_voice_name = xstrdup(name);
 	return file;

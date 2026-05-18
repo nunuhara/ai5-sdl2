@@ -127,6 +127,7 @@ void vm_stmt_txt_new_log(void);
 void vm_stmt_txt_old_log(void);
 void vm_stmt_str_no_log(void);
 void vm_stmt_str_new_log(void);
+void vm_stmt_str_old_log(void);
 void vm_unprefixed_txt_new_log(void);
 void vm_unprefixed_str_new_log(void);
 
@@ -167,6 +168,7 @@ void vm_stmt_call(void);
 void vm_stmt_call_old_log(void);
 void vm_stmt_util(void);
 void vm_stmt_line(void);
+void vm_stmt_line_old_log(void);
 
 #define DEFAULT_EXPR_OP \
 	[0x80] = vm_expr_var16, \

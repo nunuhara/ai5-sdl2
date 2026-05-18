@@ -45,6 +45,11 @@ void gfx_error_message(const char *message)
 	SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_ERROR, "Fatal Error - AI5-SDL2", message, gfx.window);
 }
 
+void gfx_warning_message(const char *message)
+{
+	SDL_ShowSimpleMessageBox(SDL_MESSAGEBOX_WARNING, "Warning - AI5-SDL2", message, gfx.window);
+}
+
 bool gfx_confirm_quit(void)
 {
 	static const SDL_MessageBoxButtonData buttons[] = {
@@ -608,9 +613,21 @@ void gfx_dump_surface(unsigned i, const char *filename)
 	cg->ref = 1;
 
 	cg->palette = xcalloc(4, 256);
+#if 1
 	for (int i = 0; i < 256; i++) {
 		pal_set_color(cg->palette, i, gfx.palette[i].r, gfx.palette[i].g, gfx.palette[i].b);
 	}
+#else
+	for (int i = 0; i < 16; i++) {
+		pal_set_color(cg->palette, i, i*16, i*16, i*16);
+	}
+	for (int i = 16; i < 128; i++) {
+		pal_set_color(cg->palette, i, 0, i * 2, 0);
+	}
+	for (int i = 128; i < 256; i++) {
+		pal_set_color(cg->palette, i, 0, 0, (i - 128) * 2);
+	}
+#endif
 
 	cg->pixels = xcalloc(cg->metrics.w, cg->metrics.h);
 	for (int row = 0; row < cg->metrics.h; row++) {

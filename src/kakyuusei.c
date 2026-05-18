@@ -341,7 +341,7 @@ static void kakyuusei_pixel_crossfade(struct param_list *params, bool slow)
 	unsigned dst_i = vm_expr_param(params, 8);
 	if (slow)
 		gfx_pixel_crossfade_masked_indexed_8x8(src_x, src_y, src_w, src_h, src_i,
-				dst_x, dst_y, dst_i, 0);
+				dst_x, dst_y, dst_i, 0, 30);
 	else
 		gfx_pixel_crossfade_masked_indexed(src_x, src_y, src_w, src_h, src_i, dst_x,
 				dst_y, dst_i, 0);
@@ -366,15 +366,6 @@ static void kakyuusei_wait(struct param_list *params)
 		params->params[0].val = 1;
 	}
 	sys_wait(params);
-}
-
-static void kakyuusei_set_text_colors(struct param_list *params)
-{
-	uint8_t param = vm_expr_param(params, 0);
-	uint8_t bg = (param & 0xf0) >> 4;
-	uint8_t fg = param & 0x0f;
-	mem_set_sysvar16(mes_sysvar16_bg_color, ((uint16_t)bg << 8) | fg);
-	gfx_text_set_colors(bg, fg);
 }
 
 static void draw_datetime(void)
@@ -1081,6 +1072,7 @@ static void kakyuusei_clock_get(struct param_list *params)
 
 static void kakyuusei_init(void)
 {
+	map_version = MAP_VERSION_OLD;
 	text_shadow = TEXT_SHADOW_A;
 }
 
@@ -1141,7 +1133,7 @@ struct game game_kakyuusei = {
 		[9] = &kakyuusei_palette,
 		[10] = &kakyuusei_graphics,
 		[11] = &kakyuusei_wait,
-		[12] = &kakyuusei_set_text_colors,
+		[12] = &sys_set_text_colors_indexed_with_sysvar,
 		[13] = &sys_farcall,
 		[14] = &sys_get_cursor_segment,
 		[15] = &sys_menu_get_no,
