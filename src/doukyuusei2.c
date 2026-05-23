@@ -415,12 +415,18 @@ static void nanpa2_map_draw_tiles(void)
 	nanpa2_map_draw_waku();
 }
 
+static void nanpa2_map_draw_tiles2(void)
+{
+	gfx_copy(0, 0, 640, 80, 4, 0, 8, 0);
+	nanpa2_map_draw_tiles();
+}
+
 static void nanpa2_map_exec_sprites_and_redraw(void)
 {
 	map_exec_sprites();
 	map_load_tiles();
 	map_place_sprites();
-	nanpa2_map_draw_tiles();
+	nanpa2_map_draw_tiles2();
 	if (mem_get_var16(18) == 0xfffe) {
 		// XXX: bug (misfeature?) in game: single click can open and close map
 		//      if held too long
@@ -447,8 +453,8 @@ static void nanpa2_map(struct param_list *params)
 	case 7: map_set_sprite_state(vm_expr_param(params, 1), vm_expr_param(params, 2)); break;
 	case 8: nanpa2_map_exec_sprites_and_redraw(); break;
 	case 9: map_exec_sprites(); break;
-	case 10: map_draw_tiles(); break;
-	case 11: map_draw_tiles(); break;
+	case 10: nanpa2_map_draw_tiles(); break;
+	case 11: nanpa2_map_draw_tiles2(); break;
 	case 12: map_set_location_mode(vm_expr_param(params, 1)); break;
 	case 13: map_get_location(); break;
 	case 14: map_move_sprite(vm_expr_param(params, 1), vm_expr_param(params, 2)); break;
