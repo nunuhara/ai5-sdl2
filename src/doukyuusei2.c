@@ -171,6 +171,51 @@ static void nanpa2_voice(struct param_list *params)
 	}
 }
 
+static bool nanpa2_fixed_crossfade_tick(SDL_Color new_pal[236])
+{
+	bool changed = false;
+	for (int i = 0; i < 236; i++) {
+		SDL_Color *cur_c = &gfx.palette[i];
+		SDL_Color *new_c = &new_pal[i];
+		if (cur_c->r < new_c->r) {
+			cur_c->r++;
+			changed = true;
+		}
+		else if (cur_c->r > new_c->r) {
+			cur_c->r--;
+			changed = true;
+		}
+		if (cur_c->g < new_c->g) {
+			cur_c->g++;
+			changed = true;
+		}
+		else if (cur_c->g > new_c->g) {
+			cur_c->g--;
+			changed = true;
+		}
+		if (cur_c->b < new_c->b) {
+			cur_c->b++;
+			changed = true;
+		}
+		else if (cur_c->b > new_c->b) {
+			cur_c->b--;
+			changed = true;
+		}
+	}
+	if (changed)
+		gfx_update_palette(0, 236);
+	return changed;
+}
+
+static void mem_to_sdl_palette(SDL_Color new_pal[236])
+{
+	for (int i = 0; i < 236; i++) {
+		new_pal[i].b = memory.palette[i*4];
+		new_pal[i].g = memory.palette[i*4+1];
+		new_pal[i].r = memory.palette[i*4+2];
+	}
+}
+
 /*
  * This is a crossfade in which each color moves at a fixed velocity towards the target
  * color (so some colors will reach their target before others).
@@ -178,50 +223,20 @@ static void nanpa2_voice(struct param_list *params)
 static void nanpa2_fixed_crossfade(void)
 {
 	SDL_Color new_pal[236];
-	for (int i = 0; i < 236; i++) {
-		new_pal[i].b = memory.palette[i*4];
-		new_pal[i].g = memory.palette[i*4+1];
-		new_pal[i].r = memory.palette[i*4+2];
-	}
+	mem_to_sdl_palette(new_pal);
 
 	vm_timer_t timer = vm_timer_create();
 	for (int i = 0; i < 256; i++) {
-		bool changed = false;
-		for (int i = 0; i < 236; i++) {
-			SDL_Color *cur_c = &gfx.palette[i];
-			SDL_Color *new_c = &new_pal[i];
-			if (cur_c->r < new_c->r) {
-				cur_c->r++;
-				changed = true;
-			}
-			else if (cur_c->r > new_c->r) {
-				cur_c->r--;
-				changed = true;
-			}
-			if (cur_c->g < new_c->g) {
-				cur_c->g++;
-				changed = true;
-			}
-			else if (cur_c->g > new_c->g) {
-				cur_c->g--;
-				changed = true;
-			}
-			if (cur_c->b < new_c->b) {
-				cur_c->b++;
-				changed = true;
-			}
-			else if (cur_c->b > new_c->b) {
-				cur_c->b--;
-				changed = true;
-			}
-		}
-		if (!changed)
+		if (!nanpa2_fixed_crossfade_tick(new_pal))
 			break;
-		gfx_update_palette(0, 236);
 		vm_peek();
 		vm_timer_tick(&timer, 20);
 	}
 }
+
+static bool async_crossfade_active = false;
+static SDL_Color async_crossfade_palette[236];
+static vm_timer_t async_crossfade_t;
 
 static void nanpa2_palette(struct param_list *params)
 {
@@ -255,10 +270,14 @@ static void nanpa2_palette(struct param_list *params)
 		gfx_update_palette(start, n);
 		break;
 	}
-	// TODO: 6 is asynchronous crossfade - need different approach.
-	//       Util 102/114 change whether this is a normal or 'fixed'-style crossfade.
-	//       In practice I think it's always a 'fixed'-style crossfade
-	//       Range of crossfade is always 16-236
+	case 6:
+		// Util 102/114 change whether this is a normal or 'fixed'-style crossfade.
+		// In practice I think it's always a 'fixed'-style crossfade
+		// Range of crossfade is always 16-236
+		mem_to_sdl_palette(async_crossfade_palette);
+		async_crossfade_t = vm_timer_create();
+		async_crossfade_active = true;
+		break;
 	case 7:
 		if (params->nr_params > 2) {
 			memset(memory.palette, (uint8_t)vm_expr_param(params, 2), 236 * 4);
@@ -519,6 +538,21 @@ static void nanpa2_restore_memory(struct param_list *params)
 	memory_raw[VAR4_OFF + 2030] = saved_memory[VAR4_OFF + 2030];
 }
 
+static void nanpa2_yuki_start(struct param_list *params)
+{
+	// TODO
+}
+
+static void nanpa2_yuki_end(struct param_list *params)
+{
+	// TODO
+}
+
+static void nanpa2_yuki_resume(struct param_list *params)
+{
+	// TODO
+}
+
 static void nanpa2_save_palette(struct param_list *params)
 {
 	int start = vm_expr_param(params, 1);
@@ -593,6 +627,11 @@ static void nanpa2_util_106(struct param_list *params)
 	memcpy(memory.palette + n*4, memory.saved_palette + n*4, (256 - n) * 4);
 }
 
+static void nanpa2_sp_load(struct param_list *params)
+{
+	savedata_read("flag06", memory_raw, 0xf5c, 14);
+}
+
 static void nanpa2_cancel_is_down(struct param_list *params)
 {
 	mem_set_var16(18, input_down(INPUT_CANCEL));
@@ -620,10 +659,45 @@ static void nanpa2_util_111(struct param_list *params)
 	// TODO: add number to backlog
 }
 
+static void nanpa2_load_end_sepia_palette(struct param_list *params)
+{
+	unsigned n = vm_expr_param(params, 1) * 4 + vm_expr_param(params, 2);
+	if (n >= 64) {
+		WARNING("Invalid palette number");
+		return;
+	}
+	memcpy(memory.palette + 16 * 4, nanpa2_end_sepia_palette[n], 220 * 4);
+}
+
+static void nanpa2_load_end_color_palette(struct param_list *params)
+{
+	unsigned n = vm_expr_param(params, 1) * 4 + vm_expr_param(params, 2);
+	if (n >= 64) {
+		WARNING("Invalid palette number");
+		return;
+	}
+	memcpy(memory.palette + 16 * 4, nanpa2_end_color_palette[n], 220 * 4);
+}
+
+static void nanpa2_init_end_crossfade(struct param_list *params)
+{
+	memcpy(memory.palette, nanpa2_end_low_palette, 16 * 4);
+}
+
 static void nanpa2_clear_high_palette(struct param_list *params)
 {
 	PALETTE_LOG("nanpa2_clear_high_palette()");
 	memset(memory.palette + 16 * 4, 0, 220 * 4);
+}
+
+static void nanpa2_wait(struct param_list *params)
+{
+	int n = vm_expr_param(params, 1);
+	vm_timer_t t = vm_timer_create();
+	for (int i = 0; i < n; i++) {
+		vm_peek();
+		vm_timer_tick(&t, 15);
+	}
 }
 
 static bool palette_equal(uint8_t *a, uint8_t *b, int start, int end)
@@ -633,6 +707,23 @@ static bool palette_equal(uint8_t *a, uint8_t *b, int start, int end)
 			return false;
 	}
 	return true;
+}
+
+static void nanpa2_hana_crossfade(struct param_list *params)
+{
+	memcpy(memory.palette, nanpa2_hana_palette, 256 * 4);
+	nanpa2_fixed_crossfade();
+	gfx_palette_copy(memory.palette, 0, 256);
+}
+
+static void nanpa2_hana_start(struct param_list *params)
+{
+	// TODO
+}
+
+static void nanpa2_hana_end(struct param_list *params)
+{
+	// TODO
 }
 
 static void nanpa2_util_120(struct param_list *params)
@@ -726,6 +817,17 @@ static void nanpa2_init(void)
 	anim_load_palette = nanpa2_anim_load_palette;
 }
 
+static void nanpa2_update(void)
+{
+	if (async_crossfade_active && vm_timer_tick_async(&async_crossfade_t, 15)) {
+		if (!nanpa2_fixed_crossfade_tick(async_crossfade_palette)) {
+			async_crossfade_active = false;
+		}
+	}
+	// TODO: hana
+	// TODO: snow
+}
+
 struct game game_doukyuusei2 = {
 	.id = GAME_DOUKYUUSEI2,
 	.surface_sizes = {
@@ -742,7 +844,7 @@ struct game game_doukyuusei2 = {
 	.mem_init = nanpa2_mem_init,
 	.mem_restore = nanpa2_mem_restore,
 	.init = nanpa2_init,
-	.update = NULL,
+	.update = nanpa2_update,
 	.after_anim_draw = NULL,
 	.unprefixed_zen = vm_stmt_txt_no_log,
 	// FIXME?: unprefixed hankaku is ignored
@@ -789,8 +891,8 @@ DEFAULT_STMT_OP,
 	.util = {
 		[90] = nanpa2_save_memory,
 		[91] = nanpa2_restore_memory,
-		[92] = NULL, // SAKURA2, SAKURA6, SAKURA_S, GIRL [*]
-		[93] = NULL, // SAKURA3, SAKURA6, SAKURA_S, GIRL [same as 124]
+		[92] = nanpa2_yuki_start,
+		[93] = nanpa2_yuki_end,
 		[94] = nanpa2_save_palette,
 		[95] = nanpa2_restore_palette,
 		[96] = nanpa2_load_low_palette,
@@ -799,30 +901,30 @@ DEFAULT_STMT_OP,
 		[99] = nanpa2_activate_is_down,
 		[100] = nanpa2_wait_for_activate_cancel_up,
 		[101] = util_warn_unimplemented,
-		[102] = util_warn_unimplemented, // set crossfade frames to 16 (pal fun 6)
+		[102] = util_warn_unimplemented,
 		[103] = nanpa2_map_wait,
 		[104] = nanpa2_load_mid_palette,
 		[105] = nanpa2_util_105,
 		[106] = nanpa2_util_106,
-		[107] = NULL, // START_SP
+		[107] = nanpa2_sp_load,
 		[108] = nanpa2_cancel_is_down,
 		[109] = nanpa2_crossfade_static_palette,
 		[110] = nanpa2_util_110,
 		[111] = nanpa2_util_111,
-		[112] = NULL, // [GIRL]_Z, MIYU3SPE
-		[113] = NULL, // GIRL, [GIRL]_Z
-		[114] = NULL, // [GIRL]_Z, MIYU3SPE -> change palette, set crossfade frames to 0xff (pal fun 6)
+		[112] = nanpa2_load_end_sepia_palette,
+		[113] = nanpa2_load_end_color_palette,
+		[114] = nanpa2_init_end_crossfade,
 		[115] = nanpa2_clear_high_palette,
-		[116] = NULL, // [GIRL]_Z, MIYU3SPE
-		[117] = NULL, // ENDING1
-		[118] = NULL, // ENDING1
-		[119] = NULL, // ENDING1
+		[116] = nanpa2_wait,
+		[117] = nanpa2_hana_crossfade,
+		[118] = nanpa2_hana_start,
+		[119] = nanpa2_hana_end,
 		[120] = nanpa2_util_120,
 		// 121 unused
 		[122] = nanpa2_util_122,
 		[123] = nanpa2_util_123,
-		[124] = NULL, // DEFMAIN [same as 93]
-		[125] = NULL, // DEFMAIN [*]
+		[124] = nanpa2_yuki_end,
+		[125] = nanpa2_yuki_resume,
 	},
 	.flags = {
 		[FLAG_LOAD_PALETTE] = 0x0001,
