@@ -968,6 +968,30 @@ void _gfx_indexed_copy_masked(int src_x, int src_y, int w, int h, SDL_Surface *s
 	gfx_copy_end(src, dst);
 }
 
+// copy_masked, but only if dst pixel color is greater than threshold
+void gfx_indexed_copy_masked_dst_gt(int src_x, int src_y, int w, int h, unsigned src_i,
+		int dst_x, int dst_y, unsigned dst_i, uint8_t mask_color, uint8_t threshold)
+{
+	GFX_LOG("gfx_indexed_copy_masked_dst_gt[%u,%u] %u(%d,%d) -> %u(%d,%d) @ (%d,%d)", mask_color,
+			threshold, src_i, src_x, src_y, dst_i, dst_x, dst_y, w, h);
+
+	SDL_Surface *src = gfx_get_surface(src_i);
+	SDL_Surface *dst = gfx_get_surface(dst_i);
+
+	SDL_Rect src_r = { src_x, src_y, w, h };
+	SDL_Point dst_p = { dst_x, dst_y };
+	if (!gfx_copy_begin(src, &src_r, dst, &dst_p))
+		return;
+
+	indexed_foreach_px2(src_px, dst_px, src, &src_r, dst, &dst_p,
+		if (*src_px != mask_color && *dst_px > threshold)
+			*dst_px = *src_px;
+	);
+
+	gfx_copy_end(src, dst);
+
+}
+
 static void gfx_direct_copy_masked(int src_x, int src_y, int w, int h, SDL_Surface *src,
 		int dst_x, int dst_y, SDL_Surface *dst, uint32_t mask_color)
 {

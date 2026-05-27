@@ -716,16 +716,6 @@ static void nanpa2_hana_crossfade(struct param_list *params)
 	gfx_palette_copy(memory.palette, 0, 256);
 }
 
-static void nanpa2_hana_start(struct param_list *params)
-{
-	// TODO
-}
-
-static void nanpa2_hana_end(struct param_list *params)
-{
-	// TODO
-}
-
 static void nanpa2_util_120(struct param_list *params)
 {
 	PALETTE_LOG("nanpa_util_120()");
@@ -817,6 +807,129 @@ static void nanpa2_init(void)
 	anim_load_palette = nanpa2_anim_load_palette;
 }
 
+struct hana {
+	bool active;
+	bool alt_anim;
+	int size;
+	int speed;
+	struct { int x, y; } pos;
+	int frame;
+	int frame_tick;
+};
+
+#define MAX_PETALS 30
+struct {
+	bool enabled;
+	unsigned nr_petals;
+	struct hana petals[MAX_PETALS];
+	bool need_spawn;
+	vm_timer_t timer;
+	int tick;
+} hana = {0};
+
+static void hana_spawn(void)
+{
+	assert(hana.nr_petals < MAX_PETALS);
+	unsigned i = hana.nr_petals++;
+	hana.petals[i].active = true;
+	hana.petals[i].size = rand() % 3;
+	hana.petals[i].speed = hana.petals[i].size;
+	hana.petals[i].frame_tick = 0;
+	if (rand() % 2) {
+		if (hana.petals[i].size == 0 || hana.petals[i].size == 2)
+			hana.petals[i].size = 1;
+	}
+
+	hana.petals[i].pos.x = (rand() % 34) * 16;
+	hana.petals[i].pos.y = 0;
+	hana.petals[i].alt_anim = false;
+	hana.petals[i].frame = 9; // XXX: last frame of normal animation
+}
+
+static void _hana_tick(struct hana *p)
+{
+	// move
+	if (p->frame_tick == 0) {
+		p->pos.x--;
+		p->pos.y++;
+		p->frame_tick = p->speed;
+		if (++p->frame >= (p->alt_anim ? 6 : 10)) {
+			p->frame = 0;
+			// 30% chance for alternate animation
+			p->alt_anim = (rand() % 3) == 0;
+		}
+	} else {
+		p->frame_tick--;
+	}
+
+	// despawn
+	if (p->pos.x <= -16 || p->pos.y >= 280) {
+		p->active = false;
+		return;
+	}
+
+	// calculate coordinates/dimensions
+	int frame_x = (p->size + (p->alt_anim ? 0 : 3)) * 16;
+	int frame_y = p->frame * 16;
+	int x = p->pos.x;
+	int y = p->pos.y;
+	int w = 16;
+	int h = 16;
+	if (x < 0) {
+		w += x;
+		x = 0;
+	}
+	if (y > 264) {
+		h -= y - 264;
+	}
+	assert(w > 0 && h > 0);
+
+	// draw petal
+	if (x < 448)
+		gfx_indexed_copy_masked_dst_gt(frame_x, frame_y, w, h, 3, x + 96, y + 60, 0, 0, 155);
+}
+
+static void hana_erase(struct hana *p)
+{
+	int x = p->pos.x + 96;
+	int y = p->pos.y + 60;
+	gfx_indexed_copy_masked_dst_gt(x, y, 16, 16, 2, x, y, 0, 0, 155);
+}
+
+static void hana_tick(void)
+{
+	if (hana.nr_petals < MAX_PETALS && hana.need_spawn) {
+		hana_spawn();
+		hana.need_spawn = false;
+	}
+
+	for (int i = 0; i < MAX_PETALS; i++) {
+		if (!hana.petals[i].active)
+			continue;
+		hana_erase(&hana.petals[i]);
+		_hana_tick(&hana.petals[i]);
+		gfx_screen_dirty();
+	}
+
+	if (++hana.tick >= 16) {
+		hana.need_spawn = true;
+		hana.tick = 0;
+	}
+}
+
+static void nanpa2_hana_start(struct param_list *params)
+{
+	memset(&hana, 0, sizeof hana);
+	hana.enabled = true;
+	hana.need_spawn = true;
+	hana.timer = vm_timer_create();
+}
+
+static void nanpa2_hana_end(struct param_list *params)
+{
+	hana.enabled = false;
+}
+
 static void nanpa2_update(void)
 {
 	if (async_crossfade_active && vm_timer_tick_async(&async_crossfade_t, 15)) {
@@ -824,7 +937,8 @@ static void nanpa2_update(void)
 			async_crossfade_active = false;
 		}
 	}
-	// TODO: hana
+	if (hana.enabled && vm_timer_tick_async(&hana.timer, 25))
+		hana_tick();
 	// TODO: snow
 }
 
