@@ -538,21 +538,6 @@ static void nanpa2_restore_memory(struct param_list *params)
 	memory_raw[VAR4_OFF + 2030] = saved_memory[VAR4_OFF + 2030];
 }
 
-static void nanpa2_yuki_start(struct param_list *params)
-{
-	// TODO
-}
-
-static void nanpa2_yuki_end(struct param_list *params)
-{
-	// TODO
-}
-
-static void nanpa2_yuki_resume(struct param_list *params)
-{
-	// TODO
-}
-
 static void nanpa2_save_palette(struct param_list *params)
 {
 	int start = vm_expr_param(params, 1);
@@ -930,6 +915,175 @@ static void nanpa2_hana_end(struct param_list *params)
 	hana.enabled = false;
 }
 
+struct yuki {
+	// static
+	bool active;
+	int size;
+	int speed;
+	bool bg_layer;
+	// dynamic
+	struct { int x, y; } pos;
+	bool left;
+	int tick;
+	int spawn_ticks;
+};
+
+#define MAX_FLAKES 200
+struct {
+	bool enabled;
+	int nr_flakes;
+	struct yuki flakes[MAX_FLAKES];
+	bool need_spawn;
+	vm_timer_t timer;
+	int tick;
+} yuki;
+
+static void _yuki_tick(struct yuki *p)
+{
+	// draw flake
+	int src_x = p->size * 8;
+	int dst_x = p->pos.x;
+	int dst_y = p->pos.y;
+	int threshold = p->bg_layer ? 109 : 9;
+	if (dst_x > -8 && dst_x < 640 && dst_y < 400) {
+		gfx_indexed_copy_masked_dst_gt(src_x, 0, 8, 8, 3, dst_x, dst_y, 0, 0, threshold);
+		gfx_indexed_copy_masked_dst_gt(src_x, 0, 8, 8, 3, dst_x, dst_y, 2, 0, threshold);
+	}
+
+	// speed 0: tick, tick, tock
+	// speed 1: tick, tock
+	// speed 2: tick, tock, tock
+	int spawn_tick = p->spawn_ticks++;
+	if (p->speed == 0 && (spawn_tick % 3) > 2) {
+		return;
+	} else if (p->speed == 1 && (spawn_tick % 2) > 0) {
+		return;
+	} else if (p->speed == 2 && (spawn_tick % 3) > 1) {
+		return;
+	}
+
+	// despawn
+	if (dst_y + 1 > 400) {
+		yuki.nr_flakes--;
+		p->active = false;
+		return;
+	}
+
+	// tick
+	if (p->tick == 0) {
+		p->left = !p->left;
+		p->tick = p->left ? 8 : 12;
+	} else {
+		p->tick--;
+	}
+
+	p->pos.x += p->left ? -1 : 1;
+	p->pos.y++;
+}
+
+static void yuki_erase(struct yuki *p)
+{
+	if (p->pos.x <= -8 || p->pos.x >= 640 || p->pos.y >= 400)
+		return;
+	gfx_indexed_copy_masked_dst_gt(p->pos.x, p->pos.y, 8, 8, 1,
+			p->pos.x, p->pos.y, 0, 0, 109);
+	gfx_indexed_copy_masked_dst_gt(p->pos.x, p->pos.y, 8, 8, 1,
+			p->pos.x, p->pos.y, 0, 2, 109);
+}
+
+static void yuki_spawn(void)
+{
+	int i;
+	for (i = 0; i < MAX_FLAKES; i++) {
+		if (!yuki.flakes[i].active)
+			break;
+	}
+	if (i >= MAX_FLAKES)
+		return;
+
+	struct yuki *flake = &yuki.flakes[i];
+	flake->active = true;
+	flake->size = rand() % 3;
+	flake->speed = flake->size;
+	flake->bg_layer = false;
+	if (flake->size == 0 && rand() % 2) {
+		// large flakes: 50% chance to be downsized and put into bg
+		flake->size = 1;
+		flake->bg_layer = true;
+	} else if (flake->size == 1 && rand() % 2) {
+		// medium flakes: 50% chance to be put into bg
+		flake->bg_layer = true;
+	} else if (flake->size == 2) {
+		// small flakes: 50/50 either upsized, or else put into bg
+		if (rand() % 2)
+			flake->size = 1;
+		else
+			flake->bg_layer = true;
+	}
+
+	// flakes spawn from left to right, one each per 64-pixel chunk, resetting after 25
+	// spawns. The x position within a chunk changes each pass.
+	int chunk = (i % 25) % 10;
+	int pass = i / 10;
+	int x = chunk * 64;
+	if (pass % 2 == 0) {
+		if (chunk % 2 == 0)
+			x += 8;
+		else
+			x += 40;
+	} else {
+		if (chunk % 2 == 0)
+			x += 24;
+		else
+			x += 56;
+	}
+	flake->pos.x = x;
+	flake->pos.y = -7;
+	flake->left = true;
+	flake->tick = 4;
+	flake->spawn_ticks = 0;
+	yuki.nr_flakes++;
+}
+
+static void yuki_tick(void)
+{
+	if (yuki.nr_flakes < MAX_FLAKES && yuki.need_spawn) {
+		yuki_spawn();
+		yuki.need_spawn = false;
+	}
+
+	for (int i = 0; i < MAX_FLAKES; i++) {
+		if (!yuki.flakes[i].active)
+			continue;
+		yuki_erase(&yuki.flakes[i]);
+		_yuki_tick(&yuki.flakes[i]);
+		gfx_screen_dirty();
+	}
+
+	if (++yuki.tick >= 32) {
+		yuki.need_spawn = true;
+		yuki.tick = 0;
+	}
+}
+
+static void nanpa2_yuki_start(struct param_list *params)
+{
+	memset(&yuki, 0, sizeof yuki);
+	yuki.enabled = true;
+	yuki.need_spawn = true;
+	yuki.timer = vm_timer_create();
+}
+
+static void nanpa2_yuki_end(struct param_list *params)
+{
+	yuki.enabled = false;
+}
+
+static void nanpa2_yuki_resume(struct param_list *params)
+{
+	yuki.enabled = true;
+}
+
 static void nanpa2_update(void)
 {
 	if (async_crossfade_active && vm_timer_tick_async(&async_crossfade_t, 15)) {
@@ -939,7 +1093,8 @@ static void nanpa2_update(void)
 	}
 	if (hana.enabled && vm_timer_tick_async(&hana.timer, 25))
 		hana_tick();
-	// TODO: snow
+	if (yuki.enabled && vm_timer_tick_async(&yuki.timer, 25))
+		yuki_tick();
 }
 
 struct game game_doukyuusei2 = {
