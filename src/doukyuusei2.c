@@ -267,7 +267,7 @@ static void nanpa2_palette(struct param_list *params)
 		int n = vm_expr_param(params, 2);
 		PALETTE_LOG("Palette.set(%d, %d)", start, n);
 		_gfx_palette_set(memory.palette + start * 4, start, n);
-		gfx_update_palette(start, n);
+		_gfx_update_palette(start, n);
 		break;
 	}
 	case 6:
