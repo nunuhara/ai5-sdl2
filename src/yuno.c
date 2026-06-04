@@ -607,6 +607,10 @@ static void util_copy(struct param_list *params)
 
 static void util_bgm_play(struct param_list *params)
 {
+	// XXX: lazy hack to fix issue where mixer volume remains at 0 in the
+	//      music room (due to prior fade out).
+	if (!strcmp(mem_mes_name(), "MUSICMODE.MES"))
+		audio_set_volume(AUDIO_CH_BGM, 0);
 	audio_bgm_play(vm_string_param(params, 1), false);
 }
 
