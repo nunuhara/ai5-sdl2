@@ -125,7 +125,7 @@ static void nanpa2_anim(struct param_list *params)
 	case 4: anim_wait(vm_expr_param(params, 1)); break;
 	case 5: anim_stop_all(); break;
 	case 6: anim_halt_all(); break;
-	case 7: anim_reset_all(); break;
+	case 7: anim_restart_all(); break;
 	default: VM_ERROR("System.Anim.function[%u] not implemented",
 				 params->params[0].val);
 	}

@@ -211,6 +211,24 @@ void anim_reset_all(void)
 	}
 }
 
+static bool anim_stream_execute(struct anim_stream *anim);
+
+void anim_restart_all(void)
+{
+	ANIM_LOG("anim_restart_all()");
+	for (int i = 0; i < ANIM_MAX_STREAMS; i++) {
+		if (streams[i].state == ANIM_STATE_HALTED)
+			continue;
+		struct anim_stream *anim = &streams[i];
+		unsigned off = mem_get_sysvar32(mes_sysvar32_data_offset);
+		_anim_init_stream(i, anim->stream, off);
+		anim_stream_execute(anim);
+		_anim_init_stream(i, anim->stream, off);
+		anim->state = ANIM_STATE_RUNNING;
+		anim->ip = 0;
+	}
+}
+
 void anim_wait_all(void)
 {
 	ANIM_LOG("anim_wait_all()");
@@ -394,7 +412,7 @@ static bool anim_stream_draw(struct anim_stream *anim, uint8_t i)
 	return true;
 }
 
-bool anim_stream_execute(struct anim_stream *anim)
+static bool anim_stream_execute(struct anim_stream *anim)
 {
 	if (anim->stall_count) {
 		anim->stall_count--;

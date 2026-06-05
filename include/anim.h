@@ -56,6 +56,7 @@ void anim_wait(unsigned slot);
 void anim_stop_all(void);
 void anim_halt_all(void);
 void anim_reset_all(void);
+void anim_restart_all(void);
 void anim_wait_all(void);
 void anim_pause_range_sync(unsigned start, unsigned end);
 void anim_pause_all_sync(void);
