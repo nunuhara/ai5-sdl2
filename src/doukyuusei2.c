@@ -732,6 +732,7 @@ static void nanpa2_util_122(struct param_list *params)
 
 static void nanpa2_util_123(struct param_list *params)
 {
+	PALETTE_LOG("nanpa_util_123()");
 	uint8_t pal[236 * 4];
 	gfx_palette_copy(pal, 0, 236);
 
@@ -752,6 +753,7 @@ static void nanpa2_util_123(struct param_list *params)
 	gfx_palette_crossfade(memory.palette, 0, 236, 400);
 	gfx_palette_copy(memory.palette, 0, 256);
 	gfx_fill(0, 0, 640, 400, 0, mes_sysvar16_bg_color >> 4);
+	gfx.surface[gfx.screen].dirty = false;
 	mem_set_var16(18, 1);
 }
 
