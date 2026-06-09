@@ -358,6 +358,8 @@ void gfx_init(const char *name)
 #ifndef USE_SDL_MIXER
 	SDL_CALL(SDL_InitSubSystem, SDL_INIT_AUDIO);
 #endif
+	if (config.controller.enabled)
+		SDL_CALL(SDL_InitSubSystem, SDL_INIT_GAMECONTROLLER);
 	SDL_CTOR(SDL_CreateWindow, gfx.window, title,
 			SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, gfx_view.w, gfx_view.h,
 			SDL_WINDOW_RESIZABLE);

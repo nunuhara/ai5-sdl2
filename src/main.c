@@ -22,6 +22,8 @@
 #include <unistd.h>
 #include <getopt.h>
 
+#include <SDL.h>
+
 #include "ai5.h"
 #include "ai5/game.h"
 #include "nulib/file.h"
@@ -55,8 +57,27 @@ struct config config = {
 	.volume.se = -1,
 	.volume.effect = -1,
 	.volume.voice = -1,
+	.controller = {
+		.enabled = true,
+		.dead_zone = 0.15f,
+		.cursor_speed = 16,
+		.left_stick = CONFIG_STICK_CURSOR,
+		.right_stick = CONFIG_STICK_CURSOR,
+	},
 };
 bool yuno_eng = false;
+
+static enum config_stick_behavior parse_stick_behavior(const char *str)
+{
+	if (!strcasecmp(str, "DISABLED"))
+		return CONFIG_STICK_DISABLED;
+	if (!strcasecmp(str, "CURSOR"))
+		return CONFIG_STICK_CURSOR;
+	if (!strcasecmp(str, "DPAD"))
+		return CONFIG_STICK_DPAD;
+	WARNING("Invalid stick configuration: \"%s\"", str);
+	return CONFIG_STICK_DISABLED;
+}
 
 static int cfg_handler(void *user, const char *section, const char *name, const char *value)
 {
@@ -208,6 +229,95 @@ static int cfg_handler(void *user, const char *section, const char *name, const 
 		config->no_warp_mouse = !!atoi(value);
 	} else if (MATCH("AI5SDL2", "MAPNOWALLSLIDE")) {
 		config->map_no_wallslide = !!atoi(value);
+	} else if (MATCH("CONTROLLER", "ENABLED")) {
+		config->controller.enabled = !!atoi(value);
+	} else if (MATCH("CONTROLLER", "DEADZONE")) {
+		char *endptr;
+		float f = strtof(value, &endptr);
+		if (*value == '\0' || *endptr != '\0' || f < 0.0f || f > 1.0f)
+			WARNING("Invalid value for CONTROLLER.DEADZONE: \"%s\"", value);
+		else
+			config->controller.dead_zone = f;
+	} else if (MATCH("CONTROLLER", "CURSORSPEED")) {
+		char *endptr;
+		long i = strtol(value, &endptr, 10);
+		if (*value == '\0' || *endptr != '\0' || i < 0 || i > 128)
+			WARNING("Invalid value for CONTROLLER.CURSORSPEED: \"%s\"", value);
+		else
+			config->controller.cursor_speed = i;
+	} else if (MATCH("CONTROLLER", "LEFTANALOG")) {
+		config->controller.left_stick = parse_stick_behavior(value);
+	} else if (MATCH("CONTROLLER", "RIGHTANALOG")) {
+		config->controller.right_stick = parse_stick_behavior(value);
+	} else if (MATCH("CONTROLLER", "LEFTTRIGGER")) {
+		map_controller_button(INPUT_LTRIGGER_BUTTON,
+				parse_input_event_type(value));
+	} else if (MATCH("CONTROLLER", "RIGHTTRIGGER")) {
+		map_controller_button(INPUT_RTRIGGER_BUTTON,
+				parse_input_event_type(value));
+	} else if (MATCH("CONTROLLER", "A")) {
+		map_controller_button(SDL_CONTROLLER_BUTTON_A,
+				parse_input_event_type(value));
+	} else if (MATCH("CONTROLLER", "B")) {
+		map_controller_button(SDL_CONTROLLER_BUTTON_B,
+				parse_input_event_type(value));
+	} else if (MATCH("CONTROLLER", "X")) {
+		map_controller_button(SDL_CONTROLLER_BUTTON_X,
+				parse_input_event_type(value));
+	} else if (MATCH("CONTROLLER", "Y")) {
+		map_controller_button(SDL_CONTROLLER_BUTTON_Y,
+				parse_input_event_type(value));
+	} else if (MATCH("CONTROLLER", "BACK")) {
+		map_controller_button(SDL_CONTROLLER_BUTTON_BACK,
+				parse_input_event_type(value));
+	} else if (MATCH("CONTROLLER", "GUIDE")) {
+		map_controller_button(SDL_CONTROLLER_BUTTON_GUIDE,
+				parse_input_event_type(value));
+	} else if (MATCH("CONTROLLER", "START")) {
+		map_controller_button(SDL_CONTROLLER_BUTTON_START,
+				parse_input_event_type(value));
+	} else if (MATCH("CONTROLLER", "LEFTSTICK")) {
+		map_controller_button(SDL_CONTROLLER_BUTTON_LEFTSTICK,
+				parse_input_event_type(value));
+	} else if (MATCH("CONTROLLER", "RIGHTSTICK")) {
+		map_controller_button(SDL_CONTROLLER_BUTTON_RIGHTSTICK,
+				parse_input_event_type(value));
+	} else if (MATCH("CONTROLLER", "LEFTSHOULDER")) {
+		map_controller_button(SDL_CONTROLLER_BUTTON_LEFTSHOULDER,
+				parse_input_event_type(value));
+	} else if (MATCH("CONTROLLER", "RIGHTSHOULDER")) {
+		map_controller_button(SDL_CONTROLLER_BUTTON_RIGHTSHOULDER,
+				parse_input_event_type(value));
+	} else if (MATCH("CONTROLLER", "UP")) {
+		map_controller_button(SDL_CONTROLLER_BUTTON_DPAD_UP,
+				parse_input_event_type(value));
+	} else if (MATCH("CONTROLLER", "DOWN")) {
+		map_controller_button(SDL_CONTROLLER_BUTTON_DPAD_DOWN,
+				parse_input_event_type(value));
+	} else if (MATCH("CONTROLLER", "LEFT")) {
+		map_controller_button(SDL_CONTROLLER_BUTTON_DPAD_LEFT,
+				parse_input_event_type(value));
+	} else if (MATCH("CONTROLLER", "RIGHT")) {
+		map_controller_button(SDL_CONTROLLER_BUTTON_DPAD_RIGHT,
+				parse_input_event_type(value));
+	} else if (MATCH("CONTROLLER", "MISC1")) {
+		map_controller_button(SDL_CONTROLLER_BUTTON_MISC1,
+				parse_input_event_type(value));
+	} else if (MATCH("CONTROLLER", "PADDLE1")) {
+		map_controller_button(SDL_CONTROLLER_BUTTON_PADDLE1,
+				parse_input_event_type(value));
+	} else if (MATCH("CONTROLLER", "PADDLE2")) {
+		map_controller_button(SDL_CONTROLLER_BUTTON_PADDLE2,
+				parse_input_event_type(value));
+	} else if (MATCH("CONTROLLER", "PADDLE3")) {
+		map_controller_button(SDL_CONTROLLER_BUTTON_PADDLE3,
+				parse_input_event_type(value));
+	} else if (MATCH("CONTROLLER", "PADDLE4")) {
+		map_controller_button(SDL_CONTROLLER_BUTTON_PADDLE4,
+				parse_input_event_type(value));
+	} else if (MATCH("CONTROLLER", "TOUCHPAD")) {
+		map_controller_button(SDL_CONTROLLER_BUTTON_TOUCHPAD,
+				parse_input_event_type(value));
 	} else {
 		WARNING("Unknown INI value: %s.%s", section, name);
 		return 0;
@@ -219,19 +329,22 @@ static int cfg_handler(void *user, const char *section, const char *name, const 
 static void usage(void)
 {
 	printf("Usage: ai5 [options] [inifile-or-directory]\n");
-	printf("    -d, --debug              Start in the debugger REPL\n");
-	printf("    --font                   Specify the font\n");
-	printf("    --font-face=<n>          Specify the font face index\n");
-	printf("    --game=<game>            Specify the game to run\n");
-	printf("                             (valid options are: yuno, yuno-eng)\n");
-	printf("    -h, --help               Display this message and exit\n");
-	printf("    --msg-skip-delay=<ms>    Set the message skip delay time (default: %u)\n",
+	printf("    --controller-cursor-speed=<n>  Set the cursor movement speed (default: 16)\n");
+	printf("    --controller-dead-zone=<n>     Set the dead zone for analog stick input (default: 0.15)\n");
+	printf("    --controller-disable           Disable controller input\n");
+	printf("    -d, --debug                    Start in the debugger REPL\n");
+	printf("    --font                         Specify the font\n");
+	printf("    --font-face=<n>                Specify the font face index\n");
+	printf("    --game=<game>                  Specify the game to run\n");
+	printf("                                   (valid options are: yuno, yuno-eng)\n");
+	printf("    -h, --help                     Display this message and exit\n");
+	printf("    --msg-skip-delay=<ms>          Set the message skip delay time (default: %u)\n",
 			DEFAULT_MSG_SKIP_DELAY);
-	printf("    --no-warp-mouse          Don't move the mouse\n");
-	printf("    --texthook-clipboard     Copy text to the system clipboard\n");
-	printf("    --texthook-stdout        Copy text to standard output\n");
-	printf("    --transition-speed=<ms>  Set the speed of CG transition effects (default: 1.0)\n");
-	printf("    --version                Display the AI5-SDL2 version and exit\n");
+	printf("    --no-warp-mouse                Don't move the mouse\n");
+	printf("    --texthook-clipboard           Copy text to the system clipboard\n");
+	printf("    --texthook-stdout              Copy text to standard output\n");
+	printf("    --transition-speed=<ms>        Set the speed of CG transition effects (default: 1.0)\n");
+	printf("    --version                      Display the AI5-SDL2 version and exit\n");
 
 	if (ai5_target_game == GAME_DOUKYUUSEI) {
 		printf("    --map-no-wallslide       Don't slide character along walls of map\n");
@@ -339,6 +452,9 @@ static bool set_game_from_config(void)
 enum {
 	LOPT_HELP = 256,
 	LOPT_VERSION,
+	LOPT_CONTROLLER_CURSOR_SPEED,
+	LOPT_CONTROLLER_DEAD_ZONE,
+	LOPT_CONTROLLER_DISABLE,
 	LOPT_DEBUG,
 	LOPT_FONT,
 	LOPT_FONT_FACE,
@@ -379,6 +495,9 @@ int main(int argc, char *argv[])
 	while (1) {
 		static struct option long_options[] = {
 			{ "game", required_argument, 0, LOPT_GAME },
+			{ "controller-cursor-speed", required_argument, 0, LOPT_CONTROLLER_CURSOR_SPEED },
+			{ "controller-dead-zone", required_argument, 0, LOPT_CONTROLLER_DEAD_ZONE },
+			{ "controller-disable", no_argument, 0, LOPT_CONTROLLER_DISABLE },
 			{ "debug", no_argument, 0, LOPT_DEBUG },
 			{ "font", required_argument, 0, LOPT_FONT },
 			{ "font-face", required_argument, 0, LOPT_FONT_FACE },
@@ -410,6 +529,29 @@ int main(int argc, char *argv[])
 		case LOPT_GAME:
 			set_game(optarg);
 			have_game = true;
+			break;
+		case LOPT_CONTROLLER_CURSOR_SPEED: {
+			char *endptr;
+			long i = strtol(optarg, &endptr, 10);
+			if (*optarg == '\0' || *endptr != '\0' || i < 0 || i > 128)
+				WARNING("Invalid value for --controller-cursor-speed: \"%s\"",
+						optarg);
+			else
+				config.controller.cursor_speed = i;
+			break;
+		}
+		case LOPT_CONTROLLER_DEAD_ZONE: {
+			char *endptr;
+			float f = strtof(optarg, &endptr);
+			if (*optarg == '\0' || *endptr != '\0' || f < 0.0f || f > 1.0f)
+				WARNING("Invalid value for --controller-dead-zone: \"%s\"",
+						optarg);
+			else
+				config.controller.dead_zone = f;
+			break;
+		}
+		case LOPT_CONTROLLER_DISABLE:
+			config.controller.enabled = false;
 			break;
 		case 'd':
 		case LOPT_DEBUG:

@@ -113,6 +113,8 @@ The available configuration options are as follows:
 | TRANSITIONSPEED   | `--cg-load-frame-time` | Speed of transition effects (lower is faster)      |
 | MAPNOWALLSLIDE    | `--map-no-wallslide`   | Disable sliding along walls (Doukyuusei/Kakyuusei) |
 
+See [CONTROLLER.md](CONTROLLER.md) for options related to gamepad support.
+
 Building
 --------
 

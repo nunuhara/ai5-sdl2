@@ -32,6 +32,12 @@ struct config_arcfile {
 	string name;
 };
 
+enum config_stick_behavior {
+	CONFIG_STICK_DISABLED,
+	CONFIG_STICK_CURSOR,
+	CONFIG_STICK_DPAD,
+};
+
 struct config {
 	// [CONFIG]
 	string title;
@@ -109,6 +115,13 @@ struct config {
 	bool texthook_stdout;
 	bool no_warp_mouse;
 	bool map_no_wallslide;
+	struct {
+		bool enabled;
+		float dead_zone;
+		unsigned cursor_speed;
+		enum config_stick_behavior left_stick;
+		enum config_stick_behavior right_stick;
+	} controller;
 };
 
 extern struct config config;
