@@ -45,12 +45,18 @@ struct gfx_surface {
 	SDL_Rect damaged;
 };
 
+struct gfx_overlay {
+	SDL_Surface *s;
+	bool enabled;
+};
+
 struct gfx {
 	SDL_Window *window;
 	SDL_Renderer *renderer;
 	uint32_t window_id;
 
 	struct gfx_surface surface[GFX_NR_SURFACES];
+	struct gfx_overlay overlay[GFX_NR_OVERLAYS];
 
 	// index of the currently displayed surface
 	unsigned screen;
@@ -59,7 +65,6 @@ struct gfx {
 	//      directly from indexed surfaces (...why?)
 	SDL_Surface *display;
 	SDL_Surface *scaled_display;
-	SDL_Surface *overlay;
 	SDL_Texture *texture;
 	SDL_Color palette[256];
 	struct {
@@ -74,7 +79,7 @@ struct gfx {
 extern struct gfx gfx;
 
 SDL_Surface *gfx_get_surface(unsigned i);
-SDL_Surface *gfx_get_overlay(void);
+SDL_Surface *gfx_get_overlay(int n);
 void _gfx_update_palette(int start, int n);
 void gfx_update_palette(int start, int n);
 void _gfx_palette_crossfade(SDL_Color *new, unsigned start, unsigned n, unsigned ms);

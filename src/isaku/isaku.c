@@ -36,6 +36,8 @@
 #include "sys.h"
 #include "vm_private.h"
 
+#include "isaku.h"
+
 #define MES_NAME_SIZE 128
 #define VAR4_SIZE 2048
 #define MEM16_SIZE 4096
@@ -395,163 +397,44 @@ static void isaku_dungeon(struct param_list *params)
 	}
 }
 
-static bool builtin_se_enabled = false;
+static bool isaku_builtin_se_enabled = false;
 
-static void builtin_se_play(const char *name)
+void isaku_builtin_se_play(const char *name)
 {
-	if (!builtin_se_enabled)
+	if (!isaku_builtin_se_enabled)
 		return;
 	audio_se_play(name, 0);
 }
 
-#define ITEM_WINDOW_W 320
-#define ITEM_WINDOW_H 32
-struct {
-	SDL_Window *window;
-	SDL_Renderer *renderer;
-	SDL_Texture *texture;
-	uint32_t window_id;
-	bool enabled;
-	bool opened;
-	bool lmb_down;
-	bool rmb_down;
-} item_window = {0};
-
-static void item_window_create(void)
-{
-	int x, y;
-	SDL_GetWindowPosition(gfx.window, &x, &y);
-	SDL_CTOR(SDL_CreateWindow, item_window.window, "Items",
-			x + config.itemwin.x, y + config.itemwin.y,
-			ITEM_WINDOW_W, ITEM_WINDOW_H,
-			SDL_WINDOW_HIDDEN);
-	item_window.window_id = SDL_GetWindowID(item_window.window);
-	SDL_CTOR(SDL_CreateRenderer, item_window.renderer, item_window.window, -1, 0);
-	SDL_CALL(SDL_SetRenderDrawColor, item_window.renderer, 0, 0, 0, SDL_ALPHA_OPAQUE);
-	SDL_CALL(SDL_RenderSetLogicalSize, item_window.renderer, ITEM_WINDOW_W, ITEM_WINDOW_H);
-	SDL_CTOR(SDL_CreateTexture, item_window.texture, item_window.renderer,
-			gfx.display->format->format, SDL_TEXTUREACCESS_STATIC,
-			ITEM_WINDOW_W, ITEM_WINDOW_H);
-	item_window.enabled = true;
-}
-
-static void item_window_update(void)
-{
-	if (!item_window.opened)
-		return;
-	SDL_CALL(SDL_UpdateTexture, item_window.texture, NULL, gfx.surface[7].s->pixels,
-			gfx.surface[7].s->pitch);
-	SDL_CALL(SDL_RenderClear, item_window.renderer);
-	SDL_CALL(SDL_RenderCopy, item_window.renderer, item_window.texture, NULL, NULL);
-	SDL_RenderPresent(item_window.renderer);
-}
-
-static void item_window_toggle(void)
-{
-	if (!item_window.enabled)
-		return;
-	if (item_window.opened) {
-		SDL_HideWindow(item_window.window);
-		builtin_se_play("wincls.wav");
-		item_window.opened = false;
-	} else {
-		SDL_ShowWindow(item_window.window);
-		builtin_se_play("winopn.wav");
-		item_window.opened = true;
-		item_window_update();
-	}
-}
-
-static void item_window_event(SDL_Event *e)
-{
-	switch (e->type) {
-	case SDL_WINDOWEVENT:
-		if (e->window.windowID != item_window.window_id)
-			break;
-		switch (e->window.event) {
-		case SDL_WINDOWEVENT_SHOWN:
-		case SDL_WINDOWEVENT_EXPOSED:
-		case SDL_WINDOWEVENT_RESIZED:
-		case SDL_WINDOWEVENT_SIZE_CHANGED:
-		case SDL_WINDOWEVENT_MAXIMIZED:
-		case SDL_WINDOWEVENT_RESTORED:
-			item_window_update();
-			break;
-		case SDL_WINDOWEVENT_CLOSE:
-			assert(item_window.opened);
-			item_window_toggle();
-			break;
-		}
-		break;
-	case SDL_MOUSEBUTTONDOWN:
-	case SDL_MOUSEBUTTONUP:
-		if (e->button.windowID != item_window.window_id)
-			break;
-		if (e->button.button == SDL_BUTTON_LEFT) {
-			item_window.lmb_down = e->button.state == SDL_PRESSED;
-		} else if (e->button.button == SDL_BUTTON_RIGHT) {
-			item_window.rmb_down = e->button.state == SDL_PRESSED;
-		}
-		break;
-	}
-}
-
 static void item_window_is_open(void)
 {
-	if (!item_window.enabled)
-		return;
-	mem_set_var16(18, item_window.opened);
+	mem_set_var16(18, isaku_item_window_is_open());
 }
 
 static void item_window_get_pos(void)
 {
-	if (!item_window.enabled)
-		return;
-	int x, y;
-	SDL_GetWindowPosition(item_window.window, &x, &y);
+	int x, y, w, h;
+	isaku_item_window_get_pos(&x, &y, &w, &h);
 	le_put16(memory_ptr.system_var32, 44, x);
 	le_put16(memory_ptr.system_var32, 46, y);
-	le_put16(memory_ptr.system_var32, 48, x + ITEM_WINDOW_W - 1);
-	le_put16(memory_ptr.system_var32, 50, y + ITEM_WINDOW_H - 1);
+	le_put16(memory_ptr.system_var32, 48, w);
+	le_put16(memory_ptr.system_var32, 50, h);
 }
 
 static void item_window_get_cursor_pos(void)
 {
-	if (!item_window.enabled)
-		return;
 	int x, y;
-	if (SDL_GetMouseFocus() != item_window.window) {
-		x = ITEM_WINDOW_W;
-		y = ITEM_WINDOW_H;
-	} else {
-		SDL_GetMouseState(&x, &y);
-	}
+	isaku_item_window_get_cursor_pos(&x, &y);
 	mem_set_sysvar16(mes_sysvar16_cursor_x, x);
 	mem_set_sysvar16(mes_sysvar16_cursor_y, y);
 }
 
-static void item_window_enable(void)
-{
-	if (!item_window.window)
-		return;
-	item_window.enabled = true;
-}
-
-static void item_window_disable(void)
-{
-	item_window.enabled = false;
-	if (item_window.opened) {
-		SDL_HideWindow(item_window.window);
-		item_window.enabled = false;
-	}
-}
-
 static void item_window_get_mouse_state(void)
 {
-	if (!item_window.enabled)
-		return;
-	le_put16(memory_ptr.system_var32, 52, item_window.lmb_down);
-	le_put16(memory_ptr.system_var32, 54, item_window.rmb_down);
+	bool lmb_down, rmb_down;
+	isaku_item_window_get_mouse_state(&lmb_down, &rmb_down);
+	le_put16(memory_ptr.system_var32, 52, lmb_down);
+	le_put16(memory_ptr.system_var32, 54, rmb_down);
 }
 
 static void item_window_9(void)
@@ -567,15 +450,15 @@ static void item_window_10(void)
 static void isaku_item_window(struct param_list *params)
 {
 	switch (vm_expr_param(params, 0)) {
-	case 0: item_window_create(); break;
-	case 1: item_window_toggle(); break;
+	case 0: isaku_item_window_create(); break;
+	case 1: isaku_item_window_toggle(); break;
 	case 2: item_window_is_open(); break;
 	case 3: item_window_get_pos(); break;
 	case 4: item_window_get_cursor_pos(); break;
-	case 5: item_window_enable(); break;
-	case 6: item_window_disable(); break;
+	case 5: isaku_item_window_enable(); break;
+	case 6: isaku_item_window_disable(); break;
 	case 7: item_window_get_mouse_state(); break;
-	case 8: item_window_update(); break;
+	case 8: isaku_item_window_update(); break;
 	case 9: item_window_9(); break;
 	case 10: item_window_10(); break;
 	default:
@@ -586,11 +469,11 @@ static void isaku_item_window(struct param_list *params)
 
 static void disable_overlay(void)
 {
-	SDL_Surface *overlay = gfx_get_overlay();
+	SDL_Surface *overlay = gfx_get_overlay(0);
 	SDL_Rect r = { 0, 388, 640, 72 };
 	SDL_CALL(SDL_FillRect, overlay, &r, SDL_MapRGBA(overlay->format, 0, 0, 0, 0));
 	overlay_on = false;
-	gfx_overlay_disable();
+	gfx_overlay_disable(0);
 }
 
 /*
@@ -637,10 +520,10 @@ static struct menu load_menu = { .name = "LoadMenu" };
 static void menu_open(struct menu *menu)
 {
 	if (!menu->enabled) {
-		builtin_se_play("error.wav");
+		isaku_builtin_se_play("error.wav");
 		return;
 	}
-	builtin_se_play("winopn.wav");
+	isaku_builtin_se_play("winopn.wav");
 	menu->requested = true;
 }
 
@@ -669,22 +552,33 @@ static void isaku_load_menu(struct param_list *params)
 static bool message_clear_enabled = false;
 static bool message_cleared = false;
 
+static void message_clear_wait(void)
+{
+	while (message_cleared) {
+		if (input_down(INPUT_TAB)) {
+			input_wait_until_up(INPUT_TAB);
+			break;
+		}
+		vm_delay(16);
+		vm_peek();
+	}
+	message_cleared = false;
+}
+
 static void message_clear(void)
 {
 	if (!message_clear_enabled)
 		return;
 
 	if (overlay_on) {
-		gfx_overlay_disable();
+		gfx_overlay_disable(0);
 		message_cleared = true;
-		while (message_cleared)
-			vm_peek();
-		gfx_overlay_enable();
+		message_clear_wait();
+		gfx_overlay_enable(0);
 	} else {
 		gfx_copy(0, 316, 640, 72, 5, 0, 388, 0);
 		message_cleared = true;
-		while (message_cleared)
-			vm_peek();
+		message_clear_wait();
 		gfx_copy(0, 388, 640, 72, 5, 0, 388, 0);
 	}
 }
@@ -825,12 +719,12 @@ static void util_bad_end_play(struct param_list *params)
 
 static void util_enable_builtin_se(struct param_list *params)
 {
-	builtin_se_enabled = true;
+	isaku_builtin_se_enabled = true;
 }
 
 static void util_disable_builtin_se(struct param_list *params)
 {
-	builtin_se_enabled = false;
+	isaku_builtin_se_enabled = false;
 }
 
 /*
@@ -846,14 +740,14 @@ static void util_credits_scroll(struct param_list *params)
 	// XXX: We use the overlay surface here to make the gradient easier to implement.
 	//      AI5WIN.EXE does not.
 	SDL_Surface *src = gfx_get_surface(1);
-	SDL_Surface *dst = gfx_get_overlay();
+	SDL_Surface *dst = gfx_get_overlay(0);
 
 	// set color key
 	SDL_Color mask_c = gfx_decode_bgr555(mem_get_sysvar16(mes_sysvar16_mask_color));
 	uint32_t mask = SDL_MapRGB(dst->format, mask_c.r, mask_c.g, mask_c.b);
 	SDL_CALL(SDL_SetColorKey, src, SDL_TRUE, mask);
 
-	gfx_overlay_enable();
+	gfx_overlay_enable(0);
 
 	int dst_y = r.y + r.h;
 	vm_timer_t timer = vm_timer_create();
@@ -903,13 +797,13 @@ static void util_credits_scroll(struct param_list *params)
 			src_y++;
 	}
 
-	gfx_overlay_disable();
+	gfx_overlay_disable(0);
 	SDL_CALL(SDL_SetColorKey, src, SDL_FALSE, 0);
 }
 
 static void item_window_clicked(void *_)
 {
-	item_window_toggle();
+	isaku_item_window_toggle();
 }
 
 static void save_data_clicked(void *_)
@@ -1000,7 +894,7 @@ static void open_context_menu(void)
 	popup_menu_append_separator(m);
 	popup_menu_append_entry(m, -1, "Cancel", NULL, NULL, NULL);
 
-	if (!item_window.enabled) {
+	if (!isaku_item_window_is_enabled()) {
 		popup_menu_set_active(m, item_id, false);
 	}
 	if (!save_menu.enabled) {
@@ -1024,29 +918,10 @@ static void open_context_menu(void)
 
 static bool isaku_handle_event(SDL_Event *e)
 {
-	if (item_window.opened)
-		item_window_event(e);
+	if (isaku_item_window_is_open() && isaku_item_window_event(e))
+		return true;
 
 	switch (e->type) {
-	case SDL_KEYDOWN:
-		switch (e->key.keysym.sym) {
-		case SDLK_SPACE:
-			item_window_toggle();
-			break;
-		case SDLK_s:
-			menu_open(&save_menu);
-			break;
-		case SDLK_l:
-			menu_open(&load_menu);
-			break;
-		case SDLK_TAB:
-			if (message_cleared)
-				message_cleared = false;
-			else
-				message_clear();
-			break;
-		}
-		break;
 	case SDL_MOUSEBUTTONDOWN:
 		if (e->button.windowID == gfx.window_id && e->button.button == SDL_BUTTON_RIGHT)
 			return true;
@@ -1074,21 +949,48 @@ static void isaku_init(void)
 	audio_set_volume(AUDIO_CH_BGM, -1500);
 	audio_set_volume(AUDIO_CH_SE0, -1500);
 	audio_set_volume(AUDIO_CH_VOICE0, -500);
+	map_controller_button_implicitly(SDL_CONTROLLER_BUTTON_BACK, INPUT_S);
+	map_controller_button_implicitly(SDL_CONTROLLER_BUTTON_START, INPUT_L);
+	if (config.controller.ui)
+		isaku_item_window_use_overlay();
 }
 
 static void isaku_update(void)
 {
+	// XXX: don't update when message is cleared so that behavior is consistent
+	//      when initiated from right-click menu vs. keypress
+	if (message_cleared)
+		return;
+
+	if (input_down(INPUT_SPACE)) {
+		_input_wait_until_up(INPUT_SPACE);
+		isaku_item_window_toggle();
+	}
+	if (input_down(INPUT_S)) {
+		_input_wait_until_up(INPUT_S);
+		menu_open(&save_menu);
+	}
+	if (input_down(INPUT_L)) {
+		_input_wait_until_up(INPUT_L);
+		menu_open(&load_menu);
+	}
+	if (input_down(INPUT_TAB)) {
+		_input_wait_until_up(INPUT_TAB);
+		message_clear();
+	}
+	isaku_item_window_tick();
+
 	if (!mem_get_var4(2007) || !overlay_on)
 		return;
 	if (!gfx_is_dirty(5))
 		return;
 
 	// copy text to overlay
-	gfx_overlay_enable();
+	gfx_overlay_enable(0);
 	SDL_Color mask = gfx_decode_bgr555(mem_get_sysvar16(mes_sysvar16_mask_color));
 	SDL_Rect rect = { 0, 388, 640, 72 };
 	SDL_Surface *src = gfx_get_surface(5);
-	SDL_Surface *dst = gfx_get_overlay();
+	SDL_Surface *dst = gfx_get_overlay(0);
 	SDL_CALL(SDL_SetColorKey, src, SDL_TRUE, SDL_MapRGB(src->format, mask.r, mask.g, mask.b));
 	SDL_CALL(SDL_BlitSurface, src, &rect, dst, &rect);
 	SDL_CALL(SDL_SetColorKey, src, SDL_FALSE, 0);

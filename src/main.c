@@ -318,6 +318,8 @@ static int cfg_handler(void *user, const char *section, const char *name, const 
 	} else if (MATCH("CONTROLLER", "TOUCHPAD")) {
 		map_controller_button(SDL_CONTROLLER_BUTTON_TOUCHPAD,
 				parse_input_event_type(value));
+	} else if (MATCH("CONTROLLER", "UI")) {
+		config->controller.ui = !!atoi(value);
 	} else {
 		WARNING("Unknown INI value: %s.%s", section, name);
 		return 0;
@@ -332,6 +334,7 @@ static void usage(void)
 	printf("    --controller-cursor-speed=<n>  Set the cursor movement speed (default: 16)\n");
 	printf("    --controller-dead-zone=<n>     Set the dead zone for analog stick input (default: 0.15)\n");
 	printf("    --controller-disable           Disable controller input\n");
+	printf("    --controller-ui                Use controller-friendly interface\n");
 	printf("    -d, --debug                    Start in the debugger REPL\n");
 	printf("    --font                         Specify the font\n");
 	printf("    --font-face=<n>                Specify the font face index\n");
@@ -455,6 +458,7 @@ enum {
 	LOPT_CONTROLLER_CURSOR_SPEED,
 	LOPT_CONTROLLER_DEAD_ZONE,
 	LOPT_CONTROLLER_DISABLE,
+	LOPT_CONTROLLER_UI,
 	LOPT_DEBUG,
 	LOPT_FONT,
 	LOPT_FONT_FACE,
@@ -498,6 +502,7 @@ int main(int argc, char *argv[])
 			{ "controller-cursor-speed", required_argument, 0, LOPT_CONTROLLER_CURSOR_SPEED },
 			{ "controller-dead-zone", required_argument, 0, LOPT_CONTROLLER_DEAD_ZONE },
 			{ "controller-disable", no_argument, 0, LOPT_CONTROLLER_DISABLE },
+			{ "controller-ui", no_argument, 0, LOPT_CONTROLLER_UI },
 			{ "debug", no_argument, 0, LOPT_DEBUG },
 			{ "font", required_argument, 0, LOPT_FONT },
 			{ "font-face", required_argument, 0, LOPT_FONT_FACE },
@@ -552,6 +557,9 @@ int main(int argc, char *argv[])
 		}
 		case LOPT_CONTROLLER_DISABLE:
 			config.controller.enabled = false;
+			break;
+		case LOPT_CONTROLLER_UI:
+			config.controller.ui = true;
 			break;
 		case 'd':
 		case LOPT_DEBUG:

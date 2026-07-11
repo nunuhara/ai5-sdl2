@@ -106,17 +106,15 @@ void gfx_whole_surface_dirty(unsigned surface)
 	gfx_dirty(surface, s->src.x, s->src.y, s->src.w, s->src.h);
 }
 
-static bool gfx_overlay_enabled = true;
-
-void gfx_overlay_enable(void)
+void gfx_overlay_enable(int n)
 {
-	gfx_overlay_enabled = true;
+	gfx.overlay[n].enabled = true;
 	gfx_screen_dirty();
 }
 
-void gfx_overlay_disable(void)
+void gfx_overlay_disable(int n)
 {
-	gfx_overlay_enabled = false;
+	gfx.overlay[n].enabled = false;
 	gfx_screen_dirty();
 }
 
@@ -157,15 +155,15 @@ static SDL_Texture *gfx_create_texture(unsigned w, unsigned h)
 	return t;
 }
 
-SDL_Surface *gfx_get_overlay(void)
+SDL_Surface *gfx_get_overlay(int n)
 {
-	if (gfx.overlay)
-		return gfx.overlay;
+	if (gfx.overlay[n].s)
+		return gfx.overlay[n].s;
 	SDL_Surface *s;
 	SDL_CTOR(SDL_CreateRGBSurfaceWithFormat, s, 0, gfx_view.w, gfx_view.h,
 			32, SDL_PIXELFORMAT_RGBA32);
 	SDL_CALL(SDL_FillRect, s, NULL, SDL_MapRGBA(s->format, 0, 0, 0, 0));
-	gfx.overlay = s;
+	gfx.overlay[n].s = s;
 	return s;
 }
 
@@ -328,8 +326,10 @@ static void gfx_fini(void)
 		}
 		SDL_FreeSurface(gfx.display);
 		SDL_FreeSurface(gfx.scaled_display);
-		if (gfx.overlay)
-			SDL_FreeSurface(gfx.overlay);
+		for (int i = 0; i < GFX_NR_OVERLAYS; i++) {
+			if (gfx.overlay[i].s)
+				SDL_FreeSurface(gfx.overlay[i].s);
+		}
 		SDL_DestroyTexture(gfx.texture);
 		SDL_DestroyRenderer(gfx.renderer);
 		SDL_DestroyWindow(gfx.window);
@@ -380,8 +380,12 @@ void gfx_update(void)
 	// XXX: only shuusaku uses this...
 	dst_r.y -= screen->src.y;
 	SDL_CALL(SDL_BlitSurface, screen->s, &screen->damaged, gfx.display, &dst_r);
-	if (gfx.overlay && gfx_overlay_enabled)
-		SDL_CALL(SDL_BlitSurface, gfx.overlay, &screen->damaged, gfx.display, &screen->damaged);
+	for (int i = 0; i < GFX_NR_OVERLAYS; i++) {
+		if (gfx.overlay[i].s && gfx.overlay[i].enabled) {
+			SDL_CALL(SDL_BlitSurface, gfx.overlay[i].s, &screen->damaged,
+					gfx.display, &screen->damaged);
+		}
+	}
 	if (screen->scaled) {
 		SDL_Rect src = screen->src;
 		SDL_Rect dst = screen->dst;

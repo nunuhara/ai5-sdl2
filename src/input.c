@@ -48,8 +48,11 @@ static enum input_event_type controller_mappings[SDL_CONTROLLER_BUTTON_MAX] = {
 	[SDL_CONTROLLER_BUTTON_PADDLE4] = INPUT_NONE,
 	[SDL_CONTROLLER_BUTTON_TOUCHPAD] = INPUT_NONE,
 };
+static bool controller_mapped_explicitly[SDL_CONTROLLER_BUTTON_MAX] = {0};
 static enum input_event_type controller_ltrigger_mapping = INPUT_NONE;
 static enum input_event_type controller_rtrigger_mapping = INPUT_NONE;
+static bool controller_ltrigger_mapped_explicitly = false;
+static bool controller_rtrigger_mapped_explicitly = false;
 
 static uint32_t key_down_timestamp[INPUT_NR_INPUTS] = {0};
 static bool key_down[INPUT_NR_INPUTS] = {0};
@@ -98,11 +101,44 @@ enum input_event_type parse_input_event_type(const char *str)
 		return INPUT_PAGE_UP;
 	if (!strcasecmp(str, "PAGEDOWN"))
 		return INPUT_PAGE_DOWN;
+	if (!strcasecmp(str, "L"))
+		return INPUT_L;
+	if (!strcasecmp(str, "S"))
+		return INPUT_S;
+	if (!strcasecmp(str, "TAB"))
+		return INPUT_TAB;
 	return INPUT_NONE;
 }
 
 void map_controller_button(enum SDL_GameControllerButton btn, enum input_event_type e)
 {
+	if (btn == INPUT_LTRIGGER_BUTTON) {
+		controller_ltrigger_mapping = e;
+		controller_ltrigger_mapped_explicitly = true;
+	} else if (btn == INPUT_RTRIGGER_BUTTON) {
+		controller_rtrigger_mapping = e;
+		controller_rtrigger_mapped_explicitly = true;
+	} else {
+		assert(btn >= 0 && btn < SDL_CONTROLLER_BUTTON_MAX);
+		controller_mappings[btn] = e;
+		controller_mapped_explicitly[btn] = true;
+	}
+}
+
+static bool controller_button_mapped_explicitly(SDL_GameControllerButton btn)
+{
+	if (btn == INPUT_LTRIGGER_BUTTON)
+		return controller_ltrigger_mapped_explicitly;
+	if (btn == INPUT_RTRIGGER_BUTTON)
+		return controller_rtrigger_mapped_explicitly;
+	assert(btn >= 0 && btn < SDL_CONTROLLER_BUTTON_MAX);
+	return controller_mapped_explicitly[btn];
+}
+
+void map_controller_button_implicitly(enum SDL_GameControllerButton btn, enum input_event_type e)
+{
+	if (controller_button_mapped_explicitly(btn))
+		return;
 	if (btn == INPUT_LTRIGGER_BUTTON) {
 		controller_ltrigger_mapping = e;
 	} else if (btn == INPUT_RTRIGGER_BUTTON) {
@@ -138,6 +174,9 @@ static enum input_event_type input_event_from_keycode(SDL_Keycode k)
 	case SDLK_BACKSPACE: return INPUT_BACKSPACE;
 	case SDLK_PAGEUP:    return INPUT_PAGE_UP;
 	case SDLK_PAGEDOWN:  return INPUT_PAGE_DOWN;
+	case SDLK_l:         return INPUT_L;
+	case SDLK_s:         return INPUT_S;
+	case SDLK_TAB:       return INPUT_TAB;
 	default:             return INPUT_NONE;
 	}
 }
@@ -224,8 +263,10 @@ static void controller_update_analog(void)
 		stick_y = controller_get_stick_axis(SDL_CONTROLLER_AXIS_LEFTY);
 	}
 	if (config.controller.right_stick == CONFIG_STICK_CURSOR) {
-		stick_x = max(stick_x, controller_get_stick_axis(SDL_CONTROLLER_AXIS_RIGHTX));
-		stick_y = max(stick_y, controller_get_stick_axis(SDL_CONTROLLER_AXIS_RIGHTY));
+		float this_x = controller_get_stick_axis(SDL_CONTROLLER_AXIS_RIGHTX);
+		float this_y = controller_get_stick_axis(SDL_CONTROLLER_AXIS_RIGHTY);
+		stick_x = clamp(-1.0f, 1.0f, stick_x + this_x);
+		stick_y = clamp(-1.0f, 1.0f, stick_y + this_y);
 	}
 
 	// get current cursor position
@@ -436,12 +477,16 @@ bool input_down(enum input_event_type type)
 	return false;
 }
 
-void input_wait_until_up(enum input_event_type type)
+void _input_wait_until_up(enum input_event_type type)
 {
-	if (!vm_flag_is_on(FLAG_WAIT_KEYUP))
-		return;
 	while (input_down(type)) {
 		vm_peek();
 		vm_delay(16);
 	}
+}
+void input_wait_until_up(enum input_event_type type)
+{
+	if (!vm_flag_is_on(FLAG_WAIT_KEYUP))
+		return;
+	_input_wait_until_up(type);
 }

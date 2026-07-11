@@ -121,6 +121,7 @@ struct config {
 		unsigned cursor_speed;
 		enum config_stick_behavior left_stick;
 		enum config_stick_behavior right_stick;
+		bool ui;
 	} controller;
 };
 

@@ -640,7 +640,7 @@ static void update_text(struct param_list *params)
 		return;
 
 	SDL_Surface *src = gfx_get_surface(7);
-	SDL_Surface *dst = gfx_get_overlay();
+	SDL_Surface *dst = gfx_get_overlay(0);
 	if (SDL_MUSTLOCK(src))
 		SDL_CALL(SDL_LockSurface, src);
 	if (SDL_MUSTLOCK(dst))
@@ -689,7 +689,7 @@ static void update_text(struct param_list *params)
 
 static void clear_text(struct param_list *params)
 {
-	SDL_Surface *dst = gfx_get_overlay();
+	SDL_Surface *dst = gfx_get_overlay(0);
 	SDL_Rect r = { 0, 336, 640, 128 };
 	SDL_CALL(SDL_FillRect, dst, &r, SDL_MapRGBA(dst->format, 0, 0, 0, 0));
 
@@ -1203,6 +1203,7 @@ static void util_get_cut(struct param_list *params)
 static void ai_shimai_init(void)
 {
 	gfx_text_set_colors(0, 0xffffff);
+	gfx_overlay_enable(0);
 }
 
 static bool ai_shimai_handle_event(SDL_Event *e)

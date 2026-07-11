@@ -1226,11 +1226,16 @@ void vm_peek(void)
 {
 	handle_events();
 	anim_execute();
-#ifdef USE_SDL_MIXER
 	audio_update();
-#endif
-	if (game->update)
+
+	// XXX: prevent re-entrant update calls
+	static bool in_game_update = false;
+	if (game->update && !in_game_update) {
+		in_game_update = true;
 		game->update();
+		in_game_update = false;
+	}
+
 	gfx_update();
 }
 

@@ -23,6 +23,7 @@
 struct cg;
 
 #define GFX_NR_SURFACES 15
+#define GFX_NR_OVERLAYS 4
 
 struct gfx_view { unsigned w, h; };
 extern struct gfx_view gfx_view;
@@ -35,8 +36,8 @@ void gfx_screen_dirty(void);
 void gfx_whole_surface_dirty(unsigned surface);
 bool gfx_is_dirty(unsigned surface);
 void gfx_clean(unsigned surface);
-void gfx_overlay_enable(void);
-void gfx_overlay_disable(void);
+void gfx_overlay_enable(int n);
+void gfx_overlay_disable(int n);
 unsigned gfx_current_surface(void);
 void gfx_set_screen_surface(unsigned i);
 
