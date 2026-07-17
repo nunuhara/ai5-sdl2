@@ -1,6 +1,28 @@
 Version History
 ---------------
 
+### 1.5
+
+* New supported game: Doukyuusei 2 (Windows CD version)
+* Added controller support (see [CONTROLLER.md](CONTROLLER.md))
+* Fixed multiple issues with popup menus in Isaku
+
+### 1.4.1
+
+Fix a crash in YU-NO when playing sound effects
+
+### 1.4
+
+* New supported game: Shuusaku
+
+### 1.3
+
+* New supported game: Kakyuusei (1998 CD version)
+
+### 1.2
+
+* New supported games: Isaku and Ai Shimai
+
 ### 1.1
 
 * Doukyuusei support
