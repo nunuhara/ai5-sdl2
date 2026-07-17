@@ -812,9 +812,6 @@ void popup_menu_run(struct menu *m, int x, int y)
 		while (SDL_PollEvent(&e)) {
 			if (e.type == SDL_WINDOWEVENT && e.window.windowID == gfx.window_id) {
 				handle_window_event(&e.window);
-				if (e.window.event == SDL_WINDOWEVENT_FOCUS_GAINED) {
-					popup_window_close_all(&w);
-				}
 			} else {
 				popup_window_handle_event(&w, &e);
 			}
