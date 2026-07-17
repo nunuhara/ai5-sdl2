@@ -497,6 +497,11 @@ static void popup_window_close(struct menu_window *m)
 		return;
 	if (m->child)
 		popup_window_free(m->child);
+	for (int i = 0; i < POPUP_MAX_DELAYED; i++) {
+		if (delayed_opens[i].t && delayed_opens[i].parent == m) {
+			delayed_opens[i].t = 0;
+		}
+	}
 	SDL_FreeSurface(m->surface);
 	SDL_DestroyTexture(m->texture);
 	SDL_DestroyRenderer(m->renderer);
@@ -518,6 +523,10 @@ static void popup_window_close_all(struct menu_window *m)
 		m = m->parent;
 	}
 	popup_window_close(m);
+	for (int i = 0; i < POPUP_MAX_DELAYED; i++) {
+		delayed_opens[i].t = 0;
+		delayed_closes[i].t = 0;
+	}
 }
 
 static void popup_window_update(struct menu_window *m)
@@ -600,12 +609,14 @@ static void popup_window_handle_event(struct menu_window *m, SDL_Event *e)
 			break;
 		case SDL_WINDOWEVENT_CLOSE:
 			popup_window_close_all(m);
-			break;
+			return;
 		}
 		break;
 	case SDL_MOUSEBUTTONDOWN:
-		if (!window_is_related(m, e->button.windowID))
+		if (!window_is_related(m, e->button.windowID)) {
 			popup_window_close_all(m);
+			return;
+		}
 		break;
 	case SDL_MOUSEBUTTONUP:
 		if (e->button.windowID != m->window_id)
@@ -617,11 +628,13 @@ static void popup_window_handle_event(struct menu_window *m, SDL_Event *e)
 			popup_window_close_all(m);
 			if (label->on_click)
 				label->on_click(label->data);
+			return;
 		} else if (m->selected->type == MENU_ENTRY_RADIO) {
 			struct menu_radio *radio = &m->selected->radio;
 			popup_window_close_all(m);
 			if (radio->on_click)
 				radio->on_click(radio->index, radio->data);
+			return;
 		}
 		break;
 	case SDL_MOUSEMOTION:
@@ -766,14 +779,21 @@ static void run_delayed_open(struct popup_delayed_open *d)
 {
 	if (d->parent->selected != d->entry)
 		return;
+	if (d->parent->child) {
+		// XXX: possible bug in SDL?
+		//      If this is called *after* popup_window_new, then the call to
+		//      SDL_DestroyWindow on the *old* window causes the texture of the *new*
+		//      window to be freed, leading to a use-after-free bug when the new
+		//      window is drawn.
+		//      I can't understand why this happens, but ensuring that the texture is
+		//      created after freeing the old window avoids the bug.
+		popup_window_free(d->parent->child);
+	}
 	int child_x = d->parent->x + d->parent->width - BORDER_SIZE;
 	int child_y = d->parent->y + d->entry->y - BORDER_SIZE;
 	struct menu_window *child = popup_window_new(d->menu, child_x, child_y);
 	child->opened = true;
 	child->parent = d->parent;
-	if (d->parent->child) {
-		popup_window_free(d->parent->child);
-	}
 	d->parent->child = child;
 }
 
