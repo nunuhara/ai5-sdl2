@@ -1,6 +1,6 @@
 name: Build
 
-on: [push, pull_request]
+on: [push, pull_request, workflow_dispatch]
 
 jobs:
   linux-build:
@@ -139,3 +139,33 @@ jobs:
         with:
           name: ai5
           path: ai5-sdl2-windows-x86_64-nightly.zip
+
+  nightly:
+    name: Update nightly release
+    permissions: write-all
+    needs: [windows-build, flatpak-build]
+    if: ${{ github.repository == 'nunuhara/ai5-sdl2' && github.ref == 'refs/heads/master' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v8
+        with:
+          merge-multiple: true
+
+      - name: Update nightly tag
+        uses: richardsimko/update-tag@v1
+        with:
+          tag_name: nightly
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release nightly
+        uses: softprops/action-gh-release@v3
+        with:
+          prerelease: true
+          name: nightly
+          tag_name: nightly
+          files: |
+            ai5-sdl2-windows-x86_64-nightly.zip
+            ai5-sdl2-linux-x86_64-nightly.flatpak
+          fail_on_unmatched_files: true
