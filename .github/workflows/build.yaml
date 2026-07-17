@@ -1,10 +1,35 @@
-name: Windows Build
+name: Build
 
 on: [push, pull_request]
 
 jobs:
-  build-windows:
+  linux-build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        build-type: ["debug", "release"]
+
+    name: Linux ${{ matrix.build-type }}
+    steps:
+    - name: Checkout Source
+      uses: actions/checkout@v6
+      with:
+        submodules: recursive
+
+    - name: Install Dependencies
+      run: |
+        sudo apt update
+        sudo apt install meson libpng-dev libsndfile-dev libsdl2-dev libsdl2-ttf-dev libavcodec-dev
+
+    - name: Build
+      run: |
+        mkdir -p out/${{ matrix.build-type }}
+        meson -Dbuildtype=${{ matrix.build-type }} out/${{ matrix.build-type }}
+        ninja -C out/${{ matrix.build-type }}
+
+  windows-build:
     runs-on: windows-latest
+    name: Windows
 
     defaults:
       run:
@@ -12,7 +37,7 @@ jobs:
 
     steps:
       - name: Checkout source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -26,6 +51,7 @@ jobs:
             nasm
             diffutils
             vim
+            zip
             mingw-w64-x86_64-gcc
             mingw-w64-x86_64-meson
             mingw-w64-x86_64-pkg-config
@@ -34,9 +60,17 @@ jobs:
             mingw-w64-x86_64-libpng
             mingw-w64-x86_64-libsndfile
 
+      - name: Cache FFmpeg
+        id: cache-ffmpeg
+        uses: actions/cache@v5
+        with:
+          path: FFmpeg/destdir
+          key: ${{ runner.os }}-ffmpeg-n7.1.2
+
       - name: Build FFmpeg
+        if: ${{ steps.cache-ffmpeg.outputs.cache-hit != 'true' }}
         run: |
-          git clone --depth 1 --branch n7.0.1 https://github.com/FFmpeg/FFmpeg.git
+          git clone --depth 1 --branch n7.1.2 https://github.com/FFmpeg/FFmpeg.git
           cd FFmpeg
           ./configure --disable-everything \
             --enable-decoder=cinepak \
@@ -53,10 +87,15 @@ jobs:
             --extra-cflags=--static \
             --prefix=/mingw64
           make -j$(nproc)
-          make install
+          mkdir destdir
+          DESTDIR=destdir make install
           cd ..
 
-      - name: Configure and Build Project
+      - name: Install FFmpeg
+        run: |
+          cp -a FFmpeg/destdir/. /
+
+      - name: Build
         run: |
           mkdir debug
           meson debug -Dbuildtype=debug
@@ -76,10 +115,11 @@ jobs:
         run: |
           cp release/ai5.exe LICENSE README.md dist/
           cp debug/ai5.exe dist/ai5-debug.exe
+          mv dist ai5-sdl2
+          zip -r -9 ai5-sdl2-windows-x86_64-nightly.zip ai5-sdl2
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ai5
-          path: dist
-          compression-level: 9
+          path: ai5-sdl2-windows-x86_64-nightly.zip

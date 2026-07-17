@@ -110,7 +110,7 @@ enum input_event_type parse_input_event_type(const char *str)
 	return INPUT_NONE;
 }
 
-void map_controller_button(enum SDL_GameControllerButton btn, enum input_event_type e)
+void map_controller_button(int btn, enum input_event_type e)
 {
 	if (btn == INPUT_LTRIGGER_BUTTON) {
 		controller_ltrigger_mapping = e;
@@ -135,7 +135,7 @@ static bool controller_button_mapped_explicitly(SDL_GameControllerButton btn)
 	return controller_mapped_explicitly[btn];
 }
 
-void map_controller_button_implicitly(enum SDL_GameControllerButton btn, enum input_event_type e)
+void map_controller_button_implicitly(int btn, enum input_event_type e)
 {
 	if (controller_button_mapped_explicitly(btn))
 		return;

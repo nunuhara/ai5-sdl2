@@ -40,7 +40,6 @@ enum input_event_type {
 };
 #define INPUT_NR_INPUTS (INPUT_TAB+1)
 
-enum SDL_GameControllerButton;
 #define INPUT_LTRIGGER_BUTTON -100
 #define INPUT_RTRIGGER_BUTTON -101
 
@@ -50,8 +49,8 @@ bool input_down(enum input_event_type type);
 void _input_wait_until_up(enum input_event_type type);
 void input_wait_until_up(enum input_event_type type);
 enum input_event_type parse_input_event_type(const char *str);
-void map_controller_button(enum SDL_GameControllerButton btn, enum input_event_type e);
-void map_controller_button_implicitly(enum SDL_GameControllerButton btn, enum input_event_type e);
+void map_controller_button(int btn, enum input_event_type e);
+void map_controller_button_implicitly(int btn, enum input_event_type e);
 
 extern uint32_t cursor_swap_event;
 
