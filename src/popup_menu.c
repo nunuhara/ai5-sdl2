@@ -23,6 +23,8 @@
 #include "popup_menu.h"
 #include "vm.h"
 
+static bool wayland = false;
+
 enum menu_entry_type {
 	MENU_ENTRY_LABEL,
 	MENU_ENTRY_RADIO,
@@ -790,7 +792,23 @@ static void run_delayed_open(struct popup_delayed_open *d)
 		popup_window_free(d->parent->child);
 	}
 	int child_x = d->parent->x + d->parent->width - BORDER_SIZE;
-	int child_y = d->parent->y + d->entry->y - BORDER_SIZE;
+	int child_y;
+	if (wayland) {
+		child_y = d->entry->y - BORDER_SIZE;
+		// XXX: wayland window position is relative to whichever window currently has
+		//      mouse focus. This is of course very stupid, but we wouldn't want
+		//      hackerman placing his windows anywhere he wants...
+		SDL_Window *focus = SDL_GetMouseFocus();
+		if (focus && SDL_GetWindowID(focus) == gfx.window_id) {
+			struct menu_window *m = d->parent;
+			while (m) {
+				child_y += m->y;
+				m = m->parent;
+			}
+		}
+	} else {
+		child_y = d->parent->y + d->entry->y - BORDER_SIZE;
+	}
 	struct menu_window *child = popup_window_new(d->menu, child_x, child_y);
 	child->opened = true;
 	child->parent = d->parent;
@@ -804,6 +822,8 @@ static void run_delayed_close(struct popup_delayed_close *d)
 
 void popup_menu_run(struct menu *m, int x, int y)
 {
+	wayland = !strcmp(SDL_GetCurrentVideoDriver(), "wayland");
+
 	struct menu_window w;
 	popup_window_init(&w, m, x, y);
 
