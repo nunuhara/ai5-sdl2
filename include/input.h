@@ -45,6 +45,7 @@ enum input_event_type {
 
 void input_init(void);
 void handle_events(void);
+void input_key_event(enum input_event_type type, bool down);
 bool input_down(enum input_event_type type);
 void _input_wait_until_up(enum input_event_type type);
 void input_wait_until_up(enum input_event_type type);

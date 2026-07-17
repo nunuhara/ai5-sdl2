@@ -133,7 +133,16 @@ static void overlay_select_item(int i)
 
 void isaku_item_window_tick(void)
 {
-	if (!item_window.opened || !item_window.use_overlay)
+	if (!item_window.opened)
+		return;
+
+	if (input_down(INPUT_SPACE)) {
+		_input_wait_until_up(INPUT_SPACE);
+		isaku_item_window_toggle();
+		return;
+	}
+
+	if (!item_window.use_overlay)
 		return;
 
 	if (input_down(INPUT_LEFT)) {
@@ -191,6 +200,14 @@ static bool item_window_event(SDL_Event *e)
 			return false;
 		handle_button_event(&e->button);
 		return true;
+	case SDL_KEYUP:
+	case SDL_KEYDOWN:
+		if (e->window.windowID != item_window.window_id)
+			return false;
+		// handle space only so that window can be closed when focused
+		if (e->key.keysym.sym == SDLK_SPACE)
+			input_key_event(INPUT_SPACE, e->type == SDL_KEYDOWN);
+		break;
 	}
 	return false;
 }

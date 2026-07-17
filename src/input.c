@@ -188,14 +188,20 @@ static enum input_event_type input_event_from_controller_button(SDL_GameControll
 	return controller_mappings[b];
 }
 
-static void key_event(SDL_KeyboardEvent *ev, bool down)
+void input_key_event(enum input_event_type type, bool down)
 {
-	enum input_event_type type = input_event_from_keycode(ev->keysym.sym);
 	if (type == INPUT_NONE)
 		return;
+	assert(type >= 0 && type < INPUT_NR_INPUTS);
 	key_down[type] = down;
 	if (down)
 		key_down_timestamp[type] = SDL_GetTicks();
+}
+
+static void key_event(SDL_KeyboardEvent *ev, bool down)
+{
+	enum input_event_type type = input_event_from_keycode(ev->keysym.sym);
+	input_key_event(type, down);
 }
 
 static enum input_event_type input_event_from_button(int button)
